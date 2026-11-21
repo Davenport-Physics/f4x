@@ -1,0 +1,16 @@
+[package]
+name = "f4x-codegen"
+description = "Host tool: clang dumps (JSON AST, MS-ABI record and vtable layouts) of CommonLibF4, the input of the binding generator"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+# `unbounded_depth`: clang's JSON AST nests deeper than serde_json's default limit of 128.
+serde_json = { version = "1", features = ["unbounded_depth"] }
+sha2 = "0.10"
+
+[lints]
+workspace = true
