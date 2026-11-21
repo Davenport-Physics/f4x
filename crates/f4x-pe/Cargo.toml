@@ -1,0 +1,11 @@
+[package]
+name = "f4x-pe"
+description = "PE32+ image reading and MSVC RTTI discovery, on disk or in memory"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true
