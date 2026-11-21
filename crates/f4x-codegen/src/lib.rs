@@ -6,10 +6,12 @@
 //! - [`records`]: parser for `-fdump-record-layouts` output.
 //! - [`ast`]: streaming JSON AST reader, location tracking and analyses.
 //! - [`dump`]: the `dump` subcommand that ties them together.
+//! - [`tables`]: per-build offset tables for `f4x-engine-sys`.
 
 pub mod ast;
 pub mod clang;
 pub mod dump;
+pub mod tables;
 pub mod records;
 pub mod thirdparty;
 

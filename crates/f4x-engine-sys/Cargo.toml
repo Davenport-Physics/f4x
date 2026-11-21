@@ -1,0 +1,11 @@
+[package]
+name = "f4x-engine-sys"
+description = "Generated per-build engine offset tables (layouts, vtable slots, RTTI names, form types)"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

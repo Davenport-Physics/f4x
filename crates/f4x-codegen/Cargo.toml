@@ -11,6 +11,7 @@ serde = { version = "1", features = ["derive"] }
 # `unbounded_depth`: clang's JSON AST nests deeper than serde_json's default limit of 128.
 serde_json = { version = "1", features = ["unbounded_depth"] }
 sha2 = "0.10"
+f4x-pe = { path = "../f4x-pe" }
 
 [lints]
 workspace = true
