@@ -42,7 +42,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     env.check()?;
     env.ensure_prefix()?;
     if game_running() {
-        return Err("Fallout4.exe is already running; close it first".into());
+        eprintln!("note: a Fallout4.exe is already running; f4x sessions queue on the launch lock");
     }
     let root = workspace_root();
     if !no_build {
@@ -87,6 +87,7 @@ fn launch_once(env: &GameEnv, root: &Path, out: &Path, headless: bool, run: u32)
         "session": session.display().to_string(),
     });
 
+    let lock = launch_lock().ok();
     let child = match spawn_game(env, root, out, &session, headless) {
         Ok(child) => child,
         Err(error) => {
@@ -94,7 +95,7 @@ fn launch_once(env: &GameEnv, root: &Path, out: &Path, headless: bool, run: u32)
             return result;
         }
     };
-    let mut guard = GameGuard { child: Some(child), session_marker: wine_path(&session) };
+    let mut guard = GameGuard { child: Some(child), _lock: lock, session_marker: wine_path(&session) };
 
     match drive(&session, &mut guard, &mut result) {
         Ok(()) => {}
@@ -132,6 +133,19 @@ pub struct Launch<'a> {
     pub headless: bool,
     pub extra_env: Vec<(String, String)>,
     pub workspace: PathBuf,
+}
+
+/// Serialises game launches across processes (agents may run tasks in parallel): the
+/// returned file holds an exclusive lock until dropped.
+pub fn launch_lock() -> Result<std::fs::File, String> {
+    let path = crate::profile::data_home().join("launch.lock");
+    let _ = std::fs::create_dir_all(path.parent().unwrap());
+    let file = std::fs::OpenOptions::new().create(true).truncate(false).write(true).open(&path).map_err(|e| e.to_string())?;
+    if file.try_lock().is_err() {
+        eprintln!("waiting for another f4x game session to finish ({})...", path.display());
+        file.lock().map_err(|e| e.to_string())?;
+    }
+    Ok(file)
 }
 
 pub fn spawn(launch: &Launch<'_>) -> Result<Child, String> {
@@ -292,13 +306,15 @@ fn session_log_contains(session: &Path, needle: &str) -> bool {
 /// Owns the launched process group and makes sure nothing survives the run.
 pub struct GameGuard {
     child: Option<Child>,
+    /// Held for the whole session; see [`launch_lock`].
+    _lock: Option<std::fs::File>,
     /// Our `F4X_SESSION_DIR` value: processes carrying it in their environment are ours.
     session_marker: String,
 }
 
 impl GameGuard {
-    pub fn new(child: Child, session: &Path) -> Self {
-        GameGuard { child: Some(child), session_marker: wine_path(session) }
+    pub fn new(child: Child, session: &Path, lock: std::fs::File) -> Self {
+        GameGuard { child: Some(child), _lock: Some(lock), session_marker: wine_path(session) }
     }
 
     /// Wait up to `timeout` for the launched process tree to exit on its own.

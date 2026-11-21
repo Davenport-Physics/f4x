@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use crate::env::GameEnv;
 use crate::profile::{Host, Profile};
-use crate::spike_launch::{GameGuard, Launch, build_windows, new_session, spawn};
+use crate::spike_launch::{GameGuard, Launch, build_windows, launch_lock, new_session, spawn};
 use crate::workspace_root;
 
 pub fn run(args: &[String]) -> Result<(), String> {
@@ -40,6 +40,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let env = GameEnv { prefix: profile.prefix(), ..GameEnv::from_env() };
     env.ensure_prefix()?;
     let session = new_session(&root, &format!("baseline-{}", host.name()));
+    let lock = launch_lock()?;
     let child = spawn(&Launch {
         env: &env,
         program: profile.game_dir().join("f4se_loader.exe"),
@@ -50,7 +51,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
         extra_env: vec![("F4X_PROBE_EXIT_AFTER_S".into(), "8".into())],
         workspace: root.clone(),
     })?;
-    let mut guard = GameGuard::new(child, &session);
+    let mut guard = GameGuard::new(child, &session, lock);
     let exited = guard.wait_exit(Duration::from_secs(150));
     guard.shutdown();
 
