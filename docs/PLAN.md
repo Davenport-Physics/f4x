@@ -1,5 +1,30 @@
 # f4x: an MIT, Rust script extender for Fallout 4, built for agentic coding
 
+## Status (2026-11-21)
+
+**Phase 0 (spikes S1–S6): done.** Reports are in `docs/spikes/`.
+
+**Phase 1 (agentic loop): done.** Exit criteria met:
+- `f4x test` passes 3/3 headless on host f4x and on host f4se;
+- a deliberate crash gives a symbolized fatal report, and the session is marked as crashed;
+- the live MCP smoke test passes.
+
+**Phase 2 (type DB + core engine): in progress.**
+- Done:
+  - generated offset tables for 937 classes (`f4x-engine-sys`), verified against the exe (400 of 411 vtable lengths match);
+  - `f4x-engine` forms, references, data handler and player, found through RTTI and structural recipes, with no function addresses;
+  - `engine.*` RPC.
+- Next:
+  - recipe engine plus non-virtual function addresses (needs the user's Address Library bin as a hint);
+  - typedb/provenance for found globals;
+  - console command execution;
+  - event sinks.
+
+Plan deviations that came out of the spikes:
+- Tests run in dedicated Proton prefixes (`~/.local/share/f4x`), never the user's prefix.
+- The loader passes the DLL path through a shared section.
+- Engine objects without RTTI are found by structural recipes.
+
 ## Context
 
 F4SE has no usable license ("no redistribution or modified versions", and plugins must publish source), so we can't build on its code. We want a replacement that:

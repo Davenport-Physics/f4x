@@ -49,6 +49,47 @@ Rust engine bindings call engine functions and structures directly. They **never
 
 Crates that only make sense on Windows compile to empty stubs on other targets, so `cargo test --workspace` works on the Linux host.
 
+## Running the game (agents)
+
+**Build the Windows side:**
+
+```sh
+cargo xwin build --release --target x86_64-pc-windows-msvc -p f4x-loader -p f4x-runtime -p f4x-agent-f4se -p f4x-smoke-tests
+cargo build -p f4x-cli                       # host CLI: target/debug/f4x
+```
+
+**In-game tests.** Each run launches the game headless, runs the tests, quits, and exits 0 only if all of them pass:
+
+```sh
+f4x test --headless --plugin target/x86_64-pc-windows-msvc/release/f4x_smoke_tests.dll --skip expected_
+f4x test --host f4se ...                     # same tests under real F4SE (differential)
+```
+
+**Interactive session.** Always pass `--session`: other agents may run sessions too.
+
+```sh
+S=$(f4x launch --headless --main-loop --test-mode | tail -1)
+f4x rpc --session "$S" state
+f4x rpc --session "$S" engine.player
+f4x screenshot --session "$S" -o shot.png
+f4x quit --session "$S"
+```
+
+**Engine introspection** (`engine.*`, read-only):
+- `engine.player`, `engine.form {id}`, `engine.files`, `engine.forms.count`
+- `engine.forms.of_type {type, limit}`, `engine.cell.refs {limit}`, `engine.singletons`
+
+**MCP:** `.mcp.json` registers the `f4x` server (`tools/f4x-mcp.sh`). Smoke test it with `python3 -I tools/mcp_smoke.py tools/f4x-mcp.sh`.
+
+**Crashes:** `f4x status --session "$S"` prints symbolized crash reports. The files are `crash-*.json` in the session directory.
+
+**Rules for game sessions:**
+- Launches queue on `~/.local/share/f4x/launch.lock`.
+- f4x only uses its own prefixes and profiles under `~/.local/share/f4x`, never the user's Heroic prefix.
+- Every test launch must be muted (the f4x prefixes' inis do this).
+- Engine reads happen on the main thread (`f4x_agent::pump::on_main`).
+- Never call virtuals through unchecked pointers read from engine fields: use `Form::checked`.
+
 ## Commands
 
 ```sh
