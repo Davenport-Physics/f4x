@@ -134,6 +134,13 @@ impl<'a> PeFile<'a> {
         self.headers.timestamp
     }
 
+    /// `(rva, size)` of the import address table (data directory 12): the loader fills it
+    /// in, so it always differs from the file at run time.
+    #[must_use]
+    pub fn iat_range(&self) -> Option<(u32, u32)> {
+        self.directory(12)
+    }
+
     fn directory(&self, index: usize) -> Option<(u32, u32)> {
         self.headers.directories.get(index).copied().filter(|&(rva, size)| rva != 0 && size != 0)
     }

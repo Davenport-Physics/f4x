@@ -55,7 +55,7 @@ mod windows {
         PAGE_READWRITE, UnmapViewOfFile, VirtualAllocEx, VirtualFreeEx,
     };
     use windows_sys::Win32::System::Threading::{
-        CREATE_SUSPENDED, CreateProcessW, CreateRemoteThread, GetExitCodeProcess, GetExitCodeThread, INFINITE,
+        CREATE_SUSPENDED, CreateEventW, CreateProcessW, CreateRemoteThread, GetExitCodeProcess, GetExitCodeThread, INFINITE,
         PROCESS_INFORMATION, ResumeThread, STARTUPINFOW, TerminateProcess, WaitForSingleObject,
     };
 
@@ -135,6 +135,14 @@ mod windows {
             command_line.push(' ');
             command_line.push_str(&quote(arg));
         }
+        // The runtime loads F4SE plugins on its own thread before the game runs; it signals
+        // this event when done, and we only resume the game's main thread after that.
+        let event_name = format!("Local\\f4x-init-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0));
+        // SAFETY: setting our own environment before creating the child (single-threaded).
+        unsafe { std::env::set_var("F4X_INIT_EVENT", &event_name) };
+        let event_wide = wide(OsStr::new(&event_name));
+        // SAFETY: creating a named, manual-reset, initially unsignalled event.
+        let init_event = Handle(unsafe { CreateEventW(ptr::null(), 1, 0, event_wide.as_ptr()) });
         let mut command_line = wide(OsStr::new(&command_line));
         let exe_wide = wide(exe_path.as_os_str());
         let dir_wide = wide(options.game_dir.as_os_str());
@@ -168,6 +176,14 @@ mod windows {
                 return Err(message);
             }
             crate::log(&format!("injected {}", dll.display()));
+            if !init_event.0.is_null() {
+                let waited = WaitForSingleObject(init_event.0, 180_000);
+                crate::log(if waited == WAIT_OBJECT_0 {
+                    "runtime finished loading plugins"
+                } else {
+                    "timed out waiting for the runtime's init; resuming anyway"
+                });
+            }
 
             if ResumeThread(thread.0) == u32::MAX {
                 return Err(format!("ResumeThread failed: error {}", GetLastError()));

@@ -112,6 +112,13 @@ pub fn active_menus() -> Vec<String> {
 // ---- native catalog ----
 
 static REAL_BIND: AtomicUsize = AtomicUsize::new(0);
+/// The Papyrus VM (`IVirtualMachine*`), as seen by the first `BindNativeMethod` call.
+static VM: AtomicUsize = AtomicUsize::new(0);
+
+/// The Papyrus VM, once the engine has started binding natives into it.
+pub fn virtual_machine() -> Option<usize> {
+    Some(VM.load(Relaxed)).filter(|&v| v != 0)
+}
 static NATIVES: Mutex<Vec<Value>> = Mutex::new(Vec::new());
 
 type BindFn = unsafe extern "C" fn(*mut c_void, *mut c_void) -> bool;
@@ -130,6 +137,7 @@ fn install_catalog(index: &RttiIndex, base: usize) {
 }
 
 unsafe extern "C" fn bind_hook(vm: *mut c_void, function: *mut c_void) -> bool {
+    let _ = VM.compare_exchange(0, vm as usize, Relaxed, Relaxed);
     let _ = std::panic::catch_unwind(|| {
         // SAFETY: the VM passes a live IFunction.
         if let Some(record) = unsafe { describe_native(function) }

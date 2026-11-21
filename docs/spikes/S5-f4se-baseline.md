@@ -75,3 +75,8 @@ The probe only observes F4SE from the plugin side: values passed, callbacks, thr
 - `GetPluginInfo` after load.
 - Multiple-plugin handle numbering and load order.
 - `Dispatch` between plugins.
+
+## More black-box facts from the user's mod setup (profile `user-mods-f4se`)
+- Handles count from 1 in load order. F4SE logs "registering plugin listener for F4SE at 3 of 4" for the third plugin, with four handles in total.
+- Per-plugin branch-pool use is logged, e.g. BackportedBA2Support: 32 bytes.
+- A listener registered with a **null sender** never receives F4SE's own messages (probe `message_any` stayed silent).

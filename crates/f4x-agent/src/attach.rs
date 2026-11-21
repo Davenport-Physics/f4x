@@ -127,6 +127,7 @@ fn register_windows_methods() {
         let shot = d3d::screenshot(&p, Duration::from_secs(10))?;
         Ok(serde_json::to_value(shot).unwrap_or_default())
     });
+    server::register("patches", |_, _| crate::patches::map().map_err(|e| f4x_proto::RpcError::new(f4x_proto::code::INTERNAL, e)));
     server::register("catalog.natives", |_, _| {
         let session = session::get().ok_or_else(|| f4x_proto::RpcError::new(f4x_proto::code::INTERNAL, "no session"))?;
         let text = observe::natives_jsonl();

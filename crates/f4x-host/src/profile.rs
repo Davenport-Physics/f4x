@@ -1,9 +1,11 @@
 //! Test profiles: an isolated game directory and Proton prefix per host.
 //!
 //! `~/.local/share/f4x/profiles/<name>/`
-//! - `game/`: a symlink farm over the real install with only vanilla data
-//!   (`*.esm`, `*.ba2`, `*.cdx`, `*.csg`, `Video/`) plus the profile's own
-//!   `Data/F4SE/Plugins` and `Data/Scripts`. The user's mods and loose files never leak in.
+//! - `game/`: a symlink farm over the real install. Data mode `vanilla` (default) links
+//!   only official data (`Fallout4*`, `DLC*`, `cc*` masters/archives, `Video/`); mode
+//!   `install` mirrors everything the user has deployed (mods, loose files, their F4SE
+//!   plugins) and copies their `plugins.txt`. Either way the profile owns its own
+//!   `Data/F4SE/Plugins` and `Data/Scripts` directories (entries inside are links).
 //! - `prefix/`: its own Proton prefix (own wineserver, own My Games: inis, saves, logs).
 //! - `profile.json`: `{ "host": "f4se" | "f4x" }`.
 //! - `plugin-links.json`: the plugin symlinks f4x put into `Data/F4SE/Plugins`
@@ -52,12 +54,45 @@ impl std::fmt::Display for Host {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum DataMode {
+    /// Official data only.
+    #[default]
+    Vanilla,
+    /// Everything deployed in the real install, plus the user's `plugins.txt`.
+    Install,
+}
+
+impl DataMode {
+    pub fn parse(s: &str) -> Result<DataMode, String> {
+        match s {
+            "vanilla" => Ok(DataMode::Vanilla),
+            "install" => Ok(DataMode::Install),
+            _ => Err(format!("unknown data mode {s:?} (vanilla|install)")),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Profile {
     pub name: String,
     pub root: PathBuf,
     pub host: Host,
+    pub data: DataMode,
 }
+
+/// Official game data: masters/archives of the base game, DLC and Creation Club.
+fn is_official(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    if lower == "video" {
+        return true;
+    }
+    let official = lower.starts_with("fallout4") || lower.starts_with("dlc") || lower.starts_with("cc");
+    official && [".esm", ".esl", ".ba2", ".cdx", ".csg"].iter().any(|ext| lower.ends_with(ext))
+}
+
+const PLUGINS_TXT: &str = "drive_c/users/steamuser/AppData/Local/Fallout4/plugins.txt";
 
 /// F4SE 0.6.23 binaries + scripts, extracted (without the bundled source) from the
 /// sha-pinned archive by `cache_f4se`.
@@ -87,7 +122,8 @@ impl Profile {
             .map_err(|_| format!("profile {name:?} does not exist; run `cargo xtask profile create {name} --host <f4se|f4x>`"))?;
         let value: serde_json::Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
         let host = Host::parse(value["host"].as_str().unwrap_or(""))?;
-        Ok(Profile { name: name.to_owned(), root, host })
+        let data = DataMode::parse(value["data"].as_str().unwrap_or("vanilla"))?;
+        Ok(Profile { name: name.to_owned(), root, host, data })
     }
 
     /// Load `name`, creating it if it does not exist. Fails if it exists for another host.
@@ -111,8 +147,13 @@ impl Profile {
         self.game_dir().join("Data/F4SE/Plugins")
     }
 
-    /// Create (or refresh) a profile.
+    /// Create (or refresh) a profile with official data only.
     pub fn create(name: &str, host: Host, env: &GameEnv) -> Result<Profile, String> {
+        Profile::create_with(name, host, DataMode::Vanilla, env)
+    }
+
+    /// Create (or refresh) a profile.
+    pub fn create_with(name: &str, host: Host, data_mode: DataMode, env: &GameEnv) -> Result<Profile, String> {
         let root = Profile::path(name);
         let game = root.join("game");
         let data = game.join("Data");
@@ -123,13 +164,38 @@ impl Profile {
             lower == "data" || lower.starts_with("f4se_") || lower.starts_with("f4x_")
         };
         link_entries(&env.game_dir, &game, |n| !skip_root(n))?;
-        let vanilla = |n: &str| {
-            let lower = n.to_ascii_lowercase();
-            [".esm", ".ba2", ".cdx", ".csg"].iter().any(|ext| lower.ends_with(ext)) || lower == "video"
+        let real_data = env.game_dir.join("Data");
+        let keep = |n: &str| match data_mode {
+            DataMode::Vanilla => is_official(n),
+            DataMode::Install => !n.eq_ignore_ascii_case("F4SE") && !n.eq_ignore_ascii_case("Scripts"),
         };
-        link_entries(&env.game_dir.join("Data"), &data, vanilla)?;
+        unlink_entries(&data, |n| !keep(n) && !n.eq_ignore_ascii_case("F4SE") && !n.eq_ignore_ascii_case("Scripts"))?;
+        link_entries(&real_data, &data, keep)?;
         fs::create_dir_all(data.join("F4SE/Plugins")).map_err(|e| e.to_string())?;
         fs::create_dir_all(data.join("Scripts")).map_err(|e| e.to_string())?;
+        if data_mode == DataMode::Install {
+            // The user's loose scripts (F4SE's and mods') and F4SE plugins + their files.
+            let real_scripts = find_child(&real_data, "Scripts");
+            if let Some(scripts) = &real_scripts {
+                link_entries(scripts, &data.join("Scripts"), |_| true)?;
+            }
+            if let Some(f4se) = find_child(&real_data, "F4SE") {
+                link_entries(&f4se, &data.join("F4SE"), |n| !n.eq_ignore_ascii_case("Plugins"))?;
+                if let Some(plugins) = find_child(&f4se, "Plugins") {
+                    link_entries(&plugins, &data.join("F4SE/Plugins"), |_| true)?;
+                }
+            }
+            // The user's load order, into the profile's own prefix.
+            let from = env.source_prefix.join(PLUGINS_TXT);
+            let to = root.join("prefix/pfx").join(PLUGINS_TXT);
+            if from.is_file() {
+                fs::create_dir_all(to.parent().unwrap()).map_err(|e| e.to_string())?;
+                fs::copy(&from, &to).map_err(|e| format!("copying {}: {e}", from.display()))?;
+            }
+        } else {
+            unlink_entries(&data.join("Scripts"), |_| true)?;
+            unlink_entries(&data.join("F4SE/Plugins"), |n| !n.to_ascii_lowercase().starts_with("f4x_"))?;
+        }
 
         if host == Host::F4se {
             let cache = cache_f4se()?;
@@ -144,9 +210,14 @@ impl Profile {
 
         let profile_env = env.with_prefix(root.join("prefix"));
         profile_env.ensure_prefix()?;
-        fs::write(root.join("profile.json"), json!({"host": host.name()}).to_string()).map_err(|e| e.to_string())?;
-        eprintln!("profile {name} ({}) at {}", host.name(), root.display());
-        Ok(Profile { name: name.to_owned(), root, host })
+        let data_name = match data_mode {
+            DataMode::Vanilla => "vanilla",
+            DataMode::Install => "install",
+        };
+        fs::write(root.join("profile.json"), json!({"host": host.name(), "data": data_name}).to_string())
+            .map_err(|e| e.to_string())?;
+        eprintln!("profile {name} ({}, {data_name} data) at {}", host.name(), root.display());
+        Ok(Profile { name: name.to_owned(), root, host, data: data_mode })
     }
 
     /// Make `dlls` the only f4x-managed plugins in `Data/F4SE/Plugins`: remove every
@@ -200,6 +271,23 @@ impl Profile {
 struct PluginLinks {
     /// File names inside `Data/F4SE/Plugins`.
     links: Vec<String>,
+}
+
+/// The entry of `dir` named `name`, case-insensitively.
+fn find_child(dir: &Path, name: &str) -> Option<PathBuf> {
+    fs::read_dir(dir).ok()?.flatten().find(|e| e.file_name().to_string_lossy().eq_ignore_ascii_case(name)).map(|e| e.path())
+}
+
+/// Remove symlinks in `dir` whose names match `remove` (real files are never touched).
+fn unlink_entries(dir: &Path, remove: impl Fn(&str) -> bool) -> Result<(), String> {
+    let Ok(entries) = fs::read_dir(dir) else { return Ok(()) };
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        if remove(&name.to_string_lossy()) && fs::symlink_metadata(entry.path()).is_ok_and(|m| m.file_type().is_symlink()) {
+            fs::remove_file(entry.path()).map_err(|e| format!("removing {}: {e}", entry.path().display()))?;
+        }
+    }
+    Ok(())
 }
 
 /// Symlink every entry of `from` accepted by `keep` into `to` (replacing stale links).
@@ -273,7 +361,7 @@ mod tests {
     #[test]
     fn set_plugins_replaces_only_its_own_links() {
         let root = crate::test_dir("profile");
-        let profile = Profile { name: "t".into(), root: root.clone(), host: Host::F4se };
+        let profile = Profile { name: "t".into(), root: root.clone(), host: Host::F4se, data: DataMode::Vanilla };
         let plugins = profile.plugins_dir();
         fs::create_dir_all(&plugins).unwrap();
         let build = root.join("build");

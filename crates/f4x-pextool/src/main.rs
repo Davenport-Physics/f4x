@@ -9,6 +9,7 @@
 
 mod dump;
 mod roundtrip;
+mod usage;
 
 use std::io::Write as _;
 use std::path::{Component, Path, PathBuf};
@@ -41,6 +42,7 @@ fn main() -> ExitCode {
         ["ba2", "extract", archive, pattern, outdir] => ba2_extract(archive, pattern, outdir),
         ["pex", "dump", rest @ ..] => dump::run(rest),
         ["pex", "roundtrip", rest @ ..] => roundtrip::run(rest),
+        ["pex", "f4se-usage", rest @ ..] => usage::run(rest),
         ["-h" | "--help" | "help"] => {
             print!("{USAGE}");
             return ExitCode::SUCCESS;

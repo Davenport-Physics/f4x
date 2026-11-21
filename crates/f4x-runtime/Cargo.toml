@@ -12,6 +12,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 f4x-abi = { path = "../f4x-abi" }
 f4x-agent = { path = "../f4x-agent" }
+f4x-engine = { path = "../f4x-engine" }
 f4x-proto = { path = "../f4x-proto" }
 log = "0.4"
 
@@ -19,7 +20,9 @@ log = "0.4"
 windows-sys = { workspace = true, features = [
     "Win32_Foundation",
     "Win32_System_LibraryLoader",
+    "Win32_System_Memory",
     "Win32_System_SystemServices",
+    "Win32_System_Threading",
 ] }
 
 [lints]
