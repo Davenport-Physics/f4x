@@ -2,7 +2,6 @@
 
 mod baseline;
 mod catalog_check;
-mod env;
 mod lint;
 mod profile;
 mod spike_launch;
@@ -14,9 +13,9 @@ usage: cargo xtask <task>
 
 tasks:
   provenance-lint   reject banned F4SE-source citations and unsourced provenance entries
-  baseline          [--host f4se] [--headless]  S5: record what the host does to a probe plugin
+  baseline          [--host f4se] [--profile NAME] [--headless] [--out FILE]  S5: record what the host does to a probe plugin
   catalog-check     [--natives FILE]  S3: check a native catalog against Fallout4.exe and the vanilla .pex
-  profile           create NAME --host f4se|f4x   isolated game dir + prefix for a host
+  profile           create NAME --host f4se|f4x [--plugin DLL]...   isolated game dir + prefix for a host
   spike-launch      [--headless] [--runs N] [--no-build]  launch the game with the runtime injected (S1)
 ";
 

@@ -10,6 +10,7 @@ serde_json = "1"
 f4x-pe = { path = "../crates/f4x-pe" }
 f4x-ba2 = { path = "../crates/f4x-ba2" }
 f4x-pex = { path = "../crates/f4x-pex" }
+f4x-host = { path = "../crates/f4x-host" }
 
 [lints]
 workspace = true

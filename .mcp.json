@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "f4x": {
+      "type": "stdio",
+      "command": "sh",
+      "args": ["-c", "exec \"$(git rev-parse --show-toplevel)/tools/f4x-mcp.sh\""]
+    }
+  }
+}

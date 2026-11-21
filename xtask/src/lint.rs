@@ -31,7 +31,7 @@ pub fn provenance_lint() -> Result<(), String> {
     let mut problems = Vec::new();
 
     let mut files = Vec::new();
-    collect(&root, &root, &mut files);
+    collect(&root, &mut files);
     for path in &files {
         let rel = path.strip_prefix(&root).unwrap().to_string_lossy().replace('\\', "/");
         if EXEMPT.contains(&rel.as_str()) {
@@ -84,7 +84,7 @@ fn check_provenance(rel: &str, text: &str, problems: &mut Vec<String>) {
     }
 }
 
-fn collect(root: &Path, dir: &Path, out: &mut Vec<PathBuf>) {
+fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = fs::read_dir(dir) else { return };
     for entry in entries.flatten() {
         let path = entry.path();
@@ -94,7 +94,7 @@ fn collect(root: &Path, dir: &Path, out: &mut Vec<PathBuf>) {
             if matches!(name.as_ref(), "target" | ".git" | "scratch") {
                 continue;
             }
-            collect(root, &path, out);
+            collect(&path, out);
         } else if path.extension().and_then(|e| e.to_str()).is_some_and(|e| TEXT_EXTENSIONS.contains(&e)) {
             out.push(path);
         }

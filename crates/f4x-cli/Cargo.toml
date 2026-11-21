@@ -1,0 +1,23 @@
+[package]
+name = "f4x-cli"
+description = "The f4x command line: launch, drive and test the game, and an MCP server for agents"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[[bin]]
+name = "f4x"
+path = "src/main.rs"
+
+[dependencies]
+base64 = "0.22"
+clap = { version = "4", features = ["derive"] }
+f4x-host = { path = "../f4x-host" }
+f4x-proto = { path = "../f4x-proto" }
+serde_json = "1"
+
+[dev-dependencies]
+f4x-host = { path = "../f4x-host", features = ["mock"] }
+
+[lints]
+workspace = true

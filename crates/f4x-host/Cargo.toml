@@ -1,0 +1,19 @@
+[package]
+name = "f4x-host"
+description = "Host-side f4x: game environment, profiles, launching under Proton, session supervision and the control client"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[features]
+# An in-process mock of the in-game agent, for tests of host tools.
+mock = []
+
+[dependencies]
+f4x-proto = { path = "../f4x-proto" }
+libc = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[lints]
+workspace = true

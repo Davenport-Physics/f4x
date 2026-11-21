@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use f4x_pe::PeFile;
 use serde_json::Value;
 
-use crate::env::GameEnv;
+use f4x_host::GameEnv;
 use crate::workspace_root;
 
 pub fn run(args: &[String]) -> Result<(), String> {
