@@ -74,7 +74,12 @@ pub fn begin(params: &TestsRunParams, notify: Option<Sender<String>>) -> Result<
     let queue: VecDeque<usize> = registry
         .iter()
         .enumerate()
-        .filter(|(_, t)| params.filter.as_deref().is_none_or(|f| t.name.contains(f) || format!("{}::{}", t.plugin, t.name).contains(f)))
+        .filter(|(_, t)| {
+            let full = format!("{}::{}", t.plugin, t.name);
+            params.filter.as_deref().is_none_or(|f| t.name.contains(f) || full.contains(f))
+                && (params.names.is_empty() || params.names.iter().any(|n| *n == t.name || *n == full))
+                && !params.skip.iter().any(|s| t.name.contains(s.as_str()) || full.contains(s.as_str()))
+        })
         .map(|(i, _)| i)
         .collect();
     drop(registry);

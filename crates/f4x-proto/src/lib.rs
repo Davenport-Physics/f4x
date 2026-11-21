@@ -23,8 +23,12 @@ pub mod files {
     pub const HEARTBEAT: &str = "heartbeat.json";
     /// Every log/trace event, one [`super::LogEvent`] per line.
     pub const TRACE: &str = "trace.jsonl";
-    /// Crash reports: `crash-<n>.json` ([`super::CrashReport`]).
+    /// Crash reports: `crash-<n>.json` ([`super::CrashReport`]), first-chance.
     pub const CRASH_PREFIX: &str = "crash-";
+    /// The fatal report, written by the unhandled-exception filter. Best effort: under
+    /// Proton the process can die before the filter runs, so hosts must also treat "the
+    /// game exited without `quit`" as a crash and use the first-chance reports.
+    pub const FATAL_CRASH: &str = "crash-fatal.json";
     /// Screenshots: `screenshot-<n>.png`.
     pub const SCREENSHOT_PREFIX: &str = "screenshot-";
 }
@@ -122,6 +126,12 @@ pub mod code {
     pub const TIMEOUT: i64 = -32003;
     /// An engine call failed.
     pub const ENGINE: i64 = -32010;
+    /// Host-side (never sent by the agent): the connection failed or was lost.
+    pub const TRANSPORT: i64 = -32090;
+    /// Host-side: the operation was interrupted (signal, supervisor stop).
+    pub const INTERRUPTED: i64 = -32091;
+    /// Host-side: no usable session (no session.json, agent not up).
+    pub const NO_SESSION: i64 = -32092;
 }
 
 /// Method names.
@@ -165,14 +175,18 @@ pub mod notification {
 /// `session.json`.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct SessionInfo {
+    #[serde(default)]
     pub protocol: u32,
     pub pid: u32,
     pub port: u16,
     pub token: String,
     /// `"f4x"` (our runtime) or `"f4se"` (the agent running as a plugin under F4SE).
+    #[serde(default)]
     pub host: String,
+    #[serde(default)]
     pub agent_version: String,
-    /// Packed game version as text, e.g. `1.10.163.0`.
+    /// Game version as text, e.g. `1.10.163.0`.
+    #[serde(default)]
     pub game_version: String,
 }
 
@@ -266,9 +280,15 @@ pub struct TestInfo {
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct TestsRunParams {
-    /// Substring filter on the test name; all tests if absent.
+    /// Substring filter on the test name (or `plugin::name`); all tests if absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub filter: Option<String>,
+    /// Exact test names (`name` or `plugin::name`); when non-empty, only these run.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub names: Vec<String>,
+    /// Skip tests whose name (or `plugin::name`) contains any of these.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub skip: Vec<String>,
     /// Per-test timeout in seconds (default 60).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timeout_s: Option<u64>,

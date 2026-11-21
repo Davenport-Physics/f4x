@@ -171,7 +171,10 @@ fn serve(shared: &Shared, stream: TcpStream) -> std::io::Result<()> {
                 let run: TestsRunParams = serde_json::from_value(params.clone()).unwrap_or_default();
                 let mut results = Vec::new();
                 for (test, passes) in TESTS {
-                    if run.filter.as_deref().is_some_and(|f| !test.contains(f)) {
+                    if run.filter.as_deref().is_some_and(|f| !test.contains(f))
+                        || (!run.names.is_empty() && !run.names.iter().any(|n| n == test))
+                        || run.skip.iter().any(|s| test.contains(s.as_str()))
+                    {
                         continue;
                     }
                     let result = TestResult {

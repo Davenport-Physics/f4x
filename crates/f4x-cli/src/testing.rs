@@ -88,24 +88,19 @@ pub fn run_tests(
     // Each call may take every test it covers up to its timeout.
     let budget = |covered: usize| Duration::from_secs(timeout_s.saturating_mul(covered.max(1) as u64) + 60);
 
-    let batches: Vec<(Option<String>, Option<String>, usize)> = if selection.skip.is_empty() {
-        let covered = listed.as_ref().map(|l| l.iter().filter(|n| selection.wants(n)).count()).unwrap_or(30);
-        vec![(selection.filter.clone(), None, covered)]
-    } else {
-        let Some(listed) = &listed else {
-            outcome.error = Some("--skip needs the agent's tests.list, which failed".into());
-            return outcome;
-        };
-        listed
-            .iter()
-            .filter(|name| selection.wants(name))
-            .map(|name| (Some(name.clone()), Some(name.clone()), listed.iter().filter(|n| n.contains(name.as_str())).count()))
-            .collect()
-    };
+    // The agent applies filter and skip itself (f4x-proto `TestsRunParams`).
+    let covered = listed.as_ref().map(|l| l.iter().filter(|n| selection.wants(n)).count()).unwrap_or(30);
+    let batches: Vec<(Option<String>, Option<String>, usize)> = vec![(selection.filter.clone(), None, covered)];
 
     for (filter, exact, covered) in batches {
         let keep = |r: &TestResult| exact.as_deref().is_none_or(|e| r.name == e);
-        let params = serde_json::to_value(TestsRunParams { filter, timeout_s: Some(timeout_s) }).unwrap_or(Value::Null);
+        let params = serde_json::to_value(TestsRunParams {
+            filter,
+            names: Vec::new(),
+            skip: selection.skip.clone(),
+            timeout_s: Some(timeout_s),
+        })
+        .unwrap_or(Value::Null);
         let mut streamed: Vec<TestResult> = Vec::new();
         let reply = client.call_with(method::TESTS_RUN, params, budget(covered), |n| {
             if n.method == notification::TEST_RESULT

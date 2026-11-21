@@ -24,11 +24,11 @@ use crate::session::SessionEndpoint;
 /// Host-side error codes (JSON-RPC's implementation-defined range).
 pub mod code {
     /// The connection failed, closed (the game exited?) or sent something unparseable.
-    pub const TRANSPORT: i64 = -32090;
+    pub const TRANSPORT: i64 = f4x_proto::code::TRANSPORT;
     /// The user interrupted the call (Ctrl-C, SIGTERM).
-    pub const INTERRUPTED: i64 = -32091;
+    pub const INTERRUPTED: i64 = f4x_proto::code::INTERRUPTED;
     /// `session.json` is missing, unreadable or for an incompatible protocol.
-    pub const NO_SESSION: i64 = -32092;
+    pub const NO_SESSION: i64 = f4x_proto::code::NO_SESSION;
     pub use f4x_proto::code::*;
 }
 
@@ -339,7 +339,7 @@ mod tests {
     fn streams_notifications_during_a_call() {
         let (_agent, mut client) = session();
         let mut seen = Vec::new();
-        let params = serde_json::to_value(TestsRunParams { filter: Some("smoke".into()), timeout_s: Some(5) }).unwrap();
+        let params = serde_json::to_value(TestsRunParams { filter: Some("smoke".into()), timeout_s: Some(5), ..Default::default() }).unwrap();
         let run = client
             .call_with(method::TESTS_RUN, params, Duration::from_secs(5), |n| {
                 assert_eq!(n.method, notification::TEST_RESULT);
