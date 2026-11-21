@@ -219,9 +219,18 @@ impl SessionDir {
         self.crashes().iter().any(|(_, report)| report["fatal"] == true)
     }
 
-    /// Crash summaries for reports: `[{file, fatal, summary}]`.
+    /// Crash summaries for reports: `[{file, fatal, summary}]`. Frames in f4x's DLLs
+    /// and test plugins are symbolized when their PDBs are available.
     pub fn crash_summaries(&self) -> Vec<Value> {
+        let workspace = crate::workspace_root();
+        let dirs = crate::symbolize::default_search_dirs(&workspace);
         self.crashes()
+            .into_iter()
+            .map(|(path, mut report)| {
+                crate::symbolize::symbolize_report(&mut report, &dirs, &workspace);
+                (path, report)
+            })
+            .collect::<Vec<_>>()
             .iter()
             .map(|(path, report)| {
                 json!({

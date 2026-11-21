@@ -25,6 +25,7 @@ pub mod profile;
 pub mod session;
 pub mod signals;
 pub mod supervisor;
+pub mod symbolize;
 
 use std::path::{Path, PathBuf};
 
