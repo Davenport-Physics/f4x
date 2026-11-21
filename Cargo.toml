@@ -1,0 +1,25 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "xtask"]
+# Add "tools/*" and "probes/*" once each holds its first crate (an empty glob is an error).
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+version = "0.0.1"
+rust-version = "1.90"
+repository = ""
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.dependencies]
+windows-sys = "0.61"
+
+[profile.release]
+# Keep line tables so crash reports and panic backtraces resolve Rust frames
+# from the .pdb next to each DLL.
+debug = "line-tables-only"
+lto = "thin"
+# panic stays "unwind": every boundary where the game or a plugin calls into Rust
+# catches panics and logs them instead of taking the game down.

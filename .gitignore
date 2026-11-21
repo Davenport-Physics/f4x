@@ -1,0 +1,8 @@
+/target
+/scratch
+# Game data and Address Library bins are never committed.
+*.bin
+*.ba2
+*.pex
+*.fos
+*.f4se

@@ -1,0 +1,11 @@
+[package]
+name = "f4x-abi"
+description = "#[repr(C)] F4SE-compatible plugin ABI and the f4x service table"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

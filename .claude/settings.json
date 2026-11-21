@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(//path/to/projects/Software/f4se-quarantine/**)",
+      "Edit(//path/to/projects/Software/f4se-quarantine/**)",
+      "Bash(*f4se-quarantine*)"
+    ]
+  }
+}

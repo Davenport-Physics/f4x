@@ -1,0 +1,10 @@
+[target.x86_64-pc-windows-msvc]
+# Static CRT: old-gen 1.10.163 ships only the VS2012 runtime, so plugins and the
+# runtime must not depend on a newer Visual C++ redistributable.
+# /ignore:4099 silences "no debug info for libcmt.lib".
+rustflags = ["-C", "target-feature=+crt-static", "-C", "link-arg=/ignore:4099"]
+
+[alias]
+xtask = "run --quiet -p xtask --"
+# Windows-side build of the in-game crates (runtime, loader, probes, plugins).
+win = ["xwin", "build", "--release", "--target", "x86_64-pc-windows-msvc"]

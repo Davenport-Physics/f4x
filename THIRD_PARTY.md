@@ -1,0 +1,35 @@
+# Third-party sources
+
+## CommonLibF4
+
+f4x derives engine type layouts, address IDs, and the F4SE-compatible plugin ABI
+from CommonLibF4 (https://github.com/Ryan-rsm-McKenzie/CommonLibF4), used under
+the MIT license. Facts taken from it are tagged `clf4` in `provenance/` with the
+commit and file:line they came from.
+
+Reference commits: `master` 67173f8d44b9a928dbab983d25e576ac5f1e83ac,
+`origin/community` da3e99588ac9b688ed8474736b6bbc0e0ead4f4c.
+
+```
+MIT License
+
+Copyright (c) 2019 ryan-rsm-mckenzie
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
