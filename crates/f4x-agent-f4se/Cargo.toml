@@ -1,0 +1,17 @@
+[package]
+name = "f4x-agent-f4se"
+description = "The f4x agent packaged as an F4SE plugin (f4x_agent.dll) for runs under real F4SE"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "f4x_agent"
+crate-type = ["cdylib"]
+
+[dependencies]
+f4x-abi = { path = "../f4x-abi" }
+f4x-agent = { path = "../f4x-agent" }
+
+[lints]
+workspace = true

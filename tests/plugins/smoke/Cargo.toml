@@ -1,0 +1,17 @@
+[package]
+name = "f4x-smoke-tests"
+description = "In-game smoke tests for the f4x agent (both hosts)"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+publish = false
+
+[lib]
+name = "f4x_smoke_tests"
+crate-type = ["cdylib"]
+
+[dependencies]
+f4x-sdk = { path = "../../../crates/f4x-sdk" }
+
+[lints]
+workspace = true

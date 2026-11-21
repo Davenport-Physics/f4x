@@ -10,15 +10,15 @@ name = "f4x_runtime"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-serde_json = "1"
-f4x-pe = { path = "../f4x-pe" }
+f4x-abi = { path = "../f4x-abi" }
+f4x-agent = { path = "../f4x-agent" }
+f4x-proto = { path = "../f4x-proto" }
+log = "0.4"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true, features = [
     "Win32_Foundation",
     "Win32_System_LibraryLoader",
-    "Win32_System_Memory",
-    "Win32_System_Threading",
     "Win32_System_SystemServices",
 ] }
 

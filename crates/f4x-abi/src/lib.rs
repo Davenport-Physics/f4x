@@ -9,4 +9,5 @@
 #![no_std]
 
 pub mod f4se;
+pub mod service;
 pub mod version;

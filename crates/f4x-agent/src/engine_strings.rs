@@ -1,4 +1,4 @@
-//! Minimal engine-structure readers used by the spikes. These move into `f4x-engine`
+//! Minimal engine-structure readers used by the observers. These move into `f4x-engine`
 //! once the type database exists.
 //!
 //! Layouts from CommonLibF4 (MIT), commit 67173f8:

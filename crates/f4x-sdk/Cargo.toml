@@ -1,0 +1,16 @@
+[package]
+name = "f4x-sdk"
+description = "Write f4x plugins and in-game tests in Rust (runs under f4x and under real F4SE)"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+f4x-abi = { path = "../f4x-abi" }
+log = { version = "0.4", features = ["std"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_System_LibraryLoader"] }
+
+[lints]
+workspace = true
