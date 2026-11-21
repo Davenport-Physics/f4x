@@ -40,12 +40,31 @@ pub fn exception_count() -> u64 {
 
 type TopLevelFilter = unsafe extern "system" fn(*const EXCEPTION_POINTERS) -> i32;
 
+/// Put our unhandled-exception filter back on top (the game installs its own during
+/// start-up), still chaining to whatever was installed before.
+pub fn reassert_filter() {
+    // SAFETY: as in `install`.
+    unsafe {
+        let previous = SetUnhandledExceptionFilter(Some(unhandled));
+        if let Some(previous) = previous
+            && previous as usize != unhandled as TopLevelFilter as usize
+        {
+            PREVIOUS_FILTER.store(previous as usize, Relaxed);
+            log::debug!(target: "f4x::crash", "re-asserted the unhandled-exception filter (chaining to the game's)");
+        }
+    }
+}
+
 pub fn install() {
     // SAFETY: registering process-wide handlers with valid function pointers.
     unsafe {
         AddVectoredExceptionHandler(0, Some(vectored));
         let previous = SetUnhandledExceptionFilter(Some(unhandled));
         PREVIOUS_FILTER.store(previous.map_or(0, |f| f as usize), Relaxed);
+        crate::pump::add_ticker(|| {
+            static ONCE: std::sync::Once = std::sync::Once::new();
+            ONCE.call_once(reassert_filter);
+        });
     }
     log::debug!(target: "f4x::crash", "crash handlers installed");
 }
@@ -223,7 +242,7 @@ pub fn readable(p: *const c_void, len: usize) -> bool {
     got != 0
         && info.State == MEM_COMMIT
         && info.Protect & (PAGE_NOACCESS | PAGE_GUARD) == 0
-        && (p as usize) + len <= info.BaseAddress as usize + info.RegionSize
+        && (p as usize).checked_add(len).is_some_and(|end| end <= info.BaseAddress as usize + info.RegionSize)
 }
 
 fn code_name(code: u32) -> &'static str {

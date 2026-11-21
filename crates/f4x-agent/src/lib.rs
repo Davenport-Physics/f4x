@@ -31,6 +31,8 @@ pub mod crash;
 #[cfg(windows)]
 pub mod d3d;
 #[cfg(windows)]
+mod engine_rpc;
+#[cfg(windows)]
 mod engine_strings;
 #[cfg(windows)]
 pub mod hooks;

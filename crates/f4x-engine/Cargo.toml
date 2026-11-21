@@ -1,0 +1,16 @@
+[package]
+name = "f4x-engine"
+description = "Safe(r) Rust access to Fallout 4 engine objects: forms, references, the data handler"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+f4x-engine-sys = { path = "../f4x-engine-sys" }
+f4x-pe = { path = "../f4x-pe" }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_System_LibraryLoader", "Win32_System_Memory"] }
+
+[lints]
+workspace = true
