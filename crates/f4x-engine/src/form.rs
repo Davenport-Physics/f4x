@@ -20,6 +20,12 @@ impl Form {
         NonNull::new(ptr).map(Form)
     }
 
+    /// A form from a pointer read out of an engine field that may be stale or not yet
+    /// initialised: checked to be a readable object whose RTTI says `TESForm`.
+    pub fn checked(ptr: *mut u8) -> Option<Form> {
+        if crate::game().is_instance_of(ptr as usize, ".?AVTESForm@@") { NonNull::new(ptr).map(Form) } else { None }
+    }
+
     pub fn as_ptr(self) -> *mut u8 {
         self.0.as_ptr()
     }

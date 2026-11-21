@@ -89,6 +89,26 @@ impl Game {
         offset.map(|o| object.wrapping_offset(o))
     }
 
+    /// Whether `object` looks like a live object whose class derives from `base_mangled`:
+    /// readable, a vtable inside the game image, and RTTI listing the base. Cached per
+    /// vtable. Use before calling virtuals through pointers read from engine fields.
+    pub fn is_instance_of(&self, object: usize, base_mangled: &'static str) -> bool {
+        if !mem::readable(object, 16) {
+            return false;
+        }
+        // SAFETY: readable (checked).
+        let vtable: usize = unsafe { mem::read(object as *const u8, 0) };
+        let image_end = self.base + self.image.size();
+        if vtable < self.base || vtable >= image_end {
+            return false;
+        }
+        let Ok(mut casts) = self.casts.lock() else { return false };
+        casts
+            .entry((vtable, base_mangled))
+            .or_insert_with(|| class_info(&self.image, (vtable - self.base) as u32).and_then(|c| c.base_offset(base_mangled)))
+            .is_some()
+    }
+
     /// The live instance of a singleton class: a global in the game's writable data that
     /// points at an object whose vtable is the class's primary vtable. The global's RVA is
     /// found once (a full scan, tens of ms) and re-read afterwards.

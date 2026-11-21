@@ -38,14 +38,14 @@ impl Reference {
 
     /// The base object this reference places.
     pub fn base_object(self) -> Option<Form> {
-        // SAFETY: OBJ_REFR::objectReference is a TESBoundObject*.
-        unsafe { Form::from_ptr(read(self.data(RE::OBJ_REFR::objectReference), 0)) }
+        // SAFETY: OBJ_REFR::objectReference is a TESBoundObject* (validated before use).
+        Form::checked(unsafe { read(self.data(RE::OBJ_REFR::objectReference), 0) })
     }
 
     /// The cell it is in.
     pub fn parent_cell(self) -> Option<Form> {
-        // SAFETY: TESObjectREFR::parentCell is a TESObjectCELL*.
-        unsafe { Form::from_ptr(read(self.0.as_ptr(), RE::TESObjectREFR::parentCell)) }
+        // SAFETY: TESObjectREFR::parentCell is a TESObjectCELL* (validated before use).
+        Form::checked(unsafe { read(self.0.as_ptr(), RE::TESObjectREFR::parentCell) })
     }
 }
 
@@ -55,13 +55,12 @@ const _: () = assert!(std::mem::size_of::<Point3>() == 12);
 /// The player (`PlayerCharacter` singleton, found by RTTI).
 pub fn player() -> Option<Reference> {
     let ptr = crate::game().singleton(RE::PlayerCharacter::RTTI)?;
-    // SAFETY: the engine's PlayerCharacter object.
-    unsafe { Form::from_ptr(ptr) }.map(Reference)
+    Form::checked(ptr).map(Reference)
 }
 
 /// The references in a cell (`TESObjectCELL::references`, `BSTArray<NiPointer<TESObjectREFR>>`).
 pub fn cell_references(cell: Form) -> Vec<Reference> {
     // SAFETY: a live TESObjectCELL; NiPointer<T> is a single T*.
     let array = unsafe { BSTArray::<*mut u8>::at(cell.as_ptr().add(RE::TESObjectCELL::references)) };
-    array.iter().filter_map(|p| unsafe { Form::from_ptr(p) }).map(Reference).collect()
+    array.iter().filter_map(Form::checked).map(Reference).collect()
 }

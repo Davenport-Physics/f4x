@@ -62,7 +62,7 @@ impl DataHandler {
         let offset = RE::TESDataHandler::formArrays + 0x18 * form_type.0 as usize;
         // SAFETY: formArrays is BSTArray<TESForm*>[159] (generated layout).
         let array = unsafe { BSTArray::<*mut u8>::at(self.ptr().add(offset)) };
-        (0..array.len()).filter_map(move |i| array.get(i)).filter_map(|p| unsafe { Form::from_ptr(p) })
+        (0..array.len()).filter_map(move |i| array.get(i)).filter_map(Form::checked)
     }
 
     pub fn count_of_type(self, form_type: FormType) -> usize {
@@ -86,8 +86,7 @@ impl DataHandler {
             *index = Some((total, map));
         }
         let ptr = *index.as_ref()?.1.get(&id.0)?;
-        // SAFETY: taken from the engine's own arrays.
-        unsafe { Form::from_ptr(ptr as *mut u8) }
+        Form::checked(ptr as *mut u8)
     }
 
     /// Loaded files: full plugins then light plugins (`compiledFileCollection`).
