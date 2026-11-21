@@ -115,6 +115,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "f4x-proto"
+version = "0.0.1"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "f4x-runtime"
 version = "0.0.1"
 dependencies = [
