@@ -1,6 +1,8 @@
 //! Repository automation: `cargo xtask <task>`.
 
+mod env;
 mod lint;
+mod spike_launch;
 
 use std::process::ExitCode;
 
@@ -9,12 +11,14 @@ usage: cargo xtask <task>
 
 tasks:
   provenance-lint   reject banned F4SE-source citations and unsourced provenance entries
+  spike-launch      [--headless] [--runs N] [--no-build]  launch the game with the runtime injected (S1)
 ";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let result = match args.first().map(String::as_str) {
         Some("provenance-lint") => lint::provenance_lint(),
+        Some("spike-launch") => spike_launch::run(&args[1..]),
         _ => {
             eprint!("{USAGE}");
             return ExitCode::from(2);
