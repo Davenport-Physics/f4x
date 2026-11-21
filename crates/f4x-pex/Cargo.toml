@@ -1,0 +1,11 @@
+[package]
+name = "f4x-pex"
+description = "Lossless reader/writer for Fallout 4 compiled Papyrus (.pex) files"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

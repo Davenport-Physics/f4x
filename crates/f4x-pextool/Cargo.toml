@@ -1,0 +1,19 @@
+[package]
+name = "f4x-pextool"
+description = "CLI for BA2 listing/extraction and .pex dumping and round-trip checks"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+publish = false
+
+[[bin]]
+name = "f4x-pextool"
+path = "src/main.rs"
+
+[dependencies]
+f4x-ba2 = { path = "../f4x-ba2" }
+f4x-pex = { path = "../f4x-pex" }
+glob = "0.3"
+
+[lints]
+workspace = true
