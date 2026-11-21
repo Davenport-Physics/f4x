@@ -151,6 +151,40 @@ impl<'a> PeFile<'a> {
         starts
     }
 
+    /// `(begin, end)` RVA ranges of every function with unwind data, sorted by begin.
+    #[must_use]
+    pub fn function_ranges(&self) -> Vec<(u32, u32)> {
+        let Some((rva, size)) = self.directory(DIR_EXCEPTION) else { return Vec::new() };
+        let Some(table) = self.bytes(rva, size as usize) else { return Vec::new() };
+        let mut ranges: Vec<(u32, u32)> = table
+            .as_chunks::<12>()
+            .0
+            .iter()
+            .map(|e| (u32::from_le_bytes([e[0], e[1], e[2], e[3]]), u32::from_le_bytes([e[4], e[5], e[6], e[7]])))
+            .collect();
+        ranges.sort_unstable();
+        ranges
+    }
+
+    /// Whether `rva` plausibly starts a function: it begins an unwind-table entry, or it
+    /// is a 16-byte-aligned address in executable code outside every unwind range (a
+    /// leaf function, which MSVC emits without unwind data). `ranges` comes from
+    /// [`function_ranges`](Self::function_ranges).
+    #[must_use]
+    pub fn is_function_start(&self, ranges: &[(u32, u32)], rva: u32) -> bool {
+        let index = ranges.partition_point(|&(begin, _)| begin <= rva);
+        if index > 0 {
+            let (begin, end) = ranges[index - 1];
+            if begin == rva {
+                return true;
+            }
+            if rva < end {
+                return false; // inside another function
+            }
+        }
+        rva % 16 == 0 && self.section_at(rva).is_some_and(Section::is_executable)
+    }
+
     /// Every imported function, in table order.
     #[must_use]
     pub fn imports(&self) -> Vec<Import> {

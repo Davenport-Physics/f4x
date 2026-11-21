@@ -55,6 +55,8 @@ pub fn attach() {
         Err(error) => session::log(&format!("PeekMessageA hook failed: {error}")),
     }
 
+    crate::catalog::install(base as usize);
+
     if std::env::var_os("F4X_CONTROL").is_some_and(|v| v == "1")
         && let Some(session) = session::get()
     {
@@ -84,7 +86,16 @@ fn control_main(session: &'static Session) {
     session.log(&format!("control: listening on 127.0.0.1:{port}"));
 
     let _ = std::thread::Builder::new().name("f4x-heartbeat".into()).spawn(move || {
+        let mut catalog_written = false;
         loop {
+            // Natives are bound while the game initialises; once the main loop pumps
+            // messages the set is complete.
+            if !catalog_written && PUMP_CALLS.load(Relaxed) > 0 {
+                std::thread::sleep(Duration::from_secs(2));
+                let n = crate::catalog::write("natives.jsonl");
+                session.log(&format!("catalog: wrote {n} natives"));
+                catalog_written = true;
+            }
             session.write_atomic(
                 "heartbeat.json",
                 &json!({"uptime_ms": session.uptime_ms() as u64, "pump_calls": PUMP_CALLS.load(Relaxed)})
@@ -134,7 +145,12 @@ fn serve(session: &Session, stream: TcpStream, token: &str) -> std::io::Result<(
                 "uptime_ms": session.uptime_ms() as u64,
                 "pump_calls": PUMP_CALLS.load(Relaxed),
                 "main_thread": MAIN_THREAD.load(Relaxed),
+                "natives": crate::catalog::count(),
             })),
+            (true, "catalog.write") => {
+                let n = crate::catalog::write("natives.jsonl");
+                Ok(json!({"natives": n, "file": "natives.jsonl"}))
+            }
             (true, "quit") => {
                 writeln!(writer, "{}", json!({"jsonrpc":"2.0","id":id,"result":{"ok":true}}))?;
                 writer.flush()?;

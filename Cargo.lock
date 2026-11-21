@@ -294,6 +294,9 @@ dependencies = [
 name = "xtask"
 version = "0.0.1"
 dependencies = [
+ "f4x-ba2",
+ "f4x-pe",
+ "f4x-pex",
  "serde_json",
 ]
 

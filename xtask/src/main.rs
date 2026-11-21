@@ -1,5 +1,6 @@
 //! Repository automation: `cargo xtask <task>`.
 
+mod catalog_check;
 mod env;
 mod lint;
 mod spike_launch;
@@ -11,6 +12,7 @@ usage: cargo xtask <task>
 
 tasks:
   provenance-lint   reject banned F4SE-source citations and unsourced provenance entries
+  catalog-check     [--natives FILE]  S3: check a native catalog against Fallout4.exe and the vanilla .pex
   spike-launch      [--headless] [--runs N] [--no-build]  launch the game with the runtime injected (S1)
 ";
 
@@ -18,6 +20,7 @@ fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let result = match args.first().map(String::as_str) {
         Some("provenance-lint") => lint::provenance_lint(),
+        Some("catalog-check") => catalog_check::run(&args[1..]),
         Some("spike-launch") => spike_launch::run(&args[1..]),
         _ => {
             eprint!("{USAGE}");

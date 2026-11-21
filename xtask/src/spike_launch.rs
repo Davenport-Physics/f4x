@@ -184,6 +184,9 @@ fn drive(session: &Path, guard: &mut GameGuard, result: &mut Value) -> Result<()
         result["pump_calls"] = json!([first, last]);
         result["frame_hook"] = (last > first).into();
     }
+    if let Ok(catalog) = client.call("catalog.write", json!({})) {
+        result["natives"] = catalog["natives"].clone();
+    }
     let _ = client.call("quit", json!({}));
     Ok(())
 }

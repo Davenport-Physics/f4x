@@ -6,6 +6,10 @@
 #![cfg_attr(not(windows), allow(dead_code))]
 
 #[cfg(windows)]
+mod catalog;
+#[cfg(windows)]
+mod engine;
+#[cfg(windows)]
 mod iat;
 #[cfg(windows)]
 mod session;

@@ -7,6 +7,9 @@ publish = false
 
 [dependencies]
 serde_json = "1"
+f4x-pe = { path = "../crates/f4x-pe" }
+f4x-ba2 = { path = "../crates/f4x-ba2" }
+f4x-pex = { path = "../crates/f4x-pex" }
 
 [lints]
 workspace = true
