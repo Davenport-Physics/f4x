@@ -6,7 +6,7 @@
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 use std::os::unix::process::CommandExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -16,10 +16,20 @@ use crate::env::{GameEnv, mount_root, wine_path};
 use crate::workspace_root;
 
 const STARTUP_DEADLINE: Duration = Duration::from_secs(90);
+/// `--hold N`: keep the game running N more seconds after the checks, pinging once a
+/// second, and report how long it stayed alive.
+static HOLD_SECONDS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 pub fn run(args: &[String]) -> Result<(), String> {
     let headless = args.iter().any(|a| a == "--headless");
     let no_build = args.iter().any(|a| a == "--no-build");
+    let hold = args
+        .iter()
+        .position(|a| a == "--hold")
+        .and_then(|i| args.get(i + 1))
+        .and_then(|n| n.parse::<u64>().ok())
+        .unwrap_or(0);
+    HOLD_SECONDS.store(hold, std::sync::atomic::Ordering::Relaxed);
     let runs = args
         .iter()
         .position(|a| a == "--runs")
@@ -97,12 +107,39 @@ fn launch_once(env: &GameEnv, root: &Path, out: &Path, headless: bool, run: u32)
 }
 
 fn spawn_game(env: &GameEnv, root: &Path, out: &Path, session: &Path, headless: bool) -> Result<Child, String> {
-    let loader = out.join("f4x_loader.exe");
     let dll = out.join("f4x_runtime.dll");
-    let log = std::fs::File::create(session.join("launch.log")).map_err(|e| e.to_string())?;
+    spawn(&Launch {
+        env,
+        program: out.join("f4x_loader.exe"),
+        args: vec!["--game-dir".into(), wine_path(&env.game_dir), "--dll".into(), wine_path(&dll)],
+        game_dir: env.game_dir.clone(),
+        session: session.to_owned(),
+        headless,
+        extra_env: vec![("F4X_CONTROL".into(), "1".into())],
+        workspace: root.to_owned(),
+    })
+}
+
+/// One game launch through umu + Proton.
+pub struct Launch<'a> {
+    pub env: &'a GameEnv,
+    /// The Windows program to run (host path), e.g. our loader or `f4se_loader.exe`.
+    pub program: PathBuf,
+    pub args: Vec<String>,
+    /// Working directory: the game directory (real install or a profile's farm).
+    pub game_dir: PathBuf,
+    pub session: PathBuf,
+    pub headless: bool,
+    pub extra_env: Vec<(String, String)>,
+    pub workspace: PathBuf,
+}
+
+pub fn spawn(launch: &Launch<'_>) -> Result<Child, String> {
+    let env = launch.env;
+    let log = std::fs::File::create(launch.session.join("launch.log")).map_err(|e| e.to_string())?;
     let log_err = log.try_clone().map_err(|e| e.to_string())?;
 
-    let mut command = if headless {
+    let mut command = if launch.headless {
         let mut c = Command::new("gamescope");
         let extra = std::env::var("F4X_GAMESCOPE_ARGS").unwrap_or_else(|_| "-W 1280 -H 720 -r 60".into());
         c.args(["--backend", "headless"]).args(extra.split_whitespace()).arg("--");
@@ -111,10 +148,13 @@ fn spawn_game(env: &GameEnv, root: &Path, out: &Path, session: &Path, headless: 
     } else {
         Command::new(&env.umu)
     };
+    // The container must see the workspace (build output, session files) and the real
+    // install (which a profile's symlink farm points into).
+    let shared = format!("{}:{}", mount_root(&launch.workspace).display(), mount_root(&env.game_dir).display());
     command
-        .arg(&loader)
-        .args(["--game-dir", &wine_path(&env.game_dir), "--dll", &wine_path(&dll)])
-        .current_dir(&env.game_dir)
+        .arg(&launch.program)
+        .args(&launch.args)
+        .current_dir(&launch.game_dir)
         .env("GAMEID", &env.umu_game_id)
         .env("STORE", &env.store)
         .env("WINEPREFIX", &env.prefix)
@@ -124,17 +164,25 @@ fn spawn_game(env: &GameEnv, root: &Path, out: &Path, session: &Path, headless: 
         .env("STEAM_COMPAT_APP_ID", "0")
         .env("SteamAppId", "0")
         .env("WINEDEBUG", std::env::var("F4X_WINEDEBUG").unwrap_or_else(|_| "-all".into()))
-        .env("PRESSURE_VESSEL_FILESYSTEMS_RW", mount_root(root))
-        .env("F4X_SESSION_DIR", wine_path(session))
-        .env("F4X_CONTROL", "1")
+        .env("PRESSURE_VESSEL_FILESYSTEMS_RW", shared)
+        .env("F4X_SESSION_DIR", wine_path(&launch.session))
         // `waitforexitandrun` (umu's default) blocks until every wineserver in the
         // prefix exits, so it hangs whenever Vortex/MO2 or another game session is open.
         .env("PROTON_VERB", "run")
+        .envs(launch.extra_env.iter().map(|(k, v)| (k, v)))
         .stdin(Stdio::null())
         .stdout(log)
         .stderr(log_err)
         .process_group(0);
     command.spawn().map_err(|e| format!("spawning {}: {e}", env.umu.display()))
+}
+
+/// A fresh session directory under `target/f4x-sessions`.
+pub fn new_session(root: &Path, label: &str) -> PathBuf {
+    let stamp = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let session = root.join(format!("target/f4x-sessions/{stamp}-{label}"));
+    let _ = std::fs::create_dir_all(&session);
+    session
 }
 
 fn drive(session: &Path, guard: &mut GameGuard, result: &mut Value) -> Result<(), String> {
@@ -184,6 +232,23 @@ fn drive(session: &Path, guard: &mut GameGuard, result: &mut Value) -> Result<()
         result["pump_calls"] = json!([first, last]);
         result["frame_hook"] = (last > first).into();
     }
+    let hold = HOLD_SECONDS.load(std::sync::atomic::Ordering::Relaxed);
+    if hold > 0 {
+        let mut alive = 0;
+        for _ in 0..hold {
+            std::thread::sleep(Duration::from_secs(1));
+            match client.call("ping", json!({})) {
+                Ok(ping) => {
+                    alive += 1;
+                    result["last_pump_calls"] = ping["pump_calls"].clone();
+                    result["last_uptime_ms"] = ping["uptime_ms"].clone();
+                }
+                Err(_) => break,
+            }
+        }
+        result["held_s"] = alive.into();
+        result["survived_hold"] = (alive == hold).into();
+    }
     if let Ok(catalog) = client.call("catalog.write", json!({})) {
         result["natives"] = catalog["natives"].clone();
     }
@@ -225,18 +290,34 @@ fn session_log_contains(session: &Path, needle: &str) -> bool {
 }
 
 /// Owns the launched process group and makes sure nothing survives the run.
-struct GameGuard {
+pub struct GameGuard {
     child: Option<Child>,
     /// Our `F4X_SESSION_DIR` value: processes carrying it in their environment are ours.
     session_marker: String,
 }
 
 impl GameGuard {
+    pub fn new(child: Child, session: &Path) -> Self {
+        GameGuard { child: Some(child), session_marker: wine_path(session) }
+    }
+
+    /// Wait up to `timeout` for the launched process tree to exit on its own.
+    pub fn wait_exit(&mut self, timeout: Duration) -> bool {
+        let deadline = Instant::now() + timeout;
+        while Instant::now() < deadline {
+            if self.exited() && session_processes(&self.session_marker).is_empty() {
+                return true;
+            }
+            std::thread::sleep(Duration::from_millis(250));
+        }
+        false
+    }
+
     fn exited(&mut self) -> bool {
         self.child.as_mut().is_none_or(|c| c.try_wait().ok().flatten().is_some())
     }
 
-    fn shutdown(&mut self) {
+    pub fn shutdown(&mut self) {
         let Some(mut child) = self.child.take() else { return };
         let deadline = Instant::now() + Duration::from_secs(30);
         while Instant::now() < deadline {

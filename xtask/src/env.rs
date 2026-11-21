@@ -69,9 +69,13 @@ impl GameEnv {
     /// seed the game's ini files (the game needs `Fallout4Prefs.ini` to start).
     pub fn ensure_prefix(&self) -> Result<(), String> {
         let my_games = self.prefix.join("pfx").join(MY_GAMES);
-        if my_games.join("Fallout4Prefs.ini").is_file() {
-            return Ok(());
+        if !my_games.join("Fallout4Prefs.ini").is_file() {
+            self.seed_prefix(&my_games)?;
         }
+        apply_test_settings(&my_games)
+    }
+
+    fn seed_prefix(&self, my_games: &Path) -> Result<(), String> {
         std::fs::create_dir_all(&my_games).map_err(|e| format!("creating {}: {e}", my_games.display()))?;
         let source = self.source_prefix.join(MY_GAMES);
         for ini in SEED_INIS {
@@ -89,6 +93,70 @@ impl GameEnv {
         }
         eprintln!("created test prefix {}", self.prefix.display());
         Ok(())
+    }
+}
+
+/// Settings every f4x test prefix gets (these are f4x's own copies of the inis, never
+/// the user's): the game is muted.
+fn apply_test_settings(my_games: &Path) -> Result<(), String> {
+    let prefs = my_games.join("Fallout4Prefs.ini");
+    let text = std::fs::read_to_string(&prefs).map_err(|e| format!("{}: {e}", prefs.display()))?;
+    let updated = set_ini(&text, "AudioMenu", "fAudioMasterVolume", "0.0000");
+    if updated != text {
+        std::fs::write(&prefs, updated).map_err(|e| format!("{}: {e}", prefs.display()))?;
+    }
+    Ok(())
+}
+
+/// Set `key=value` in `[section]`, adding the key or section if missing. Keeps the
+/// file's line endings.
+pub fn set_ini(text: &str, section: &str, key: &str, value: &str) -> String {
+    let newline = if text.contains("\r\n") { "\r\n" } else { "\n" };
+    let mut out = Vec::new();
+    let mut in_section = false;
+    let mut done = false;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') {
+            if in_section && !done {
+                out.push(format!("{key}={value}"));
+                done = true;
+            }
+            in_section = trimmed[1..].trim_end_matches(']').eq_ignore_ascii_case(section);
+        } else if in_section
+            && !done
+            && trimmed.split_once('=').is_some_and(|(k, _)| k.trim().eq_ignore_ascii_case(key))
+        {
+            out.push(format!("{key}={value}"));
+            done = true;
+            continue;
+        }
+        out.push(line.to_owned());
+    }
+    if !done {
+        if !in_section {
+            out.push(format!("[{section}]"));
+        }
+        out.push(format!("{key}={value}"));
+    }
+    let mut joined = out.join(newline);
+    joined.push_str(newline);
+    joined
+}
+
+#[cfg(test)]
+mod tests {
+    use super::set_ini;
+
+    #[test]
+    fn sets_existing_missing_and_new_section_keys() {
+        let ini = "[General]\r\nsFoo=1\r\n[AudioMenu]\r\nfAudioMasterVolume=1.0000\r\nfVal7=1.0\r\n";
+        let out = set_ini(ini, "AudioMenu", "fAudioMasterVolume", "0.0000");
+        assert_eq!(out, "[General]\r\nsFoo=1\r\n[AudioMenu]\r\nfAudioMasterVolume=0.0000\r\nfVal7=1.0\r\n");
+        let out = set_ini("[General]\nsFoo=1\n", "General", "bAlwaysActive", "1");
+        assert_eq!(out, "[General]\nsFoo=1\nbAlwaysActive=1\n");
+        let out = set_ini("[General]\nsFoo=1\n", "AudioMenu", "fAudioMasterVolume", "0");
+        assert_eq!(out, "[General]\nsFoo=1\n[AudioMenu]\nfAudioMasterVolume=0\n");
     }
 }
 
