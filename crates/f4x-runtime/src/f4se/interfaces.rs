@@ -227,6 +227,7 @@ pub(super) fn run_papyrus_registrations() {
         log::warn!(target: "f4x::f4se", "no Papyrus VM seen; plugin native registrations skipped");
         return;
     };
+    super::natives::bind_all(vm);
     let callbacks: Vec<(PluginHandle, usize)> = PAPYRUS_CALLBACKS.lock().map(|c| c.clone()).unwrap_or_default();
     for (handle, callback) in callbacks {
         // SAFETY: the plugin's `bool(IVirtualMachine*)` callback.

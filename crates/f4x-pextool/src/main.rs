@@ -7,6 +7,7 @@
 //! f4x-pextool pex roundtrip [--show N] (--ba2 <archive> | <file.pex>...)
 //! ```
 
+mod declare;
 mod dump;
 mod roundtrip;
 mod usage;
@@ -30,6 +31,11 @@ usage:
   f4x-pextool pex roundtrip [--show N] <file.pex>...
       parse and re-serialize every .pex in memory and compare byte-for-byte;
       exits 1 on any failure, listing the first N (default 10).
+  f4x-pextool pex declare --game <Fallout 4 dir> --out <dir>
+      add the F4SE-compatible functions f4x implements to the game's own scripts
+      (loose copy, else Fallout4 - Misc.ba2) and write patched copies into <dir>.
+  f4x-pextool pex declare --verify <dir with F4SE's .pex>
+      check those declarations against F4SE's script signatures; exits 1 on mismatch.
 ";
 
 type CliResult = Result<ExitCode, String>;
@@ -43,6 +49,7 @@ fn main() -> ExitCode {
         ["pex", "dump", rest @ ..] => dump::run(rest),
         ["pex", "roundtrip", rest @ ..] => roundtrip::run(rest),
         ["pex", "f4se-usage", rest @ ..] => usage::run(rest),
+        ["pex", "declare", rest @ ..] => declare::run(rest),
         ["-h" | "--help" | "help"] => {
             print!("{USAGE}");
             return ExitCode::SUCCESS;

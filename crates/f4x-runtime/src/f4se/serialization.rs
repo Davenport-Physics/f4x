@@ -155,6 +155,18 @@ unsafe extern "C" fn resolve_handle(handle: u64, out: *mut u64) -> bool {
 /// Map a form id from the save's load order to the current one (by file name), for
 /// full (`II xxxxxx`) and light (`FE LLL xxx`) files.
 unsafe extern "C" fn resolve_form_id(form_id: u32, out: *mut u32) -> bool {
+    match remap_form_id(form_id) {
+        Some(id) => {
+            // SAFETY: caller-provided out pointer.
+            unsafe { *out = id };
+            true
+        }
+        None => false,
+    }
+}
+
+/// See [`resolve_form_id`].
+pub(crate) fn remap_form_id(form_id: u32) -> Option<u32> {
     let index = (form_id >> 24) as u8;
     let resolved = if index == 0xFF {
         Some(form_id) // created at run time
@@ -176,14 +188,7 @@ unsafe extern "C" fn resolve_form_id(form_id: u32, out: *mut u32) -> bool {
                 .map(|f| (u32::from(f.index) << 24) | (form_id & 0x00FF_FFFF)),
         }
     };
-    match resolved {
-        Some(id) => {
-            // SAFETY: caller-provided out pointer.
-            unsafe { *out = id };
-            true
-        }
-        None => false,
-    }
+    resolved
 }
 
 fn current_file(name: &str) -> Option<f4x_engine::File> {

@@ -244,6 +244,87 @@ pub fn empty_host_chunks(load_order: &[plgn::Entry]) -> Vec<Chunk> {
     ]
 }
 
+/// F4SE's registration tables in its host block: a header chunk (`KEYR` keys, `CTLR`
+/// controls, `EXEV` external events), one `REGS` chunk per registered name, then `REGE`.
+/// Seen black-box (see `docs/formats/cosave.md`).
+pub mod regs {
+    use super::{Chunk, tag};
+
+    pub const KEYS: [u8; 4] = *b"KEYR";
+    pub const CONTROLS: [u8; 4] = *b"CTLR";
+    pub const EXTERNAL_EVENTS: [u8; 4] = *b"EXEV";
+    pub const ENTRY: [u8; 4] = *b"REGS";
+    pub const END: [u8; 4] = *b"REGE";
+
+    /// A script registered for something: its VM handle and script name.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Registrant {
+        pub handle: u64,
+        pub script: String,
+    }
+
+    fn put_str(out: &mut Vec<u8>, s: &str) {
+        out.extend_from_slice(&(s.len() as u16).to_le_bytes());
+        out.extend_from_slice(s.as_bytes());
+    }
+
+    /// A `REGS` entry keyed by name (controls): `u16` name, `u32` count, then per
+    /// registrant a `u64` handle and a `u16`-prefixed script name.
+    #[must_use]
+    pub fn write_named(name: &str, registrants: &[Registrant]) -> Vec<u8> {
+        let mut out = Vec::new();
+        put_str(&mut out, name);
+        out.extend_from_slice(&(registrants.len() as u32).to_le_bytes());
+        for r in registrants {
+            out.extend_from_slice(&r.handle.to_le_bytes());
+            put_str(&mut out, &r.script);
+        }
+        out
+    }
+
+    #[must_use]
+    pub fn parse_named(data: &[u8]) -> Option<(String, Vec<Registrant>)> {
+        let mut at = 0;
+        let str_at = |at: &mut usize| -> Option<String> {
+            let len = u16::from_le_bytes(data.get(*at..*at + 2)?.try_into().ok()?) as usize;
+            let s = String::from_utf8_lossy(data.get(*at + 2..*at + 2 + len)?).into_owned();
+            *at += 2 + len;
+            Some(s)
+        };
+        let name = str_at(&mut at)?;
+        let count = u32::from_le_bytes(data.get(at..at + 4)?.try_into().ok()?) as usize;
+        at += 4;
+        let mut out = Vec::with_capacity(count.min(1024));
+        for _ in 0..count {
+            let handle = u64::from_le_bytes(data.get(at..at + 8)?.try_into().ok()?);
+            at += 8;
+            out.push(Registrant { handle, script: str_at(&mut at)? });
+        }
+        Some((name, out))
+    }
+
+    fn bounds(chunks: &[Chunk], header: [u8; 4]) -> Option<(usize, usize)> {
+        let start = chunks.iter().position(|c| c.kind == tag(&header))?;
+        let end = chunks[start + 1..].iter().position(|c| c.kind == tag(&END)).map_or(chunks.len(), |i| start + 1 + i);
+        Some((start, end))
+    }
+
+    /// The `REGS` chunks of the section that starts with `header`.
+    #[must_use]
+    pub fn section(chunks: &[Chunk], header: [u8; 4]) -> Vec<&Chunk> {
+        bounds(chunks, header)
+            .map(|(start, end)| chunks[start + 1..end].iter().filter(|c| c.kind == tag(&ENTRY)).collect())
+            .unwrap_or_default()
+    }
+
+    /// Replace the entries of the section that starts with `header`.
+    pub fn replace_section(chunks: &mut Vec<Chunk>, header: [u8; 4], entries: Vec<Vec<u8>>) {
+        let Some((start, end)) = bounds(chunks, header) else { return };
+        let new: Vec<Chunk> = entries.into_iter().map(|data| Chunk { kind: tag(&ENTRY), version: 1, data }).collect();
+        chunks.splice(start + 1..end, new);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -292,6 +373,22 @@ mod tests {
         let bytes = plgn::write(&order);
         assert_eq!(&bytes[2..21], b"\x0d\x0d\x00StartMeUp.esp\xfe\x00\x00");
         assert_eq!(plgn::parse(&bytes).unwrap(), order);
+    }
+
+    #[test]
+    fn control_registrations_match_f4se() {
+        // F4SE 0.6.23's REGS for Settle Anywhere's RegisterForControl("WorkshopMode").
+        let f4se: &[u8] = b"\x0c\x00WorkshopMode\x01\x00\x00\x00\x1c\x00\x00\x0c\x01\x00\x00\x00\x13\x00SAPlayerAliasScript";
+        let entry = regs::Registrant { handle: 0x0000_0001_0C00_001C, script: "SAPlayerAliasScript".into() };
+        assert_eq!(regs::write_named("WorkshopMode", std::slice::from_ref(&entry)), f4se);
+        assert_eq!(regs::parse_named(f4se).unwrap(), ("WorkshopMode".into(), vec![entry]));
+
+        let mut chunks = empty_host_chunks(&[]);
+        regs::replace_section(&mut chunks, regs::CONTROLS, vec![f4se.to_vec()]);
+        let kinds: Vec<String> = chunks.iter().map(|c| fourcc(c.kind)).collect();
+        assert_eq!(&kinds[1..7], ["KEYR", "REGE", "CTLR", "REGS", "REGE", "EXEV"]);
+        assert_eq!(regs::section(&chunks, regs::CONTROLS).len(), 1);
+        assert!(regs::section(&chunks, regs::KEYS).is_empty());
     }
 
     #[test]

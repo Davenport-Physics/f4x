@@ -208,6 +208,14 @@ impl Profile {
             }
         }
 
+        if host == Host::F4x {
+            // f4x's F4SE-compatible natives must be declared by the scripts: patch the
+            // user's own vanilla scripts into the profile (no-op where F4SE's are present).
+            for line in crate::declare::generate(&data, &data.join("Scripts"))? {
+                eprintln!("  scripts: {line}");
+            }
+        }
+
         let profile_env = env.with_prefix(root.join("prefix"));
         profile_env.ensure_prefix()?;
         let data_name = match data_mode {

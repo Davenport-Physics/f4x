@@ -39,6 +39,8 @@ mod engine_strings;
 #[cfg(windows)]
 pub mod hooks;
 #[cfg(windows)]
+pub mod input;
+#[cfg(windows)]
 pub mod msgbox;
 #[cfg(windows)]
 pub mod observe;

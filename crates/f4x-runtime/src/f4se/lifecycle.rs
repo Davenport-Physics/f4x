@@ -151,6 +151,7 @@ unsafe extern "C" fn load_hook(manager: usize, name: usize, flag: usize, out: us
     if let Some(save) = &save {
         dispatch_from_host(message::PRE_LOAD_GAME, name as *mut c_void, save.len() as u32);
         cosave = read_cosave(save);
+        super::natives::revert();
         for (_, registration) in serialization::registrations() {
             if let Some(revert) = registration.revert {
                 serialization::run_revert(revert);
@@ -172,7 +173,7 @@ fn write_cosave(save: &str) {
     // F4SE's own block: carried through from the last load (with the current PLGN), or
     // the empty block F4SE writes when nothing is registered.
     let host = HOST_BLOCK.lock().ok().and_then(|h| h.clone());
-    let host_chunks = match host {
+    let mut host_chunks = match host {
         Some(mut block) => {
             for chunk in &mut block.chunks {
                 if chunk.kind == f4x_cosave::tag(&plgn::KIND) {
@@ -183,6 +184,7 @@ fn write_cosave(save: &str) {
         }
         None => f4x_cosave::empty_host_chunks(&order),
     };
+    f4x_cosave::regs::replace_section(&mut host_chunks, f4x_cosave::regs::CONTROLS, super::natives::control_entries());
     cosave.plugins.push(PluginBlock { uid: HOST_UID, chunks: host_chunks });
     for (handle, registration) in serialization::registrations() {
         let (Some(uid), Some(save_callback)) = (registration.uid, registration.save) else { continue };
@@ -230,6 +232,9 @@ fn run_load_callbacks(cosave: Option<&CoSave>) {
         .and_then(|c| plgn::parse(&c.data))
         .unwrap_or_default();
     serialization::set_save_order(order);
+    if let Some(host) = &host {
+        super::natives::load_controls(&host.chunks);
+    }
     if let Ok(mut slot) = HOST_BLOCK.lock() {
         *slot = host;
     }

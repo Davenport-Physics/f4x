@@ -24,6 +24,7 @@
 
 pub mod ast;
 mod error;
+pub mod f4x_natives;
 mod opcode;
 mod query;
 mod read;

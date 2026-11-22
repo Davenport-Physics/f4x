@@ -79,6 +79,12 @@ f4x quit --session "$S"
 - `engine.player`, `engine.form {id}`, `engine.files`, `engine.forms.count`
 - `engine.forms.of_type {type, limit}`, `engine.cell.refs {limit}`, `engine.singletons`
 
+**Input** (engine-level, works under both hosts):
+- `input.press {event, key?, device?, hold_frames?}` puts a real `ButtonEvent` into the engine's input queue. The press is down on the next frame and up `hold_frames` later.
+  - Answer a message box: `{"event":"Accept","key":28}`.
+  - Loading a save while mods are active always asks "Mods are currently loaded… continue?", so tests must answer it.
+- `input.recent` lists the last button events seen, with their user-event names.
+
 **MCP:** `.mcp.json` registers the `f4x` server (`tools/f4x-mcp.sh`). Smoke test it with `python3 -I tools/mcp_smoke.py tools/f4x-mcp.sh`.
 
 **Crashes:** `f4x status --session "$S"` prints symbolized crash reports. The files are `crash-*.json` in the session directory.

@@ -14,6 +14,7 @@
 
 mod interfaces;
 mod lifecycle;
+mod natives;
 mod serialization;
 mod trampoline;
 
@@ -124,6 +125,7 @@ pub fn load_all() {
         plugins.extend(states);
     }
     lifecycle::install();
+    natives::install_input_hook();
     dispatch_from_host(message::POST_LOAD, std::ptr::null_mut(), 0);
     dispatch_from_host(message::POST_POST_LOAD, std::ptr::null_mut(), 0);
 }

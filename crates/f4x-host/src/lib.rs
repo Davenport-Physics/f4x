@@ -16,6 +16,7 @@
 
 pub mod client;
 pub mod contract;
+pub mod declare;
 pub mod env;
 pub mod junit;
 pub mod launch;

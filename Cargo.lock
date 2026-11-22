@@ -236,6 +236,7 @@ version = "0.0.1"
 dependencies = [
  "f4x-engine-sys",
  "f4x-pe",
+ "log",
  "windows-sys",
 ]
 
@@ -247,6 +248,8 @@ version = "0.0.1"
 name = "f4x-host"
 version = "0.0.1"
 dependencies = [
+ "f4x-ba2",
+ "f4x-pex",
  "f4x-proto",
  "libc",
  "serde",
@@ -273,6 +276,7 @@ name = "f4x-pextool"
 version = "0.0.1"
 dependencies = [
  "f4x-ba2",
+ "f4x-host",
  "f4x-pex",
  "glob",
  "serde_json",
