@@ -10,6 +10,7 @@
 mod declare;
 mod dump;
 mod roundtrip;
+mod signatures;
 mod usage;
 
 use std::io::Write as _;
@@ -50,6 +51,7 @@ fn main() -> ExitCode {
         ["pex", "roundtrip", rest @ ..] => roundtrip::run(rest),
         ["pex", "f4se-usage", rest @ ..] => usage::run(rest),
         ["pex", "declare", rest @ ..] => declare::run(rest),
+        ["pex", "f4se-signatures", rest @ ..] => signatures::run(rest),
         ["-h" | "--help" | "help"] => {
             print!("{USAGE}");
             return ExitCode::SUCCESS;
