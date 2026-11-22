@@ -369,7 +369,32 @@ unsafe extern "C" fn on_scaleform(movie: *mut c_void, value: *mut c_void) -> boo
     let _ = std::panic::catch_unwind(|| {
         let n = SCALEFORM_CALLS.fetch_add(1, Relaxed);
         if n < 40 {
-            emit("scaleform_callback", json!({"n": n, "movie_null": movie.is_null(), "value_null": value.is_null(), "stack": if n < 3 { stack() } else { Value::Null }}));
+            // What the plugin gets: the value's type and where it sits. Mark it so the
+            // agent can find it (`root.f4se.plugins.<name>.f4xProbeMark`).
+            use f4x_engine::scaleform::{Movie, Value as GfxValue};
+            let mut detail = json!({});
+            if !value.is_null() && !movie.is_null() {
+                // SAFETY: F4SE passes a live GFx::Value and movie.
+                let v = unsafe { &mut *(value as *mut GfxValue) };
+                let marked = v.set_member("f4xProbeMark", &GfxValue::number(f64::from(n)));
+                let m = Movie(movie);
+                let root = m.get_variable("root");
+                let f4se = root.as_ref().and_then(|r| r.get_member("f4se"));
+                let plugins = f4se.as_ref().and_then(|f| f.get_member("plugins"));
+                let seen: Vec<&str> = ["f4xprobe", "f4x_probe", "f4mcm", "SettleAnywhere"]
+                    .into_iter()
+                    .filter(|name| plugins.as_ref().is_some_and(|p| p.has_member(name)))
+                    .collect();
+                detail = json!({
+                    "value_type": v.type_name(),
+                    "marked": marked,
+                    "root_type": root.as_ref().map(|r| r.type_name()),
+                    "root_has_f4se": f4se.is_some(),
+                    "f4se_members": f4se.as_ref().map(|f| ["AllowTextInput", "GetDirectoryListing", "SendExternalEvent", "plugins", "version"].into_iter().filter(|k| f.has_member(k)).collect::<Vec<_>>()),
+                    "plugins_seen": seen,
+                });
+            }
+            emit("scaleform_callback", json!({"n": n, "movie_null": movie.is_null(), "value_null": value.is_null(), "detail": detail, "stack": if n < 3 { stack() } else { Value::Null }}));
         }
     });
     true

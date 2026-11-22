@@ -24,6 +24,8 @@ pub mod address;
 #[cfg(windows)]
 pub mod console;
 #[cfg(windows)]
+pub mod controls;
+#[cfg(windows)]
 pub mod data;
 #[cfg(windows)]
 pub mod form;
@@ -35,6 +37,8 @@ pub mod mem;
 pub mod papyrus;
 #[cfg(windows)]
 pub mod refr;
+#[cfg(windows)]
+pub mod scaleform;
 
 #[cfg(windows)]
 pub use data::{DataHandler, File};

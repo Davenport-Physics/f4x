@@ -273,4 +273,7 @@ pub fn register_rpc() {
         Ok(json!({"ok": true, "frame": frame}))
     });
     crate::server::register("input.recent", |_, _| Ok(json!(recent())));
+    crate::server::register("input.state", |_, _| {
+        Ok(json!({"text_entry_count": f4x_engine::controls::text_entry_count()}))
+    });
 }

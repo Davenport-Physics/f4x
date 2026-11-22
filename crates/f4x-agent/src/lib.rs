@@ -46,6 +46,8 @@ pub mod msgbox;
 pub mod observe;
 #[cfg(windows)]
 pub mod patches;
+#[cfg(windows)]
+mod ui;
 
 #[cfg(windows)]
 pub use attach::{AttachOptions, attach};

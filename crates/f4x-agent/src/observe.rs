@@ -23,6 +23,18 @@ const ADVANCE_MOVIE_SLOT: usize = 4;
 const VM_CLASS: &str = ".?AVVirtualMachine@Internal@BSScript@@";
 const BIND_NATIVE_METHOD_SLOT: usize = 0x1B;
 
+/// Work to run inside a menu's next `AdvanceMovie` (on the thread that owns its movie),
+/// keyed by menu class name. The job gets the `IMenu*`.
+pub type MenuJob = Box<dyn FnOnce(*mut c_void) + Send>;
+static MENU_JOBS: Mutex<Vec<(String, MenuJob)>> = Mutex::new(Vec::new());
+
+/// Run `job` in the next `AdvanceMovie` of the menu class `name` (e.g. `MainMenu`).
+pub fn on_menu(name: &str, job: MenuJob) {
+    if let Ok(mut jobs) = MENU_JOBS.lock() {
+        jobs.push((name.to_owned(), job));
+    }
+}
+
 struct MenuHook {
     name: String,
     real: usize,
@@ -88,7 +100,19 @@ unsafe extern "C" fn advance_movie_hook(this: *mut c_void, delta: f32, time: u64
         log::info!(target: "f4x::menus", "menu active: {}", hook.name);
     }
     // SAFETY: the original slot value for this vtable.
-    unsafe { std::mem::transmute::<usize, AdvanceMovie>(hook.real)(this, delta, time) }
+    unsafe { std::mem::transmute::<usize, AdvanceMovie>(hook.real)(this, delta, time) };
+    let jobs: Vec<MenuJob> = match MENU_JOBS.lock() {
+        Ok(mut jobs) if jobs.iter().any(|(name, _)| *name == hook.name) => {
+            let (mine, rest): (Vec<_>, Vec<_>) = std::mem::take(&mut *jobs).into_iter().partition(|(name, _)| *name == hook.name);
+            *jobs = rest;
+            mine.into_iter().map(|(_, job)| job).collect()
+        }
+        _ => Vec::new(),
+    };
+    for job in jobs {
+        let this = this as usize;
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || job(this as *mut c_void)));
+    }
 }
 
 /// Menus that ticked during the last second.

@@ -82,6 +82,7 @@ pub fn attach(options: AttachOptions) -> &'static Service {
     register_windows_methods();
     crate::engine_rpc::register();
     crate::input::register_rpc();
+    crate::ui::register();
 
     if std::env::var_os("F4X_CONTROL").is_some_and(|v| v == "1") {
         match server::start(options.host, &game_version()) {

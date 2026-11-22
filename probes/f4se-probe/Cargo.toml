@@ -15,6 +15,7 @@ f4x-abi = { path = "../../crates/f4x-abi" }
 serde_json = "1"
 
 [target.'cfg(windows)'.dependencies]
+f4x-engine = { path = "../../crates/f4x-engine" }
 windows-sys = { workspace = true, features = [
     "Win32_Foundation",
     "Win32_System_Diagnostics_Debug",

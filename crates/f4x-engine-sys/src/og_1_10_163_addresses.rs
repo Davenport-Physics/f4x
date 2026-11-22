@@ -73,3 +73,27 @@ pub const MEMORY_MANAGER_SCRAP_HEAP: Address = Address { name: "memory_manager_s
 /// RE::ScrapHeap::Allocate(size, align) -> void* (CommonLibF4 `REL::ID(1085394)`, CommonLibF4/include/RE/Bethesda/MemoryManager.h:126)
 pub const SCRAP_HEAP_ALLOCATE: Address = Address { name: "scrap_heap_allocate", rva: 0x1b13f70, signature: &[0x4c, 0x89, 0x44, 0x24, 0x18, 0x48, 0x89, 0x54, 0x24, 0x10, 0x48, 0x89, 0x4c, 0x24, 0x08, 0x53, 0x55, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41, 0x57, 0x48, 0x83, 0xec, 0x48], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
 
+/// RE::Scaleform::GFx::Value::ObjectInterface::ObjectAddRef(Value*, void*) (CommonLibF4 `REL::ID(244786)`, CommonLibF4/include/RE/Scaleform/GFx/GFx_Player.h:313)
+pub const GFX_OBJECT_ADD_REF: Address = Address { name: "gfx_object_add_ref", rva: 0x20b9c30, signature: &[0x8b, 0x42, 0x08, 0x25, 0x8f, 0x00, 0x00, 0x00, 0x83, 0xf8, 0x06, 0x74, 0x2e, 0x83, 0xf8, 0x07, 0x74, 0x20, 0x7e, 0x2b, 0x83, 0xf8, 0x0a, 0x7e, 0x09, 0x83, 0xf8, 0x0b, 0x75, 0x21, 0x49, 0x83, 0xe0, 0xfd, 0x41, 0x8b, 0x40, 0x20, 0xff, 0xc0], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// RE::Scaleform::GFx::Value::ObjectInterface::ObjectRelease(Value*, void*) (CommonLibF4 `REL::ID(856221)`, CommonLibF4/include/RE/Scaleform/GFx/GFx_Player.h:320)
+pub const GFX_OBJECT_RELEASE: Address = Address { name: "gfx_object_release", rva: 0x20b9c80, signature: &[0x8b, 0x42, 0x08, 0x25, 0x8f, 0x00, 0x00, 0x00, 0x83, 0xf8, 0x06, 0x74, 0x37, 0x83, 0xf8, 0x07, 0x74, 0x29, 0x7e, 0x3e, 0x83, 0xf8, 0x0a, 0x7e, 0x09, 0x83, 0xf8, 0x0b, 0x75, 0x34, 0x49, 0x83, 0xe0, 0xfd, 0x41, 0x8b, 0x40, 0x20, 0xa9, 0xff, 0xff, 0x3f, 0x00], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// RE::Scaleform::GFx::Value::ObjectInterface::HasMember(void*, const char*, bool) -> bool (CommonLibF4 `REL::ID(788691)`, CommonLibF4/include/RE/Scaleform/GFx/GFx_Player.h:327)
+pub const GFX_OBJECT_HAS_MEMBER: Address = Address { name: "gfx_object_has_member", rva: 0x20afcb0, signature: &[0x48, 0x89, 0x5c, 0x24, 0x20, 0x4c, 0x89, 0x44, 0x24, 0x18, 0x55, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41, 0x57, 0x48, 0x8d, 0x6c, 0x24, 0xd9], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// RE::Scaleform::GFx::Value::ObjectInterface::GetMember(void*, const char*, Value*, bool) -> bool (CommonLibF4 `REL::ID(1517430)`, CommonLibF4/include/RE/Scaleform/GFx/GFx_Player.h:334)
+pub const GFX_OBJECT_GET_MEMBER: Address = Address { name: "gfx_object_get_member", rva: 0x20a8060, signature: &[0x48, 0x89, 0x5c, 0x24, 0x20, 0x4c, 0x89, 0x44, 0x24, 0x18, 0x55, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41, 0x57, 0x48, 0x8d, 0x6c, 0x24, 0xe1], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// RE::Scaleform::GFx::Value::ObjectInterface::SetMember(void*, const char*, const Value&, bool) -> bool (CommonLibF4 `REL::ID(1360149)`, CommonLibF4/include/RE/Scaleform/GFx/GFx_Player.h:341)
+pub const GFX_OBJECT_SET_MEMBER: Address = Address { name: "gfx_object_set_member", rva: 0x20d05e0, signature: &[0x40, 0x55, 0x53, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41, 0x57, 0x48, 0x8d, 0xac, 0x24, 0xf8, 0xfb, 0xff, 0xff], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// RE::Scaleform::GFx::Value::ObjectInterface::Invoke(void*, Value*, const char*, const Value*, usize, bool) -> bool (CommonLibF4 `REL::ID(655847)`, CommonLibF4/include/RE/Scaleform/GFx/GFx_Player.h:348)
+pub const GFX_OBJECT_INVOKE: Address = Address { name: "gfx_object_invoke", rva: 0x20b1d20, signature: &[0x48, 0x89, 0x5c, 0x24, 0x10, 0x4c, 0x89, 0x44, 0x24, 0x18, 0x55, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41, 0x57, 0x48, 0x8d, 0x6c, 0x24, 0xe0], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// RE::Scaleform::GFx::Value::ObjectInterface::PushBack(void*, const Value&) -> bool (CommonLibF4 `REL::ID(1330475)`, CommonLibF4/include/RE/Scaleform/GFx/GFx_Player.h:355)
+pub const GFX_OBJECT_PUSH_BACK: Address = Address { name: "gfx_object_push_back", rva: 0x20c2970, signature: &[0x40, 0x53, 0x48, 0x83, 0xec, 0x40, 0x48, 0x8b, 0x41, 0x08, 0x4d, 0x8b, 0xc8], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// RE::ControlMap** singleton (global; CommonLibF4 `REL::ID(325206)`, CommonLibF4/include/RE/Bethesda/ControlMap.h:58)
+pub const CONTROL_MAP_SINGLETON: Address = Address { name: "control_map_singleton", rva: 0x59da210, signature: &[0x8b, 0x0d, 0x78, 0x9b, 0x4b, 0x05, 0x84, 0xdb, 0x48, 0x8b, 0x5c, 0x24, 0x50], mask: &[1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1], global: Some(GlobalRef { site_rva: 0x520692, disp_offset: 2, insn_len: 6 }) };
+
