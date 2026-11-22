@@ -174,6 +174,33 @@ pub fn global_signature(pe: &PeFile, target: u32) -> Result<(u32, Signature, u8,
     Err("no RIP-relative reference found".into())
 }
 
+/// A signature for a function whose own bytes are not unique (e.g. identical copies):
+/// a direct `call rel32` to it, grown until unique. Returns (site RVA, signature); the
+/// target is `site + 5 + rel32` (the same resolution as a [`global_signature`]).
+pub fn call_signature(pe: &PeFile, target: u32) -> Result<(u32, Signature), String> {
+    let text = pe.section(".text").ok_or("no .text")?.clone();
+    let bytes = pe.section_bytes(&text);
+    let mut tried = 0;
+    for i in 0..bytes.len().saturating_sub(5) {
+        if bytes[i] != 0xE8 {
+            continue;
+        }
+        let rel = i32::from_le_bytes(bytes[i + 1..i + 5].try_into().unwrap());
+        let site = text.rva + i as u32;
+        if (site as i64 + 5 + rel as i64) != target as i64 {
+            continue;
+        }
+        tried += 1;
+        if let Ok(sig) = signature(pe, site) {
+            return Ok((site, sig));
+        }
+        if tried > 64 {
+            break;
+        }
+    }
+    Err(format!("no unique signature at the function or at any of {tried} call sites"))
+}
+
 pub fn count_matches(haystack: &[u8], bytes: &[u8], mask: &[u8], limit: usize) -> usize {
     let anchor = mask.iter().position(|&m| m != 0).unwrap_or(0);
     let first = bytes[anchor];
@@ -246,10 +273,36 @@ pub fn run(bin_path: &Path, exe_path: &Path, wanted_path: &Path, out_rs: &Path, 
         }
         let sig = match signature(&pe, rva) {
             Ok(sig) => sig,
-            Err(e) => {
-                failures.push(format!("{}: {e}", w.name));
-                continue;
-            }
+            Err(_) => match call_signature(&pe, rva) {
+                Ok((site, sig)) => {
+                    let hex = |v: &[u8]| v.iter().map(|b| format!("{b:#04x}")).collect::<Vec<_>>().join(", ");
+                    let _ = writeln!(rs, "/// {} (via a call site; CommonLibF4 `REL::ID({})`, {})", w.description, w.id, w.source);
+                    let _ = writeln!(
+                        rs,
+                        "pub const {}: Address = Address {{ name: {:?}, rva: {rva:#x}, signature: &[{}], mask: &[{}], global: Some(GlobalRef {{ site_rva: {site:#x}, disp_offset: 1, insn_len: 5 }}) }};\n",
+                        w.name.to_ascii_uppercase(),
+                        w.name,
+                        hex(&sig.bytes),
+                        sig.mask.iter().map(u8::to_string).collect::<Vec<_>>().join(", ")
+                    );
+                    let pattern: String = sig.bytes.iter().zip(&sig.mask).map(|(b, m)| if *m == 0 { "??".into() } else { format!("{b:02X}") }).collect::<Vec<_>>().join(" ");
+                    let _ = writeln!(provenance, "{}", serde_json::json!({
+                        "id": format!("og/fn/{}", w.name), "build": "og-1.10.163", "value": format!("{rva:#x}"),
+                        "recipe": format!("target of the call at signature: {pattern} (function bytes not unique in .text)"),
+                        "sources": [
+                            {"kind": "clf4", "ref": format!("REL::ID({})", w.id), "file": w.source, "symbol": w.description},
+                            {"kind": "al-hint", "notes": "located with the user's local Address Library bin; not committed"},
+                            {"kind": "re", "tool": "f4x-codegen addresses", "notes": format!("called from {site:#x}; signature unique in .text")}
+                        ]
+                    }));
+                    println!("{:<32} {rva:#010x}  via call at {site:#x}  {pattern}", w.name);
+                    continue;
+                }
+                Err(e) => {
+                    failures.push(format!("{}: {e}", w.name));
+                    continue;
+                }
+            },
         };
         let hex = |v: &[u8]| v.iter().map(|b| format!("{b:#04x}")).collect::<Vec<_>>().join(", ");
         if w.rva.is_some() {

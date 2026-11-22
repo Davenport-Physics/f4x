@@ -16,3 +16,16 @@ data_ready_caller             rva:0xd3eff0  bb:GameDataReady-stack+re:call-at-0x
 script_parse_parameters       1607     CommonLibF4/include/RE/Bethesda/Script.h:307             RE::Script::ParseParameters(params, compiled, offset&, ref, container, script, locals, ...)
 console_functions             global:901511  CommonLibF4/include/RE/Bethesda/Script.h:262        RE::SCRIPT_FUNCTION[522] console command table
 console_log_singleton         global:689441  CommonLibF4/include/RE/Bethesda/Console.h:14        RE::ConsoleLog** singleton
+# Papyrus native hosting (f4x natives bound through IVirtualMachine::BindNativeMethod).
+native_function_base_call     571037   CommonLibF4/include/RE/Bethesda/BSScript.h:1276           RE::BSScript::NF_util::NativeFunctionBase::Call(stack, logger, vm, inTasklet)
+stack_get_page_for_frame      1429302  CommonLibF4/include/RE/Bethesda/BSScript.h:628            RE::BSScript::Stack::GetPageForFrame(const StackFrame*) -> u32
+stack_get_frame_variable      897539   CommonLibF4/include/RE/Bethesda/BSScript.h:635            RE::BSScript::Stack::GetStackFrameVariable(frame, index, pageHint) -> Variable&
+script_object_get_handle      1452752  CommonLibF4/include/RE/Bethesda/BSScript.h:539            RE::BSScript::Object::GetHandle() -> usize
+script_object_inc_ref         461710   CommonLibF4/include/RE/Bethesda/BSScript.h:545            RE::BSScript::Object::IncRef()
+script_object_dec_ref         541793   CommonLibF4/include/RE/Bethesda/BSScript.h:532            RE::BSScript::Object::DecRef() -> u32
+object_bind_policy_bind       709728   CommonLibF4/include/RE/Bethesda/BSScript.h:1098           RE::BSScript::ObjectBindPolicy::BindObject(const BSTSmartPointer<Object>&, handle)
+string_pool_get_entry         507142   CommonLibF4/include/RE/Bethesda/BSStringPool.h:142        RE::BSStringPool::GetEntry<char>(Entry*&, const char*, bool caseSensitive)
+string_pool_entry_release     1204430  CommonLibF4/include/RE/Bethesda/BSStringPool.h:21         RE::BSStringPool::Entry::release(Entry*&)
+memory_manager_singleton      343176   CommonLibF4/include/RE/Bethesda/MemoryManager.h:200       RE::MemoryManager::GetSingleton() -> MemoryManager&
+memory_manager_scrap_heap     1495205  CommonLibF4/include/RE/Bethesda/MemoryManager.h:218       RE::MemoryManager::GetThreadScrapHeap() -> ScrapHeap*
+scrap_heap_allocate           1085394  CommonLibF4/include/RE/Bethesda/MemoryManager.h:126       RE::ScrapHeap::Allocate(size, align) -> void*

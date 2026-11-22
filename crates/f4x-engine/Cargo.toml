@@ -8,6 +8,7 @@ version.workspace = true
 [dependencies]
 f4x-engine-sys = { path = "../f4x-engine-sys" }
 f4x-pe = { path = "../f4x-pe" }
+log = "0.4"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_System_LibraryLoader", "Win32_System_Memory"] }
