@@ -16,8 +16,13 @@ pub mod og_1_10_163;
 
 pub mod og_1_10_163_addresses;
 
-/// A non-virtual engine function: its RVA in one build plus a masked byte signature
-/// that is unique in the exe's `.text` (the recipe that re-finds it in any build).
+/// A non-virtual engine function (or a global): its RVA in one build plus a masked byte
+/// signature unique in the exe's `.text` (the recipe that re-finds it in any build).
+///
+/// For a function the signature starts at the function. For a global it starts at an
+/// instruction that references the global RIP-relatively: `global = Some((disp_offset,
+/// insn_len))` locates the 32-bit displacement inside that instruction, and `rva` is the
+/// global's own RVA in this build.
 #[derive(Clone, Copy, Debug)]
 pub struct Address {
     pub name: &'static str,
@@ -25,4 +30,14 @@ pub struct Address {
     /// Signature bytes; compare only where `mask` is non-zero.
     pub signature: &'static [u8],
     pub mask: &'static [u8],
+    /// For globals: where the signature's referencing instruction is (RVA in this build),
+    /// and its displacement offset and length.
+    pub global: Option<GlobalRef>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct GlobalRef {
+    pub site_rva: u32,
+    pub disp_offset: u8,
+    pub insn_len: u8,
 }

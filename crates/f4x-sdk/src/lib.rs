@@ -34,6 +34,7 @@ pub use f4x_abi;
 use f4x_abi::service::{Service, Str, TestVtbl, test_status};
 pub use log;
 
+pub mod console;
 #[doc(hidden)]
 pub mod __private;
 
@@ -98,6 +99,21 @@ impl Context {
         if !ok {
             log::warn!("test {name} was not registered (duplicate?)");
         }
+    }
+}
+
+impl Context {
+    /// Add a console command with typed parameters, decoded by the engine's own console
+    /// parser. Returns false if it could not be added (name taken, no free slot, old agent).
+    pub fn console_command(
+        &self,
+        name: &str,
+        short_name: &str,
+        help: &str,
+        params: &[console::Param],
+        handler: impl Fn(&console::Call) -> Result<String, String> + Send + Sync + 'static,
+    ) -> bool {
+        console::register(name, short_name, help, params, Box::new(handler))
     }
 }
 

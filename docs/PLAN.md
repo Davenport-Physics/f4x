@@ -20,6 +20,22 @@
   - console command execution;
   - event sinks.
 
+**Since the first status update:**
+- **Phase 3:**
+  - F4SE plugin host: the user's DLLs load, and BackportedBA2Support writes the same patches as under F4SE.
+  - Save/load lifecycle and co-saves, byte-identical to F4SE's.
+  - GameDataReady comes from the engine's own data-ready call.
+- **Console commands with typed arguments:**
+  - The user asked for this: F4SE 0.6.23 has no helper for reading console arguments.
+  - Plugins register commands through the service table / SDK (`ctx.console_command`).
+  - f4x takes free slots (named commands with release no-op handlers).
+  - Arguments are decoded by the engine's own `Script::ParseParameters`: int, float, string, reference, form, ….
+  - Works under f4x and under real F4SE (through the agent).
+- **Next:**
+  - `NewGame` (needs a real new-game start);
+  - Settle Anywhere's 9 F4SE natives (Phase 4);
+  - Scaleform injection for MCM (Phase 5).
+
 Plan deviations that came out of the spikes:
 - Tests run in dedicated Proton prefixes (`~/.local/share/f4x`), never the user's prefix.
 - The loader passes the DLL path through a shared section.

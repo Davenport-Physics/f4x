@@ -12,3 +12,7 @@ console_log_add_string        764      CommonLibF4/include/RE/Bethesda/Console.h
 save_game_worker              rva:0xcde4f0  bb:PreSaveGame-stack+re:call-at-0xced56b  saves the game: (manager, const char* name, u8 flag); called from 0xced17d and 0xced56b
 load_game_worker              rva:0xcde9f0  bb:PreLoadGame-stack+re:call-at-0xceda78  loads a save: (manager, const char* name, u8 flag, out*) -> bool
 data_ready_caller             rva:0xd3eff0  bb:GameDataReady-stack+re:call-at-0xd3f268  finishes loading game data, then calls data_ready_callee (on a loader thread)
+# Console commands (f4x console-command registration).
+script_parse_parameters       1607     CommonLibF4/include/RE/Bethesda/Script.h:307             RE::Script::ParseParameters(params, compiled, offset&, ref, container, script, locals, ...)
+console_functions             global:901511  CommonLibF4/include/RE/Bethesda/Script.h:262        RE::SCRIPT_FUNCTION[522] console command table
+console_log_singleton         global:689441  CommonLibF4/include/RE/Bethesda/Console.h:14        RE::ConsoleLog** singleton

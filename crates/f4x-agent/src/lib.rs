@@ -27,6 +27,8 @@ pub mod tests;
 #[cfg(windows)]
 mod attach;
 #[cfg(windows)]
+pub mod console_cmds;
+#[cfg(windows)]
 pub mod crash;
 #[cfg(windows)]
 pub mod d3d;

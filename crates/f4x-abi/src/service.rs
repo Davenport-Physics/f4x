@@ -21,7 +21,8 @@ pub const SERVICE_MODULES: [&CStr; 2] = [c"f4x_runtime.dll", c"f4x_agent.dll"];
 pub type ServiceFn = unsafe extern "C" fn() -> *const Service;
 pub type PluginLoadFn = unsafe extern "C" fn(service: *const Service) -> bool;
 
-pub const SERVICE_VERSION: u32 = 1;
+/// 2: console commands (`register_console_command`, `console_print`, `console_execute`).
+pub const SERVICE_VERSION: u32 = 2;
 
 /// A borrowed UTF-8 string.
 #[repr(C)]
@@ -101,6 +102,79 @@ pub struct Service {
     pub pumps: unsafe extern "C" fn() -> u64,
     /// Run `job(user)` on the game's main thread at the next main-loop iteration.
     pub run_on_main: unsafe extern "C" fn(job: unsafe extern "C" fn(*mut c_void), user: *mut c_void),
+    // ---- version 2 ----
+    /// Add a console command (takes a free slot in the engine's command table). Arguments
+    /// are decoded by the engine's own parser and handed to `spec.handler` typed.
+    pub register_console_command: unsafe extern "C" fn(plugin: Str, spec: *const ConsoleCommandSpec) -> bool,
+    /// Print a line to the console.
+    pub console_print: unsafe extern "C" fn(text: Str) -> bool,
+    /// Run a console command as if typed (queued to the main thread if called elsewhere).
+    pub console_execute: unsafe extern "C" fn(command: Str) -> bool,
+}
+
+/// A console command parameter. `kind` is an engine `SCRIPT_PARAM_TYPE` (see
+/// [`console_param`]).
+#[repr(C)]
+pub struct ConsoleParam {
+    pub name: Str,
+    pub kind: u32,
+    pub optional: bool,
+}
+
+#[repr(C)]
+pub struct ConsoleCommandSpec {
+    pub name: Str,
+    pub short_name: Str,
+    pub help: Str,
+    pub params: *const ConsoleParam,
+    pub param_count: u32,
+    pub handler: unsafe extern "C" fn(call: *const ConsoleCall, user: *mut c_void) -> bool,
+    pub user: *mut c_void,
+}
+
+/// One decoded argument. `present` is false for an optional argument that was not given.
+#[repr(C)]
+pub struct ConsoleArg {
+    pub kind: u32,
+    pub present: bool,
+    pub int: i32,
+    pub float: f32,
+    pub text: Str,
+    /// For form kinds: the form (`TESForm*` or subclass).
+    pub form: *mut c_void,
+}
+
+#[repr(C)]
+pub struct ConsoleCall {
+    pub args: *const ConsoleArg,
+    pub arg_count: u32,
+    /// The reference the command was run on (`player.mycommand` or the console selection).
+    pub reference: *mut c_void,
+}
+
+/// Engine `SCRIPT_PARAM_TYPE` values (CommonLibF4 order).
+pub mod console_param {
+    pub const STRING: u32 = 0;
+    pub const INT: u32 = 1;
+    pub const FLOAT: u32 = 2;
+    pub const INVENTORY_OBJECT: u32 = 3;
+    pub const OBJECT_REF: u32 = 4;
+    pub const ACTOR_VALUE: u32 = 5;
+    pub const ACTOR: u32 = 6;
+    pub const CELL: u32 = 9;
+    pub const QUEST: u32 = 14;
+    pub const RACE: u32 = 15;
+    pub const FACTION: u32 = 17;
+    pub const GLOBAL: u32 = 19;
+    pub const OBJECT: u32 = 21;
+    pub const ACTOR_BASE: u32 = 25;
+    pub const MAGIC_EFFECT: u32 = 31;
+    pub const NPC: u32 = 34;
+    pub const FORM_LIST: u32 = 37;
+    pub const PERK: u32 = 39;
+    pub const KEYWORD: u32 = 59;
+    pub const LOCATION: u32 = 61;
+    pub const FORM: u32 = 62;
 }
 
 const _: () = {

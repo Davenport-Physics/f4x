@@ -27,8 +27,23 @@ pub fn add_ticker(ticker: fn()) {
     }
 }
 
+/// Set while [`pump`] runs. Engine calls made from a job or a test (e.g. running a
+/// console command) can pump window messages themselves and so re-enter the main-loop
+/// hook; the nested call must not run jobs/tests again (it would deadlock on their locks).
+static IN_PUMP: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 /// Called by the host on the game's main thread, once per main-loop iteration.
 pub fn pump() {
+    if IN_PUMP.swap(true, Relaxed) {
+        return;
+    }
+    struct Reset;
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            IN_PUMP.store(false, Relaxed);
+        }
+    }
+    let _reset = Reset;
     let n = clock::PUMPS.fetch_add(1, Relaxed);
     if n == 0 {
         clock::MAIN_THREAD.store(clock::thread_id(), Relaxed);

@@ -30,6 +30,23 @@ pub fn resolve(address: &Address) -> Option<usize> {
     let image = game.image();
     let text = image.section(".text")?.clone();
     let bytes = image.section_bytes(&text);
+    if let Some(global) = address.global {
+        // The signature sits at an instruction referencing the global RIP-relatively.
+        let expected = global.site_rva.checked_sub(text.rva)? as usize;
+        let site = if matches(bytes, expected, address) {
+            Some(expected)
+        } else {
+            let hits: Vec<usize> =
+                (0..bytes.len().saturating_sub(address.signature.len())).filter(|&i| matches(bytes, i, address)).take(2).collect();
+            if let [only] = hits.as_slice() { Some(*only) } else { None }
+        };
+        let found = site.map(|site| {
+            let disp = i32::from_le_bytes(bytes[site + global.disp_offset as usize..][..4].try_into().unwrap());
+            (game.base() + text.rva as usize + site + global.insn_len as usize).wrapping_add_signed(disp as isize)
+        });
+        cache.insert(address.name, found);
+        return found;
+    }
     let at = address.rva.checked_sub(text.rva)? as usize;
     let found = if matches(bytes, at, address) {
         Some(game.base() + address.rva as usize)

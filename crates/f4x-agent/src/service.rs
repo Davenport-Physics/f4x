@@ -3,7 +3,7 @@
 use std::ffi::c_void;
 use std::sync::OnceLock;
 
-use f4x_abi::service::{SERVICE_VERSION, Service, Str, TestVtbl};
+use f4x_abi::service::{ConsoleCommandSpec, SERVICE_VERSION, Service, Str, TestVtbl};
 use serde_json::Value;
 
 static TABLE: OnceLock<Service> = OnceLock::new();
@@ -19,6 +19,9 @@ pub fn table(host: &'static str) -> &'static Service {
         frames: svc_frames,
         pumps: svc_pumps,
         run_on_main: svc_run_on_main,
+        register_console_command: svc_register_console_command,
+        console_print: svc_console_print,
+        console_execute: svc_console_execute,
     })
 }
 
@@ -57,4 +60,67 @@ unsafe extern "C" fn svc_run_on_main(job: unsafe extern "C" fn(*mut c_void), use
         // SAFETY: the plugin's job contract.
         unsafe { job(user.0) }
     });
+}
+
+unsafe extern "C" fn svc_register_console_command(plugin: Str, spec: *const ConsoleCommandSpec) -> bool {
+    #[cfg(windows)]
+    {
+        if spec.is_null() {
+            return false;
+        }
+        // SAFETY: valid strings and spec for the call (plugin contract).
+        let plugin = unsafe { plugin.as_str() }.to_owned();
+        match unsafe { crate::console_cmds::register(&plugin, &*spec) } {
+            Ok(_) => true,
+            Err(error) => {
+                log::warn!(target: "f4x::console", "{plugin}: console command not registered: {error}");
+                false
+            }
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (plugin, spec);
+        false
+    }
+}
+
+unsafe extern "C" fn svc_console_print(text: Str) -> bool {
+    // SAFETY: valid UTF-8 for the call.
+    let text = unsafe { text.as_str() }.to_owned();
+    #[cfg(windows)]
+    {
+        if crate::clock::on_main_thread() {
+            return f4x_engine::console::print(&text).is_ok();
+        }
+        crate::pump::post(move || {
+            let _ = f4x_engine::console::print(&text);
+        });
+        true
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = text;
+        false
+    }
+}
+
+unsafe extern "C" fn svc_console_execute(command: Str) -> bool {
+    // SAFETY: valid UTF-8 for the call.
+    let command = unsafe { command.as_str() }.to_owned();
+    #[cfg(windows)]
+    {
+        if crate::clock::on_main_thread() {
+            return f4x_engine::console::execute(&command).is_ok();
+        }
+        crate::pump::post(move || {
+            let _ = f4x_engine::console::execute(&command);
+        });
+        true
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = command;
+        false
+    }
 }
