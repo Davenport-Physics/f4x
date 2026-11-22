@@ -11,6 +11,9 @@ Scenarios (each runs once per host, headless, muted, in f4x-owned profiles):
   mcm       pause menu -> MOD CONFIG; screenshots compared within a tolerance
             (user-mods-*; needs Pillow for the pixel comparison).
   natives   every Location/EncounterZone through papyrus.call (vanilla profiles).
+  looks     LooksMenu (if installed): its Papyrus API and co-save block
+            (tools/looks_check.py), and its root.f4se.plugins.F4EE object inside the
+            open LooksMenu (user-mods-*).
 
 Profiles: user-mods-f4se/user-mods-f4x (`cargo xtask profile create NAME --host H --data
 install --plugin <f4x_probe.dll>`), f4se-baseline/vanilla-f4x. Writes <out>/report.json
@@ -148,9 +151,14 @@ def scenario_saveload(host, out):
         result[name] = open(p, "rb").read().hex() if os.path.exists(p) else None
     if os.path.exists(papyrus):
         # Heap addresses in messages differ run to run: normalise them.
-        lines = [re.sub(r"0x[0-9A-Fa-f]{8,16}", "0xADDR", l.split("] ", 1)[-1].rstrip()) for l in open(papyrus, encoding="utf-8", errors="replace")]
+        # Normalise what differs run to run: heap addresses and ids of forms created at
+        # run time (FFxxxxxx). Compare distinct messages: how often a timer-driven
+        # script retries depends on how long the run lasted.
+        def norm(l):
+            l = re.sub(r"0x[0-9A-Fa-f]{8,16}", "0xADDR", l.split("] ", 1)[-1].rstrip())
+            return re.sub(r"\(FF[0-9A-Fa-f]{6}\)", "(FFxxxxxx)", l)
+        lines = [norm(l) for l in open(papyrus, encoding="utf-8", errors="replace")]
         result["papyrus_errors"] = sorted({l for l in lines if "error" in l.lower()})
-        result["papyrus_lines"] = len(lines)
     return result
 
 
@@ -185,7 +193,33 @@ def scenario_natives(host, out):
         s.quit()
 
 
-SCENARIOS = {"surface": scenario_surface, "saveload": scenario_saveload, "mcm": scenario_mcm, "natives": scenario_natives}
+def scenario_looks(host, out):
+    profile = f"user-mods-{host}"
+    if not os.path.exists(os.path.join(PROFILES, profile, "game", "Data", "F4SE", "Plugins", "f4ee.dll")):
+        return {"skipped": "LooksMenu not installed"}
+    s = Session(host, profile)
+    try:
+        s.wait_menu("MainMenu")
+        time.sleep(4)
+        s.console("coc QASmoke")
+        s.wait_menu("HUDMenu")
+        time.sleep(8)
+        capture = os.path.join(out, f"looks-{host}.json")
+        subprocess.run([sys.executable, "-I", os.path.join(TOOLS, "looks_check.py"), s.dir, my_games(profile), capture], check=True, timeout=300)
+        result = json.load(open(capture))
+        result["blocks"] = [b for b in result.get("blocks", []) if b != "F4XP"]
+        s.console("slm 14")
+        s.wait_menu("LooksMenu", 60)
+        time.sleep(5)
+        names = json.load(open(os.path.join(out, "candidates.json")))
+        r = s.call("ui.has", {"menu": "LooksMenu", "path": "root.f4se.plugins.F4EE", "names": names})
+        result["f4ee_object"] = sorted(r.get("members", {})) if isinstance(r, dict) else r
+        return result
+    finally:
+        s.quit()
+
+
+SCENARIOS = {"surface": scenario_surface, "saveload": scenario_saveload, "mcm": scenario_mcm, "natives": scenario_natives, "looks": scenario_looks}
 
 
 def candidates(out):
@@ -196,6 +230,10 @@ def candidates(out):
     pextool = os.path.join(ROOT, "target", "debug", "f4x-pextool")
     subprocess.run([pextool, "ba2", "extract", os.path.join(data, "Fallout4 - Interface.ba2"), "interface/*.swf", swf_dir],
                    capture_output=True, timeout=300)
+    # SWFs packed in mod archives too (e.g. LooksMenu's).
+    for archive in sorted(os.listdir(data)):
+        if archive.lower().endswith(".ba2") and not archive.lower().startswith(("fallout4 - ", "dlc", "cc")):
+            subprocess.run([pextool, "ba2", "extract", os.path.join(data, archive), "*.swf", os.path.join(swf_dir, "mods")], capture_output=True, timeout=300)
     paths = []
     for base in (swf_dir, os.path.join(data, "interface"), os.path.join(data, "Interface"), os.path.join(data, "MCM")):
         for dirpath, _, files in os.walk(base):
@@ -233,7 +271,7 @@ def main():
     os.makedirs(out, exist_ok=True)
     only = [s for s in args.only.split(",") if s]
     hosts = args.hosts.split(",")
-    if "surface" in only:
+    if "surface" in only or "looks" in only:
         candidates(out)
     report = {}
     failed = False
@@ -248,8 +286,9 @@ def main():
         entry = {"hosts": hosts}
         if name == "mcm":
             entry["images"] = {k: image_diff(os.path.join(out, f"mcm-{k}-f4se.png"), os.path.join(out, f"mcm-{k}-f4x.png")) for k in ("pause", "open")}
+            # Rendering noise (blur, animation timing) moves a few pixels a lot.
             same = captures.get("f4se") == captures.get("f4x") and all(
-                v.get("over_16", 0) == 0 for v in entry["images"].values() if "over_16" in v)
+                v.get("over_16", 0) <= 0.0005 for v in entry["images"].values() if "over_16" in v)
         else:
             same = len(hosts) == 2 and captures[hosts[0]] == captures[hosts[1]] and "error" not in captures[hosts[0]]
             if not same and isinstance(captures.get("f4se"), dict) and isinstance(captures.get("f4x"), dict):

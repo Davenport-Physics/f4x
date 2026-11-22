@@ -100,3 +100,6 @@ pub const GFX_OBJECT_PUSH_BACK: Address = Address { name: "gfx_object_push_back"
 /// RE::ControlMap** singleton (global; CommonLibF4 `REL::ID(325206)`, CommonLibF4/include/RE/Bethesda/ControlMap.h:58)
 pub const CONTROL_MAP_SINGLETON: Address = Address { name: "control_map_singleton", rva: 0x59da210, signature: &[0x8b, 0x0d, 0x78, 0x9b, 0x4b, 0x05, 0x84, 0xdb, 0x48, 0x8b, 0x5c, 0x24, 0x50], mask: &[1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1], global: Some(GlobalRef { site_rva: 0x520692, disp_offset: 2, insn_len: 6 }) };
 
+/// RE::BSTHashMap<u32, TESForm*>** every form by id (TESForm::GetFormByID) (global; CommonLibF4 `REL::ID(422985)`, CommonLibF4/include/RE/Bethesda/TESForms.h:652)
+pub const ALL_FORMS: Address = Address { name: "all_forms", rva: 0x58d36c8, signature: &[0x8b, 0x2d, 0x94, 0x51, 0x7c, 0x05, 0x45, 0x33, 0xed, 0x4c, 0x89, 0x2d, 0x12, 0xb3, 0x8c, 0x05], mask: &[1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0], global: Some(GlobalRef { site_rva: 0x10e52e, disp_offset: 2, insn_len: 6 }) };
+

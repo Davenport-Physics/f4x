@@ -149,3 +149,33 @@ impl DataHandler {
     }
 }
 
+
+/// Any form by id, placed references included: a scan of the engine's global form map
+/// (`TESForm::allForms`, a `BSTHashMap<u32, TESForm*>`; CommonLibF4 `BSTHashMap.h`
+/// layout: capacity at +0x0C, entries at +0x28, 24-byte entries `{key, form, next}`, in
+/// use when `next` is set). Main thread; meant for tools, not hot paths.
+#[must_use]
+pub fn form_by_id(id: crate::FormId) -> Option<Form> {
+    use f4x_engine_sys::og_1_10_163_addresses::ALL_FORMS;
+    let global = crate::address::resolve(&ALL_FORMS)?;
+    // SAFETY: the allForms global (a pointer to the map) and the map's own fields.
+    unsafe {
+        let map: *const u8 = read(global as *const u8, 0);
+        if map.is_null() {
+            return None;
+        }
+        let capacity: u32 = read(map, 0x0C);
+        let entries: *const u8 = read(map, 0x28);
+        if entries.is_null() || !crate::mem::readable(entries as usize, capacity as usize * 24) {
+            return None;
+        }
+        for i in 0..capacity as usize {
+            let entry = entries.add(i * 24);
+            let next: usize = read(entry, 16);
+            if next != 0 && read::<u32>(entry, 0) == id.0 {
+                return Form::checked(read::<*mut u8>(entry, 8));
+            }
+        }
+    }
+    None
+}

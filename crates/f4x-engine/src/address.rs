@@ -3,6 +3,8 @@
 //!
 //! The committed RVA is checked against the masked signature first; if the bytes differ
 //! (another build), `.text` is scanned for the signature, which must match exactly once.
+//! Live memory is tried first, then the exe on disk, since other plugins may have
+//! patched a function's first bytes.
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -18,8 +20,43 @@ fn matches(bytes: &[u8], at: usize, address: &Address) -> bool {
     })
 }
 
+/// Where the signature sits in `bytes` (a `.text` image): at its committed RVA, else at
+/// the single place a scan finds it.
+fn locate(bytes: &[u8], text_rva: u32, rva: u32, address: &Address) -> Option<usize> {
+    let expected = rva.checked_sub(text_rva)? as usize;
+    if matches(bytes, expected, address) {
+        return Some(expected);
+    }
+    let hits: Vec<usize> = (0..bytes.len().saturating_sub(address.signature.len())).filter(|&i| matches(bytes, i, address)).take(2).collect();
+    if let [only] = hits.as_slice() { Some(*only) } else { None }
+}
+
+/// The game exe's `.text` as shipped (from disk): other plugins legitimately patch
+/// function entries in memory (e.g. Buffout 4 redirects allocators), which must not
+/// make our recipes fail. Loaded only when a live check fails.
+fn disk_text() -> Option<&'static (u32, Vec<u8>)> {
+    static TEXT: std::sync::OnceLock<Option<(u32, Vec<u8>)>> = std::sync::OnceLock::new();
+    TEXT.get_or_init(|| {
+        let path = exe_path()?;
+        let file = std::fs::read(&path).ok()?;
+        let pe = f4x_pe::PeFile::parse(&file).ok()?;
+        let text = pe.section(".text")?.clone();
+        Some((text.rva, pe.section_bytes(&text).to_vec()))
+    })
+    .as_ref()
+}
+
+fn exe_path() -> Option<std::path::PathBuf> {
+    use windows_sys::Win32::System::LibraryLoader::GetModuleFileNameW;
+    let mut buf = [0u16; 1024];
+    // SAFETY: valid buffer; null module = the game exe.
+    let len = unsafe { GetModuleFileNameW(std::ptr::null_mut(), buf.as_mut_ptr(), buf.len() as u32) } as usize;
+    (len > 0).then(|| std::path::PathBuf::from(String::from_utf16_lossy(&buf[..len])))
+}
+
 /// The absolute address of `address` in the running game, or `None` if its signature is
-/// not found (exactly once) in this build.
+/// not found (exactly once) in this build. Checked against live memory first, then
+/// against the exe on disk (the function may have been patched by another plugin).
 pub fn resolve(address: &Address) -> Option<usize> {
     let mut cache = CACHE.lock().ok()?;
     let cache = cache.get_or_insert_with(HashMap::new);
@@ -29,36 +66,27 @@ pub fn resolve(address: &Address) -> Option<usize> {
     let game = crate::game();
     let image = game.image();
     let text = image.section(".text")?.clone();
-    let bytes = image.section_bytes(&text);
-    if let Some(global) = address.global {
-        // The signature sits at an instruction referencing the global RIP-relatively.
-        let expected = global.site_rva.checked_sub(text.rva)? as usize;
-        let site = if matches(bytes, expected, address) {
-            Some(expected)
-        } else {
-            let hits: Vec<usize> =
-                (0..bytes.len().saturating_sub(address.signature.len())).filter(|&i| matches(bytes, i, address)).take(2).collect();
-            if let [only] = hits.as_slice() { Some(*only) } else { None }
-        };
-        let found = site.map(|site| {
-            let disp = i32::from_le_bytes(bytes[site + global.disp_offset as usize..][..4].try_into().unwrap());
-            (game.base() + text.rva as usize + site + global.insn_len as usize).wrapping_add_signed(disp as isize)
-        });
-        cache.insert(address.name, found);
-        return found;
+    let live = image.section_bytes(&text);
+    let wanted_rva = address.global.map_or(address.rva, |g| g.site_rva);
+    let (bytes, at, source) = match locate(live, text.rva, wanted_rva, address) {
+        Some(at) => (live, at, "memory"),
+        None => match disk_text().and_then(|(rva, disk)| locate(disk, *rva, wanted_rva, address).map(|at| (disk.as_slice(), at))) {
+            Some((disk, at)) => (disk, at, "disk"),
+            None => {
+                cache.insert(address.name, None);
+                return None;
+            }
+        },
+    };
+    if source == "disk" {
+        log::debug!(target: "f4x::address", "{}: patched in memory; matched against the exe on disk", address.name);
     }
-    let at = address.rva.checked_sub(text.rva)? as usize;
-    let found = if matches(bytes, at, address) {
-        Some(game.base() + address.rva as usize)
-    } else {
-        let hits: Vec<usize> = (0..bytes.len().saturating_sub(address.signature.len()))
-            .filter(|&i| matches(bytes, i, address))
-            .take(2)
-            .collect();
-        match hits.as_slice() {
-            [only] => Some(game.base() + text.rva as usize + only),
-            _ => None,
+    let found = match address.global {
+        Some(global) => {
+            let disp = i32::from_le_bytes(bytes.get(at + global.disp_offset as usize..)?.get(..4)?.try_into().ok()?);
+            Some((game.base() + text.rva as usize + at + global.insn_len as usize).wrapping_add_signed(disp as isize))
         }
+        None => Some(game.base() + text.rva as usize + at),
     };
     cache.insert(address.name, found);
     found

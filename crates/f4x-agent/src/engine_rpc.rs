@@ -59,7 +59,10 @@ pub fn register() {
             .ok_or_else(|| RpcError::new(code::INVALID_PARAMS, "params.id: hex form id, e.g. \"0000000F\""))?;
         on_main(
             move || {
-                let form = data_handler()?.lookup(id).ok_or_else(|| engine_error(format!("no form {id}")))?;
+                let form = data_handler()?
+                    .lookup(id)
+                    .or_else(|| f4x_engine::data::form_by_id(id))
+                    .ok_or_else(|| engine_error(format!("no form {id}")))?;
                 let mut value = form_json(form);
                 if let Some(reference) = form.as_reference() {
                     value["reference"] = reference_json(reference);
@@ -229,7 +232,10 @@ fn papyrus_call(p: &Value) -> Result<Value, RpcError> {
         move || {
             let handler = data_handler()?;
             let object_for = |id: FormId, script: Option<&str>| -> Result<*mut std::ffi::c_void, RpcError> {
-                let form = handler.lookup(id).ok_or_else(|| engine_error(format!("no form {id}")))?;
+                let form = handler
+                    .lookup(id)
+                    .or_else(|| f4x_engine::data::form_by_id(id))
+                    .ok_or_else(|| engine_error(format!("no form {id}")))?;
                 let form_type = form.form_type();
                 let script = match script {
                     Some(s) => s.to_owned(),

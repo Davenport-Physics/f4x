@@ -26,7 +26,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 use crate::contract::LaunchSpec;
-use crate::launch::{GameGuard, launch_lock_until, pid_alive, spawn};
+use crate::launch::{GameGuard, launch_lock_until, pid_alive, session_game_alive, spawn};
 use crate::session::{SessionDir, SessionEndpoint};
 
 pub const LAUNCH_FILE: &str = "launch.json";
@@ -212,6 +212,8 @@ pub fn run(spec: &LaunchSpec) -> SupervisorState {
     let startup = Duration::from_secs(spec.startup_timeout_s);
     let lifetime = spec.lifetime_s.map(Duration::from_secs);
     let mut fatal_since: Option<Instant> = None;
+    let mut game_gone_since: Option<Instant> = None;
+    let mut last_game_check = Instant::now();
     let (reason, kill, detail) = loop {
         std::thread::sleep(Duration::from_millis(250));
         if crate::signals::interrupted() {
@@ -236,6 +238,16 @@ pub fn run(spec: &LaunchSpec) -> SupervisorState {
         }
         if lifetime.is_some_and(|l| launched.elapsed() > l) {
             break (ExitReason::Lifetime, true, Some(format!("lifetime of {} s expired", lifetime.unwrap().as_secs())));
+        }
+        // The game can exit while other processes keep the session alive: a crash handler
+        // (e.g. Buffout 4) terminating the game and opening its crash log in Notepad.
+        if state.phase == Phase::Running && last_game_check.elapsed() > Duration::from_secs(2) {
+            last_game_check = Instant::now();
+            if session_game_alive(guard.marker()) {
+                game_gone_since = None;
+            } else if game_gone_since.get_or_insert_with(Instant::now).elapsed() > Duration::from_secs(6) {
+                break (ExitReason::GameExited, true, Some("Fallout4.exe exited; other session processes remained".into()));
+            }
         }
         if dir.fatal_crash() {
             let since = *fatal_since.get_or_insert_with(Instant::now);

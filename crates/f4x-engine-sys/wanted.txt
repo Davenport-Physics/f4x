@@ -39,3 +39,4 @@ gfx_object_set_member         1360149  CommonLibF4/include/RE/Scaleform/GFx/GFx_
 gfx_object_invoke             655847   CommonLibF4/include/RE/Scaleform/GFx/GFx_Player.h:348     RE::Scaleform::GFx::Value::ObjectInterface::Invoke(void*, Value*, const char*, const Value*, usize, bool) -> bool
 gfx_object_push_back          1330475  CommonLibF4/include/RE/Scaleform/GFx/GFx_Player.h:355     RE::Scaleform::GFx::Value::ObjectInterface::PushBack(void*, const Value&) -> bool
 control_map_singleton         global:325206  CommonLibF4/include/RE/Bethesda/ControlMap.h:58     RE::ControlMap** singleton
+all_forms                     global:422985  CommonLibF4/include/RE/Bethesda/TESForms.h:652     RE::BSTHashMap<u32, TESForm*>** every form by id (TESForm::GetFormByID)

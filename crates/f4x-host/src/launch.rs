@@ -140,12 +140,29 @@ pub fn spawn(launch: &Launch<'_>) -> Result<Child, String> {
         // `waitforexitandrun` (umu's default) blocks until every wineserver in the
         // prefix exits, so it hangs whenever Vortex/MO2 or another game session is open.
         .env("PROTON_VERB", "run")
+        .envs(dll_overrides(&launch.game_dir).map(|v| ("WINEDLLOVERRIDES", v)))
         .envs(launch.extra_env.iter().map(|(k, v)| (k, v)))
         .stdin(Stdio::null())
         .stdout(log)
         .stderr(log_err)
         .process_group(0);
     command.spawn().map_err(|e| format!("spawning {}: {e}", env.umu.display()))
+}
+
+/// Proxy DLLs that mod loaders drop next to the game (e.g. xSE PluginPreloader's
+/// `IpHlpAPI.dll` or `WinHTTP.dll`) shadow Wine builtins and need a native override, as
+/// they do in the user's own launcher settings.
+const PROXY_DLLS: [&str; 2] = ["iphlpapi", "winhttp"];
+
+fn dll_overrides(game_dir: &Path) -> Option<String> {
+    let present: Vec<String> = std::fs::read_dir(game_dir)
+        .ok()?
+        .flatten()
+        .filter_map(|e| e.file_name().to_str().map(str::to_ascii_lowercase))
+        .filter_map(|name| name.strip_suffix(".dll").map(str::to_owned))
+        .filter(|stem| PROXY_DLLS.contains(&stem.as_str()))
+        .collect();
+    (!present.is_empty()).then(|| present.iter().map(|s| format!("{s}=n,b")).collect::<Vec<_>>().join(";"))
 }
 
 /// `<root>/target/f4x-sessions`.
@@ -192,6 +209,11 @@ impl GameGuard {
     }
 
     /// The launched process has exited (other processes of the session may linger).
+    /// The session marker (`F4X_SESSION_DIR` value).
+    pub fn marker(&self) -> &str {
+        &self.session_marker
+    }
+
     pub fn exited(&mut self) -> bool {
         if self.status.is_some() {
             return true;
@@ -287,6 +309,16 @@ pub fn session_processes(marker: &str) -> Vec<u32> {
                 .is_ok_and(|env| env.split(|b| *b == 0).any(|var| var == needle.as_bytes()))
         })
         .collect()
+}
+
+/// Is the session's `Fallout4.exe` (argv[0] under Wine) still running?
+pub fn session_game_alive(marker: &str) -> bool {
+    session_processes(marker).into_iter().any(|pid| {
+        std::fs::read(format!("/proc/{pid}/cmdline")).is_ok_and(|cmdline| {
+            let argv0 = String::from_utf8_lossy(cmdline.split(|&b| b == 0).next().unwrap_or_default()).into_owned();
+            argv0.rsplit(['\\', '/']).next().is_some_and(|name| name.eq_ignore_ascii_case("Fallout4.exe"))
+        }) && pid_alive(pid)
+    })
 }
 
 /// SIGKILL every process of a session (by its marker).

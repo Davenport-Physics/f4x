@@ -487,6 +487,8 @@ impl Vm {
 
     /// Call a global (static) function `script.function`.
     pub fn call_static(self, script: &str, function: &str, args: Vec<Arg>) -> Option<Pending> {
+        // The VM refuses static calls into script types it has not loaded yet.
+        let _ = self.object_type(script);
         let (script, function) = (FixedString::new(script)?, FixedString::new(function)?);
         let functor = ArgsFunctor::new(args);
         let (callback, pending) = ResultCallback::new();
@@ -654,6 +656,9 @@ fn scrap_alloc(array: &mut ScrapArray, bytes: usize) -> Option<*mut Variable> {
     let allocate = resolve(&addr::SCRAP_HEAP_ALLOCATE)?;
     // SAFETY: ScrapHeap::Allocate(this, size, align).
     let p = unsafe { transmute::<usize, unsafe extern "C" fn(*mut c_void, usize, usize) -> *mut u8>(allocate)(array.heap, bytes, 8) };
+    if p.is_null() {
+        log::warn!(target: "f4x::papyrus", "scrap heap allocation of {bytes} bytes failed");
+    }
     (!p.is_null()).then_some(p.cast())
 }
 
