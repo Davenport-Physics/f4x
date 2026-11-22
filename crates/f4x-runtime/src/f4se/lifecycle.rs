@@ -16,7 +16,7 @@ use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
 use f4x_abi::f4se::message;
 use f4x_cosave::{CoSave, HOST_UID, PluginBlock, plgn};
-use f4x_engine_sys::og_1_10_163_addresses::{DATA_READY_CALLER, LOAD_GAME_WORKER, SAVE_GAME_WORKER};
+use f4x_engine_sys::og_1_10_163_addresses::{DATA_READY_CALLER, LOAD_GAME_WORKER, NEW_GAME_STARTER, SAVE_GAME_WORKER};
 
 /// Offset of the data-ready `call` inside `data_ready_caller` (1.10.163: 0xd3f268 -
 /// 0xd3eff0; black-box stack + our disassembly). Verified to be `E8` before use.
@@ -32,6 +32,10 @@ use super::{serialization, trampoline};
 static SAVE_WORKER: AtomicUsize = AtomicUsize::new(0);
 static LOAD_WORKER: AtomicUsize = AtomicUsize::new(0);
 static DATA_READY: AtomicUsize = AtomicUsize::new(0);
+static QUEST_START: AtomicUsize = AtomicUsize::new(0);
+/// The new-game starter's call that starts the starting quest (black-box: F4SE's
+/// `NewGame` comes from there, return address +0x5f; our disassembly: `call` at +0x5a).
+const NEW_GAME_CALL_OFFSET: usize = 0x5a;
 /// F4SE's own block from the last loaded co-save, carried into the next save.
 static HOST_BLOCK: Mutex<Option<PluginBlock>> = Mutex::new(None);
 
@@ -50,6 +54,31 @@ pub fn install() {
     let loads = redirect_calls(load, load_hook as Worker as usize);
     log::info!(target: "f4x::f4se", "save/load lifecycle hooked ({saves} save call sites, {loads} load call sites)");
     install_data_ready();
+    install_new_game();
+}
+
+/// `NewGame` (data: the starting `TESQuest*`, 8 bytes), sent on the main thread once the
+/// new-game starter's quest-start call returns. Black-box: at that moment the quest has
+/// `alreadyRun` set. No revert callbacks run before it (start from the main menu).
+fn install_new_game() {
+    let site = f4x_engine::address::resolve(&NEW_GAME_STARTER).map(|f| f + NEW_GAME_CALL_OFFSET);
+    // SAFETY: inside the resolved function's code.
+    let Some(site) = site.filter(|&s| unsafe { *(s as *const u8) } == 0xE8) else {
+        log::warn!(target: "f4x::f4se", "new-game call not found; NewGame will not be sent");
+        return;
+    };
+    // SAFETY: an `E8 rel32` call in the game's code.
+    let callee = unsafe { (site + 5).wrapping_add_signed((site as *const u8).add(1).cast::<i32>().read_unaligned() as isize) };
+    QUEST_START.store(callee, Relaxed);
+    let sites = redirect_calls_in(site, 5, callee, new_game_hook as Worker as usize);
+    log::info!(target: "f4x::f4se", "new game hooked ({sites} site)");
+}
+
+unsafe extern "C" fn new_game_hook(quest: usize, b: usize, c: usize, d: usize) -> usize {
+    // SAFETY: the engine's own function with its own arguments.
+    let result = unsafe { std::mem::transmute::<usize, Worker>(QUEST_START.load(Relaxed))(quest, b, c, d) };
+    dispatch_from_host(message::NEW_GAME, quest as *mut c_void, 8);
+    result
 }
 
 /// `GameDataReady` + `GameLoaded` from where F4SE sends them: the loader thread's call to

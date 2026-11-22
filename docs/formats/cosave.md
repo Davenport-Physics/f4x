@@ -55,3 +55,12 @@ From Settle Anywhere's `RegisterForControl("WorkshopMode")`, `REGS` v1 holds, fo
 - per registration: a `u64` VM handle, then a `u16` length and the script name.
 
 Example: `0C 00 "WorkshopMode" 01 00 00 00 1C 00 00 0C 01 00 00 00 13 00 "SAPlayerAliasScript"`.
+
+## `NewGame` (black-box, F4SE 0.6.23, vanilla profile, 2026-11-21)
+
+- The trigger was MainMenu's `BGSCodeObj.StartNewGame()`, called with `ui.invoke`.
+- The message is `NewGame` (kind 8) with `data` = the starting `TESQuest*` (data_len 8). In vanilla that's `0001ED86`.
+- It's sent on the main thread from the new-game starter's quest-start call: return address `Fallout4.exe+0x12a243f`, the call at RVA 0x12a243a.
+- It's sent after that call returns: the quest already has `alreadyRun = 1` and flags `0x0501`.
+- No serialization revert callbacks run before it, when the game is started from the main menu.
+- f4x reproduces all of this (`lifecycle.rs`, `install_new_game`).

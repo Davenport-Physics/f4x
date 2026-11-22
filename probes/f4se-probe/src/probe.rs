@@ -291,7 +291,21 @@ unsafe extern "C" fn on_message(msg: *mut Message) {
             // SAFETY: NUL-terminated sender name.
             unsafe { CStr::from_ptr(msg.sender) }.to_string_lossy().into()
         };
-        let payload = describe_payload(msg);
+        let mut payload = describe_payload(msg);
+        // NewGame passes the starting quest: record its state at this moment (CommonLibF4
+        // TESQuest: formID +0x14, data.flags +0xF4, currentStage +0x2B4, alreadyRun +0x2B6).
+        if msg.kind == message::NEW_GAME && readable(msg.data as *const c_void, 0x2B8) {
+            let q = msg.data as *const u8;
+            // SAFETY: readable for the whole quest prefix.
+            unsafe {
+                payload["quest"] = json!({
+                    "form_id": format!("{:08X}", (q.add(0x14) as *const u32).read_unaligned()),
+                    "flags": format!("{:#06x}", (q.add(0xF4) as *const u16).read_unaligned()),
+                    "current_stage": (q.add(0x2B4) as *const u16).read_unaligned(),
+                    "already_run": *q.add(0x2B6),
+                });
+            }
+        }
         emit(
             "message",
             json!({

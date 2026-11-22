@@ -11,6 +11,7 @@ console_log_add_string        764      CommonLibF4/include/RE/Bethesda/Console.h
 # Found by our own analysis (no CommonLibF4 ID): `rva:` entries. Source = how we found it.
 save_game_worker              rva:0xcde4f0  bb:PreSaveGame-stack+re:call-at-0xced56b  saves the game: (manager, const char* name, u8 flag); called from 0xced17d and 0xced56b
 load_game_worker              rva:0xcde9f0  bb:PreLoadGame-stack+re:call-at-0xceda78  loads a save: (manager, const char* name, u8 flag, out*) -> bool
+new_game_starter              rva:0x12a23e0 bb:NewGame-stack+re:call-at-0x12a243a  starts the new-game quest (MainMenu StartNewGame); its call at +0x5a starts the quest
 data_ready_caller             rva:0xd3eff0  bb:GameDataReady-stack+re:call-at-0xd3f268  finishes loading game data, then calls data_ready_callee (on a loader thread)
 # Console commands (f4x console-command registration).
 script_parse_parameters       1607     CommonLibF4/include/RE/Bethesda/Script.h:307             RE::Script::ParseParameters(params, compiled, offset&, ref, container, script, locals, ...)

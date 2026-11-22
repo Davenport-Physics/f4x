@@ -47,9 +47,9 @@
   - It implements AllowTextInput, GetDirectoryListing, SendExternalEvent, plugins and version (`docs/formats/scaleform-f4se.md`).
   - The surface was captured with `ui.*` on both hosts; the captures are byte-identical.
   - MCM's menu opens and lists the same mods as under F4SE.
+- **NewGame:** sent from the same call site as F4SE, with the same quest in the same state (`docs/formats/cosave.md`).
 - **Next:**
   - Papyrus external events (Register/UnregisterForExternalEvent and the EXEV co-save section);
-  - `NewGame` (needs a real new-game start);
   - the remaining F4SE natives, ordered by what mods use.
 
 Plan deviations that came out of the spikes:
