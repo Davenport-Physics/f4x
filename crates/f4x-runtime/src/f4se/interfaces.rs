@@ -1,6 +1,6 @@
 //! The interface tables handed to F4SE plugins.
 
-use std::ffi::{CStr, c_char, c_void};
+use std::ffi::{CStr, CString, c_char, c_void};
 use std::sync::atomic::Ordering::Relaxed;
 use std::sync::{Mutex, OnceLock};
 
@@ -213,7 +213,22 @@ unsafe extern "C" fn papyrus_register(callback: *mut c_void) -> bool {
     PAPYRUS_CALLBACKS.lock().map(|mut c| c.push((handle, callback as usize))).is_ok()
 }
 
-unsafe extern "C" fn get_external_event_registrations(_event: *const c_char, _data: *mut c_void, _functor: *mut c_void) {}
+/// `GetExternalEventRegistrations(eventName, data, functor)`: calls
+/// `functor(handle, scriptName, callbackName, data)` for each registrant (CommonLibF4
+/// `F4SE/Interfaces.h` signature).
+unsafe extern "C" fn get_external_event_registrations(event: *const c_char, data: *mut c_void, functor: *mut c_void) {
+    if event.is_null() || functor.is_null() {
+        return;
+    }
+    type RegFunctor = unsafe extern "C" fn(u64, *const c_char, *const c_char, *mut c_void);
+    // SAFETY: NUL-terminated event name; the plugin's functor.
+    let (event, functor) = unsafe { (CStr::from_ptr(event).to_string_lossy().into_owned(), std::mem::transmute::<*mut c_void, RegFunctor>(functor)) };
+    for r in super::natives::external_registrants(&event) {
+        let (script, callback) = (CString::new(r.script).unwrap_or_default(), CString::new(r.callback).unwrap_or_default());
+        // SAFETY: valid strings for the call.
+        unsafe { functor(r.handle, script.as_ptr(), callback.as_ptr(), data) };
+    }
+}
 
 pub(super) fn papyrus_done() -> bool {
     PAPYRUS_DONE.load(Relaxed)

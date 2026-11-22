@@ -47,7 +47,7 @@ Still to learn:
 - Under the same load order, f4x's `PLGN` is byte-identical to F4SE 0.6.23's (489 bytes).
 - A plugin that registered serialization callbacks but wrote no records gets no block (mcm.dll is an example).
 
-## `REGS` (control registrations, seen but not implemented yet)
+## `REGS` (control registrations)
 
 From Settle Anywhere's `RegisterForControl("WorkshopMode")`, `REGS` v1 holds, for one control name:
 - `u16` length, then the name;
@@ -64,3 +64,33 @@ Example: `0C 00 "WorkshopMode" 01 00 00 00 1C 00 00 0C 01 00 00 00 13 00 "SAPlay
 - It's sent after that call returns: the quest already has `alreadyRun = 1` and flags `0x0501`.
 - No serialization revert callbacks run before it, when the game is started from the main menu.
 - f4x reproduces all of this (`lifecycle.rs`, `install_new_game`).
+
+## External events: `EXEV` section (black-box, F4SE 0.6.23, 2026-11-21)
+
+How it was observed:
+- registrations were made through `papyrus.call` (`ScriptObject.RegisterForExternalEvent`);
+- events were sent with `ui.invoke` (`root.f4se.SendExternalEvent`);
+- `tools/extev_check.py` replays the whole sequence on either host.
+
+Format:
+- Each `REGS` entry is a `u16` event name, a `u32` count, then per registrant a `u64` handle, a `u16`-prefixed script name and a `u16`-prefixed callback name.
+- Example handle: `0x0000FFFF0001ED86` (a quest form). The script name is the VM's type name, e.g. `mq101questscript`.
+
+Ordering (the same rule applies to `CTLR` entries):
+- Entries are ordered by the event name's string-pool entry address. F4SE holds a pool reference per name; f4x pins its names the same way.
+- Registrants are ordered by handle.
+
+Registration rules:
+- One registration per (event, handle, script). Registering again keeps the first callback.
+- `UnregisterForExternalEvent` removes the registration.
+
+Dispatch:
+- `SendExternalEvent(name, args...)` calls the callback on every registrant, in handle order.
+- Arguments: every number becomes a Papyrus `Float` (`SetValueInt(-3)` fails); strings become `String` and booleans `Bool`.
+- A mismatched or missing argument makes the call fail silently.
+
+Known difference, f4x vs F4SE:
+- A callback that doesn't exist makes F4SE's VM log `Failed to call member function <cb> on [<script> <form>] - function name likely invalid`. f4x's dispatch, `DispatchMethodCall` on the bound object, is refused without that log line.
+- Valid callbacks behave the same.
+
+Everything else matches between hosts in `tools/extev_check.py`.

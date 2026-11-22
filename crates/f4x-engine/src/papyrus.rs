@@ -455,6 +455,36 @@ impl Vm {
         ok.then_some(pending)
     }
 
+    /// The script object of type `script` bound to `handle`, with one reference for the
+    /// caller (`FindBoundObject`, exact type match).
+    #[must_use]
+    pub fn bound_object(self, handle: u64, script: &str) -> Option<*mut ScriptObject> {
+        let script = CString::new(script).ok()?;
+        let mut object: *mut ScriptObject = null_mut();
+        type Find = unsafe extern "C" fn(*mut c_void, u64, *const c_char, bool, *mut *mut ScriptObject, bool) -> bool;
+        // SAFETY: FindBoundObject(handle, const char*, allowConst, BSTSmartPointer<Object>&, exact).
+        let found = unsafe { vcall::<Find>(self.0, slot::FIND_BOUND_OBJECT)(self.0, handle, script.as_ptr(), true, &mut object, true) };
+        (found && !object.is_null()).then_some(object)
+    }
+
+    /// Queue `function` on the `script` object bound to `handle`, through the object (so
+    /// the VM itself reports a missing function, as it does for F4SE's dispatches).
+    pub fn dispatch_on_bound(self, handle: u64, script: &str, function: &str, args: Vec<Arg>) -> bool {
+        let Some(object) = self.bound_object(handle, script) else { return false };
+        let queued = self.call_method_no_result(object, function, args);
+        object_dec_ref(object);
+        queued
+    }
+
+    fn call_method_no_result(self, object: *mut ScriptObject, function: &str, args: Vec<Arg>) -> bool {
+        let Some(function) = FixedString::new(function) else { return false };
+        let functor = ArgsFunctor::new(args);
+        let callback: *mut c_void = null_mut();
+        type F = unsafe extern "C" fn(*mut c_void, *const *mut ScriptObject, *const FixedString, *const ArgsFunctor, *const *mut c_void) -> bool;
+        // SAFETY: DispatchMethodCall(const BSTSmartPointer<Object>&, name, args, callback).
+        unsafe { vcall::<F>(self.0, slot::DISPATCH_METHOD_CALL_ON_OBJECT)(self.0, &object, &function, &*functor, &callback) }
+    }
+
     /// Call a global (static) function `script.function`.
     pub fn call_static(self, script: &str, function: &str, args: Vec<Arg>) -> Option<Pending> {
         let (script, function) = (FixedString::new(script)?, FixedString::new(function)?);

@@ -214,6 +214,7 @@ fn write_cosave(save: &str) {
         None => f4x_cosave::empty_host_chunks(&order),
     };
     f4x_cosave::regs::replace_section(&mut host_chunks, f4x_cosave::regs::CONTROLS, super::natives::control_entries());
+    f4x_cosave::regs::replace_section(&mut host_chunks, f4x_cosave::regs::EXTERNAL_EVENTS, super::natives::external_entries());
     cosave.plugins.push(PluginBlock { uid: HOST_UID, chunks: host_chunks });
     for (handle, registration) in serialization::registrations() {
         let (Some(uid), Some(save_callback)) = (registration.uid, registration.save) else { continue };
@@ -263,6 +264,7 @@ fn run_load_callbacks(cosave: Option<&CoSave>) {
     serialization::set_save_order(order);
     if let Some(host) = &host {
         super::natives::load_controls(&host.chunks);
+        super::natives::load_external(&host.chunks);
     }
     if let Ok(mut slot) = HOST_BLOCK.lock() {
         *slot = host;

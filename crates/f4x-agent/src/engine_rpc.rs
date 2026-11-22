@@ -70,6 +70,19 @@ pub fn register() {
         )?
     });
     server::register("papyrus.call", |_, p| papyrus_call(&p));
+    server::register("papyrus.intern", |_, p| {
+        // The string pool entry for each string (interning it if new): pool order is
+        // what F4SE's registration maps sort by.
+        let strings: Vec<String> =
+            p.get("strings").and_then(Value::as_array).map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_owned)).collect()).unwrap_or_default();
+        Ok(json!(strings
+            .iter()
+            .map(|s| {
+                let entry = f4x_engine::papyrus::FixedString::new(s);
+                json!({"string": s, "entry": entry.map(|e| format!("{:#x}", e.as_raw() as usize))})
+            })
+            .collect::<Vec<_>>()))
+    });
     server::register("engine.files", |_, _| {
         on_main(
             || {

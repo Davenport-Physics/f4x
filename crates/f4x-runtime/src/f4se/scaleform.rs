@@ -18,7 +18,8 @@
 //!     offset, which matches UTC date parts passed to the `Date` constructor (it reads
 //!     them as local time). f4x builds them the same way;
 //!   - F4SE crashes when called without arguments; f4x returns an empty array.
-//! - `AllowTextInput` and `SendExternalEvent` return undefined.
+//! - `AllowTextInput` and `SendExternalEvent` return undefined. `SendExternalEvent`
+//!   calls Papyrus external-event registrations (`natives.rs`).
 
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
@@ -194,9 +195,20 @@ fn find_files(pattern: &str) -> Vec<Found> {
     out
 }
 
+/// `SendExternalEvent(name, args...)`: numbers become Float, strings String, booleans
+/// Bool (black-box); anything else is passed as None.
 fn send_external_event(call: &mut Call) {
-    let event = call.args.first().and_then(Value::as_string).unwrap_or_default();
-    // No Papyrus external-event registrations exist yet (no installed script uses
-    // RegisterForExternalEvent); recorded for observability.
-    log::info!(target: "f4x::scaleform", "SendExternalEvent({event:?}, {} more arg(s))", call.args.len().saturating_sub(1));
+    use f4x_engine::papyrus::Arg;
+    use f4x_engine::scaleform::kind;
+    let Some(event) = call.args.first().and_then(Value::as_string) else { return };
+    let args: Vec<Arg> = call.args[1..]
+        .iter()
+        .map(|v| match v.kind() {
+            kind::BOOL => Arg::Bool(v.as_bool().unwrap_or(false)),
+            kind::INT | kind::UINT | kind::NUMBER => Arg::Float(v.as_number().unwrap_or(0.0) as f32),
+            kind::STRING => Arg::String(v.as_string().unwrap_or_default()),
+            _ => Arg::None,
+        })
+        .collect();
+    super::natives::send_external_event(&event, &args);
 }

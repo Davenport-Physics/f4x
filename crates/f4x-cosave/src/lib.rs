@@ -303,6 +303,52 @@ pub mod regs {
         Some((name, out))
     }
 
+    /// A registrant with a callback function (external events).
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Callback {
+        pub handle: u64,
+        pub script: String,
+        pub callback: String,
+    }
+
+    /// An external-event `REGS` entry: like [`write_named`], with a `u16`-prefixed callback
+    /// name after each script name.
+    #[must_use]
+    pub fn write_callbacks(name: &str, registrants: &[Callback]) -> Vec<u8> {
+        let mut out = Vec::new();
+        put_str(&mut out, name);
+        out.extend_from_slice(&(registrants.len() as u32).to_le_bytes());
+        for r in registrants {
+            out.extend_from_slice(&r.handle.to_le_bytes());
+            put_str(&mut out, &r.script);
+            put_str(&mut out, &r.callback);
+        }
+        out
+    }
+
+    #[must_use]
+    pub fn parse_callbacks(data: &[u8]) -> Option<(String, Vec<Callback>)> {
+        let mut at = 0;
+        let str_at = |at: &mut usize| -> Option<String> {
+            let len = u16::from_le_bytes(data.get(*at..*at + 2)?.try_into().ok()?) as usize;
+            let s = String::from_utf8_lossy(data.get(*at + 2..*at + 2 + len)?).into_owned();
+            *at += 2 + len;
+            Some(s)
+        };
+        let name = str_at(&mut at)?;
+        let count = u32::from_le_bytes(data.get(at..at + 4)?.try_into().ok()?) as usize;
+        at += 4;
+        let mut out = Vec::with_capacity(count.min(1024));
+        for _ in 0..count {
+            let handle = u64::from_le_bytes(data.get(at..at + 8)?.try_into().ok()?);
+            at += 8;
+            let script = str_at(&mut at)?;
+            let callback = str_at(&mut at)?;
+            out.push(Callback { handle, script, callback });
+        }
+        Some((name, out))
+    }
+
     fn bounds(chunks: &[Chunk], header: [u8; 4]) -> Option<(usize, usize)> {
         let start = chunks.iter().position(|c| c.kind == tag(&header))?;
         let end = chunks[start + 1..].iter().position(|c| c.kind == tag(&END)).map_or(chunks.len(), |i| start + 1 + i);
@@ -389,6 +435,16 @@ mod tests {
         assert_eq!(&kinds[1..7], ["KEYR", "REGE", "CTLR", "REGS", "REGE", "EXEV"]);
         assert_eq!(regs::section(&chunks, regs::CONTROLS).len(), 1);
         assert!(regs::section(&chunks, regs::KEYS).is_empty());
+    }
+
+    #[test]
+    fn external_event_registrations_match_f4se() {
+        // F4SE 0.6.23's REGS for RegisterForExternalEvent("f4xEvtA", "F4xProbeCallbackA")
+        // on MQ101 (script mq101questscript).
+        let f4se: &[u8] = b"\x07\x00f4xEvtA\x01\x00\x00\x00\x86\xed\x01\x00\xff\xff\x00\x00\x10\x00mq101questscript\x11\x00F4xProbeCallbackA";
+        let entry = regs::Callback { handle: 0x0000_FFFF_0001_ED86, script: "mq101questscript".into(), callback: "F4xProbeCallbackA".into() };
+        assert_eq!(regs::write_callbacks("f4xEvtA", std::slice::from_ref(&entry)), f4se);
+        assert_eq!(regs::parse_callbacks(f4se).unwrap(), ("f4xEvtA".into(), vec![entry]));
     }
 
     #[test]

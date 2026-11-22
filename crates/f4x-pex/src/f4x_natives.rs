@@ -42,6 +42,8 @@ pub const DECLARATIONS: &[Declaration] = &[
     native("Location", "EncounterZone", "GetEncounterZone", &[("Bool", "recursive")]),
     native("ScriptObject", "None", "RegisterForControl", &[("String", "control")]),
     native("ScriptObject", "None", "UnregisterForControl", &[("String", "control")]),
+    native("ScriptObject", "None", "RegisterForExternalEvent", &[("String", "eventName"), ("String", "callback")]),
+    native("ScriptObject", "None", "UnregisterForExternalEvent", &[("String", "eventName")]),
     event("ScriptObject", "OnControlDown", &[("String", "control")]),
     event("ScriptObject", "OnControlUp", &[("String", "control"), ("Float", "time")]),
 ];

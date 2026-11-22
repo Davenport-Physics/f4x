@@ -89,6 +89,7 @@ fn registrant(call: &NativeCall) -> Result<Registrant, String> {
 
 fn register_for_control(call: &mut NativeCall) -> Result<(), String> {
     let control = call.string(0);
+    pool_order(&control);
     let who = registrant(call)?;
     let mut controls = CONTROLS.lock().map_err(|_| "poisoned")?;
     let entry = match controls.iter().position(|(name, _)| name.eq_ignore_ascii_case(&control)) {
@@ -120,15 +121,47 @@ fn unregister_for_control(call: &mut NativeCall) -> Result<(), String> {
     Ok(())
 }
 
-/// The current control registrations as `REGS` entries.
+/// Registration names, each pinned in the string pool: F4SE keeps a pool reference per
+/// registered name and orders entries by the entry's address (black-box). Pinning keeps
+/// the address stable, as it does for F4SE.
+static PINNED: Mutex<Vec<(String, papyrus::FixedString)>> = Mutex::new(Vec::new());
+
+fn pool_order(name: &str) -> usize {
+    let Ok(mut pinned) = PINNED.lock() else { return usize::MAX };
+    if let Some((_, s)) = pinned.iter().find(|(n, _)| n.eq_ignore_ascii_case(name)) {
+        return s.as_raw() as usize;
+    }
+    match papyrus::FixedString::new(name) {
+        Some(s) => {
+            let address = s.as_raw() as usize;
+            pinned.push((name.to_owned(), s));
+            address
+        }
+        None => usize::MAX,
+    }
+}
+
+/// The current control registrations as `REGS` entries, in F4SE's order: entries by the
+/// name's string-pool address, registrants by handle.
 pub(crate) fn control_entries() -> Vec<Vec<u8>> {
-    CONTROLS.lock().map(|c| c.iter().map(|(name, list)| regs::write_named(name, list)).collect()).unwrap_or_default()
+    let mut controls = CONTROLS.lock().map(|c| c.clone()).unwrap_or_default();
+    controls.sort_by_key(|(name, _)| pool_order(name));
+    controls
+        .into_iter()
+        .map(|(name, mut list)| {
+            list.sort_by(|a, b| a.handle.cmp(&b.handle).then_with(|| a.script.cmp(&b.script)));
+            regs::write_named(&name, &list)
+        })
+        .collect()
 }
 
 /// Forget all registrations (before a load or a new game).
 pub(crate) fn revert() {
     if let Ok(mut c) = CONTROLS.lock() {
         c.clear();
+    }
+    if let Ok(mut e) = EXTERNAL.lock() {
+        e.clear();
     }
     ANY_CONTROLS.store(false, Relaxed);
 }
@@ -139,6 +172,7 @@ pub(crate) fn load_controls(host: &[Chunk]) {
     let mut restored = Vec::new();
     for chunk in regs::section(host, regs::CONTROLS) {
         let Some((name, list)) = regs::parse_named(&chunk.data) else { continue };
+        pool_order(&name);
         let list: Vec<Registrant> = list
             .into_iter()
             .filter_map(|r| {
@@ -181,13 +215,125 @@ pub(crate) fn dispatch_control(control: &str, down: bool, held: f32) -> usize {
         } else {
             ("OnControlUp", vec![Arg::String(name.clone()), Arg::Float(held)])
         };
-        let ok = vm.dispatch_method_call(r.handle, &r.script, event, args);
+        let ok = vm.dispatch_on_bound(r.handle, &r.script, event, args);
         log::info!(target: "f4x::papyrus", "{event}({name}) -> {} ({:#x}): {}", r.script, r.handle, if ok { "queued" } else { "refused" });
         if ok {
             sent += 1;
         }
     }
     sent
+}
+
+// ---- external events (ScriptObject.RegisterForExternalEvent, root.f4se.SendExternalEvent) ----
+//
+// Black-box (F4SE 0.6.23, docs/formats/cosave.md):
+// - one registration per (event, handle, script). Registering again keeps the first
+//   callback; Unregister removes it;
+// - SendExternalEvent calls the callback on every registrant, in handle order;
+// - arguments: every number becomes a Float, strings a String, booleans a Bool. Calls
+//   whose types do not match fail silently;
+// - saved in the EXEV section, entries by the event name's pool address, registrants by
+//   handle.
+
+static EXTERNAL: Mutex<Vec<(String, Vec<regs::Callback>)>> = Mutex::new(Vec::new());
+
+fn register_for_external_event(call: &mut NativeCall) -> Result<(), String> {
+    let (event, callback) = (call.string(0), call.string(1));
+    pool_order(&event);
+    let who = registrant(call)?;
+    let mut all = EXTERNAL.lock().map_err(|_| "poisoned")?;
+    let entry = match all.iter().position(|(name, _)| name.eq_ignore_ascii_case(&event)) {
+        Some(i) => &mut all[i].1,
+        None => {
+            all.push((event.clone(), Vec::new()));
+            &mut all.last_mut().unwrap().1
+        }
+    };
+    if !entry.iter().any(|r| r.handle == who.handle && r.script == who.script) {
+        log::info!(target: "f4x::papyrus", "{} ({:#x}) registered for external event {event:?} -> {callback}", who.script, who.handle);
+        entry.push(regs::Callback { handle: who.handle, script: who.script, callback });
+    }
+    Ok(())
+}
+
+fn unregister_for_external_event(call: &mut NativeCall) -> Result<(), String> {
+    let event = call.string(0);
+    let who = registrant(call)?;
+    let mut all = EXTERNAL.lock().map_err(|_| "poisoned")?;
+    for (name, list) in all.iter_mut() {
+        if name.eq_ignore_ascii_case(&event) {
+            list.retain(|r| !(r.handle == who.handle && r.script == who.script));
+        }
+    }
+    all.retain(|(_, list)| !list.is_empty());
+    Ok(())
+}
+
+/// The registrants of `event`, in dispatch order.
+pub(crate) fn external_registrants(event: &str) -> Vec<regs::Callback> {
+    let mut out: Vec<regs::Callback> = EXTERNAL
+        .lock()
+        .map(|all| all.iter().filter(|(name, _)| name.eq_ignore_ascii_case(event)).flat_map(|(_, l)| l.clone()).collect())
+        .unwrap_or_default();
+    out.sort_by(|a, b| a.handle.cmp(&b.handle).then_with(|| a.script.cmp(&b.script)));
+    out
+}
+
+/// Call `event`'s registered callbacks with `args` (already converted as F4SE does).
+pub(crate) fn send_external_event(event: &str, args: &[Arg]) -> usize {
+    let Some(vm) = f4x_agent::observe::virtual_machine() else { return 0 };
+    let vm = Vm(vm as *mut _);
+    let mut sent = 0;
+    for r in external_registrants(event) {
+        let call_args = args.iter().map(clone_arg).collect();
+        if vm.dispatch_on_bound(r.handle, &r.script, &r.callback, call_args) {
+            sent += 1;
+        }
+    }
+    log::info!(target: "f4x::papyrus", "external event {event:?}: {sent} call(s)");
+    sent
+}
+
+fn clone_arg(a: &Arg) -> Arg {
+    match a {
+        Arg::None | Arg::Object(_) => Arg::None,
+        Arg::Bool(b) => Arg::Bool(*b),
+        Arg::Int(i) => Arg::Int(*i),
+        Arg::Float(f) => Arg::Float(*f),
+        Arg::String(s) => Arg::String(s.clone()),
+    }
+}
+
+pub(crate) fn external_entries() -> Vec<Vec<u8>> {
+    let mut all = EXTERNAL.lock().map(|e| e.clone()).unwrap_or_default();
+    all.sort_by_key(|(name, _)| pool_order(name));
+    all.into_iter()
+        .map(|(name, mut list)| {
+            list.sort_by(|a, b| a.handle.cmp(&b.handle).then_with(|| a.script.cmp(&b.script)));
+            regs::write_callbacks(&name, &list)
+        })
+        .collect()
+}
+
+pub(crate) fn load_external(host: &[Chunk]) {
+    let mut restored = Vec::new();
+    for chunk in regs::section(host, regs::EXTERNAL_EVENTS) {
+        let Some((name, list)) = regs::parse_callbacks(&chunk.data) else { continue };
+        pool_order(&name);
+        let list: Vec<regs::Callback> = list
+            .into_iter()
+            .filter_map(|r| {
+                let id = super::serialization::remap_form_id(r.handle as u32)?;
+                Some(regs::Callback { handle: (r.handle & !0xFFFF_FFFF) | u64::from(id), ..r })
+            })
+            .collect();
+        if !list.is_empty() {
+            restored.push((name, list));
+        }
+    }
+    if let Ok(mut e) = EXTERNAL.lock() {
+        *e = restored;
+    }
 }
 
 // ---- input ----
@@ -238,7 +384,7 @@ fn is_registered(control: &str) -> bool {
 
 // ---- binding ----
 
-static NATIVES: [NativeSpec; 7] = [
+static NATIVES: [NativeSpec; 9] = [
     NativeSpec { script: "EncounterZone", name: "IsWorkshop", params: &[], ret: Type::Bool, is_static: false, handler: |c| zone_flag(c, WORKSHOP) },
     NativeSpec {
         script: "EncounterZone",
@@ -280,6 +426,22 @@ static NATIVES: [NativeSpec; 7] = [
         ret: Type::None,
         is_static: false,
         handler: unregister_for_control,
+    },
+    NativeSpec {
+        script: "ScriptObject",
+        name: "RegisterForExternalEvent",
+        params: &[("eventName", Type::String), ("callback", Type::String)],
+        ret: Type::None,
+        is_static: false,
+        handler: register_for_external_event,
+    },
+    NativeSpec {
+        script: "ScriptObject",
+        name: "UnregisterForExternalEvent",
+        params: &[("eventName", Type::String)],
+        ret: Type::None,
+        is_static: false,
+        handler: unregister_for_external_event,
     },
 ];
 
