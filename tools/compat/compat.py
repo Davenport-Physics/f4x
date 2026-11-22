@@ -258,7 +258,7 @@ def image_diff(a, b):
     d = ImageChops.difference(Image.open(a).convert("RGB"), Image.open(b).convert("RGB")).convert("L")
     h = d.histogram()
     total = sum(h)
-    return {"changed": (total - h[0]) / total, "over_16": sum(h[17:]) / total}
+    return {"changed": (total - h[0]) / total, "over_16": sum(h[17:]) / total, "over_32": sum(h[33:]) / total}
 
 
 def main():
@@ -286,9 +286,10 @@ def main():
         entry = {"hosts": hosts}
         if name == "mcm":
             entry["images"] = {k: image_diff(os.path.join(out, f"mcm-{k}-f4se.png"), os.path.join(out, f"mcm-{k}-f4x.png")) for k in ("pause", "open")}
-            # Rendering noise (blur, animation timing) moves a few pixels a lot.
+            # The blurred game world behind the menu shifts with timing (lighting, sky);
+            # a missing or broken menu changes several percent of the frame.
             same = captures.get("f4se") == captures.get("f4x") and all(
-                v.get("over_16", 0) <= 0.0005 for v in entry["images"].values() if "over_16" in v)
+                v.get("over_32", 0) <= 0.01 for v in entry["images"].values() if "over_32" in v)
         else:
             same = len(hosts) == 2 and captures[hosts[0]] == captures[hosts[1]] and "error" not in captures[hosts[0]]
             if not same and isinstance(captures.get("f4se"), dict) and isinstance(captures.get("f4x"), dict):
