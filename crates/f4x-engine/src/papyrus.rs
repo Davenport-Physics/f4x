@@ -305,6 +305,11 @@ mod slot {
     pub const EMPTY_HANDLE: usize = 0x06;
     pub const GET_HANDLE_FOR_OBJECT: usize = 0x07;
     pub const GET_OBJECT_FOR_HANDLE: usize = 0x0C;
+    pub const GET_HANDLE_TYPE: usize = 0x02;
+    // IVirtualMachine (more)
+    pub const GET_SCRIPT_OBJECT_TYPE_BY_ID: usize = 0x09;
+    pub const DISPATCH_STATIC_CALL: usize = 0x2C;
+    pub const DISPATCH_METHOD_CALL_ON_OBJECT: usize = 0x2D;
 }
 
 /// The Papyrus VM (`BSScript::IVirtualMachine*`).
@@ -409,6 +414,58 @@ impl Vm {
         unsafe { vcall::<unsafe extern "C" fn(*mut c_void, *mut c_void) -> bool>(self.0, slot::BIND_NATIVE_METHOD)(self.0, function) }
     }
 
+    /// The script type name the VM uses for a VM type id (for forms, the form type),
+    /// e.g. `Location` for `LCTN`.
+    #[must_use]
+    pub fn script_for_type(self, type_id: u32) -> Option<String> {
+        let mut info: *mut c_void = null_mut();
+        type F = unsafe extern "C" fn(*mut c_void, u32, *mut *mut c_void) -> bool;
+        // SAFETY: GetScriptObjectType(u32 typeID, BSTSmartPointer<ObjectTypeInfo>&).
+        let ok = unsafe { vcall::<F>(self.0, slot::GET_SCRIPT_OBJECT_TYPE_BY_ID)(self.0, type_id, &mut info) };
+        if !ok || info.is_null() {
+            return None;
+        }
+        // SAFETY: ObjectTypeInfo::name.
+        unsafe { mem::fixed_string(mem::read::<*const u8>(info as *const u8, crate::layout::RE::BSScript::ObjectTypeInfo::name)) }
+    }
+
+    /// The game object (e.g. a form) a script object is bound to, with its VM type id.
+    #[must_use]
+    pub fn game_object(self, object: *mut ScriptObject) -> Option<(u32, *mut u8)> {
+        let handle = object_handle(object)?;
+        let policy = self.handle_policy();
+        let mut type_id = 0u32;
+        // SAFETY: IObjectHandlePolicy::GetHandleType(handle, u32&).
+        let ok = unsafe { vcall::<unsafe extern "C" fn(*mut c_void, u64, *mut u32) -> bool>(policy, slot::GET_HANDLE_TYPE)(policy, handle, &mut type_id) };
+        if !ok {
+            return None;
+        }
+        Some((type_id, self.object_for_handle(type_id, handle)?))
+    }
+
+    /// Call `function` on a script object; the result arrives on a VM thread.
+    pub fn call_method(self, object: *mut ScriptObject, function: &str, args: Vec<Arg>) -> Option<Pending> {
+        let function = FixedString::new(function)?;
+        let functor = ArgsFunctor::new(args);
+        let (callback, pending) = ResultCallback::new();
+        type F = unsafe extern "C" fn(*mut c_void, *const *mut ScriptObject, *const FixedString, *const ArgsFunctor, *const *mut c_void) -> bool;
+        // SAFETY: DispatchMethodCall(const BSTSmartPointer<Object>&, const BSFixedString&,
+        // const BSTThreadScrapFunction<...>&, const BSTSmartPointer<IStackCallbackFunctor>&).
+        let ok = unsafe { vcall::<F>(self.0, slot::DISPATCH_METHOD_CALL_ON_OBJECT)(self.0, &object, &function, &*functor, &callback) };
+        ok.then_some(pending)
+    }
+
+    /// Call a global (static) function `script.function`.
+    pub fn call_static(self, script: &str, function: &str, args: Vec<Arg>) -> Option<Pending> {
+        let (script, function) = (FixedString::new(script)?, FixedString::new(function)?);
+        let functor = ArgsFunctor::new(args);
+        let (callback, pending) = ResultCallback::new();
+        type F = unsafe extern "C" fn(*mut c_void, *const FixedString, *const FixedString, *const ArgsFunctor, *const *mut c_void) -> bool;
+        // SAFETY: DispatchStaticCall(const BSFixedString&, const BSFixedString&, args, callback).
+        let ok = unsafe { vcall::<F>(self.0, slot::DISPATCH_STATIC_CALL)(self.0, &script, &function, &*functor, &callback) };
+        ok.then_some(pending)
+    }
+
     /// Queue a call of `script.function` on the object bound to `handle` (an event
     /// such as `OnControlDown` is an ordinary function call here). Returns whether the
     /// VM accepted it.
@@ -421,6 +478,103 @@ impl Vm {
         // const BSTThreadScrapFunction<bool(BSScrapArray<Variable>&)>&, const BSTSmartPointer<IStackCallbackFunctor>&).
         unsafe { vcall::<F>(self.0, slot::DISPATCH_METHOD_CALL_BY_HANDLE)(self.0, handle, &script, &function, &*functor, &callback) }
     }
+}
+
+// ---------------------------------------------------------------- call results
+
+/// A value returned by a script function.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Returned {
+    None,
+    Bool(bool),
+    Int(i32),
+    Float(f32),
+    String(String),
+    /// A script object: its handle and script name (and the game object, if any).
+    Object { handle: u64, script: String },
+    /// Arrays, structs and variants, by raw type.
+    Other(u32),
+}
+
+/// The result of a queued call, delivered by the VM.
+#[derive(Clone)]
+pub struct Pending(Arc<std::sync::Mutex<Option<Returned>>>);
+
+impl Pending {
+    /// The result, once the call has finished.
+    #[must_use]
+    pub fn get(&self) -> Option<Returned> {
+        self.0.lock().ok().and_then(|r| r.clone())
+    }
+}
+
+/// `BSScript::IStackCallbackFunctor` (CommonLibF4 community branch,
+/// `BSScript/IStackCallbackFunctor.h`): refcount at +8, then our result slot.
+#[repr(C)]
+struct ResultCallback {
+    vtbl: *const usize,
+    refcount: u32,
+    _pad: u32,
+    result: *const std::sync::Mutex<Option<Returned>>,
+}
+
+impl ResultCallback {
+    /// A callback the VM may keep: it is never freed (one small object per call).
+    fn new() -> (*mut c_void, Pending) {
+        static VTABLE: OnceLock<[usize; 7]> = OnceLock::new();
+        let vtbl = VTABLE.get_or_init(|| {
+            [
+                cb_dtor as *const () as usize,
+                cb_nop as *const () as usize, // CallQueued
+                cb_canceled as *const () as usize,
+                cb_nop as *const () as usize, // StartMultiDispatch
+                cb_nop as *const () as usize, // EndMultiDispatch
+                cb_call as *const () as usize,
+                cb_false as *const () as usize, // CanSave
+            ]
+        });
+        let slot = Arc::new(std::sync::Mutex::new(None));
+        let callback = Box::leak(Box::new(ResultCallback { vtbl: vtbl.as_ptr(), refcount: 1, _pad: 0, result: Arc::into_raw(slot.clone()) }));
+        ((callback as *mut ResultCallback).cast(), Pending(slot))
+    }
+}
+
+unsafe extern "C" fn cb_dtor(this: *mut ResultCallback, _flags: u32) -> *mut ResultCallback {
+    this
+}
+unsafe extern "C" fn cb_nop(_this: *mut ResultCallback) {}
+unsafe extern "C" fn cb_false(_this: *mut ResultCallback) -> bool {
+    false
+}
+unsafe extern "C" fn cb_canceled(this: *mut ResultCallback) {
+    // SAFETY: our live callback.
+    if let Ok(mut r) = unsafe { &*(*this).result }.lock() {
+        r.get_or_insert(Returned::Other(u32::MAX));
+    }
+}
+/// `operator()(Variable)`: the by-value `Variable` arrives as a pointer to the caller's
+/// temporary. It is read, not released (a leaked reference at worst).
+unsafe extern "C" fn cb_call(this: *mut ResultCallback, value: *const Variable) {
+    let _ = std::panic::catch_unwind(|| {
+        // SAFETY: the VM's result variable.
+        let v = unsafe { &*value };
+        let returned = match v.raw_type() {
+            raw::NONE => Returned::None,
+            raw::BOOL => Returned::Bool(v.as_bool()),
+            raw::INT => Returned::Int(v.as_int()),
+            raw::FLOAT => Returned::Float(v.as_float()),
+            raw::STRING => Returned::String(v.as_string()),
+            raw::OBJECT => match v.as_object() {
+                None => Returned::None,
+                Some(o) => Returned::Object { handle: object_handle(o).unwrap_or(0), script: object_script_name(o).unwrap_or_default() },
+            },
+            other => Returned::Other(other),
+        };
+        // SAFETY: our live callback.
+        if let Ok(mut r) = unsafe { &*(*this).result }.lock() {
+            *r = Some(returned);
+        }
+    });
 }
 
 // ---------------------------------------------------------------- call arguments

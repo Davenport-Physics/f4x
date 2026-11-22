@@ -69,6 +69,7 @@ pub fn register() {
             TIMEOUT,
         )?
     });
+    server::register("papyrus.call", |_, p| papyrus_call(&p));
     server::register("engine.files", |_, _| {
         on_main(
             || {
@@ -186,4 +187,93 @@ pub fn register() {
             TIMEOUT,
         )?
     });
+}
+
+// ---- papyrus.call ----
+
+/// `papyrus.call {function: "Script.Function", self?: "form id", args?: [...], timeout_s?}`.
+/// Arguments: booleans, integers, floats, strings, null (None), `{"form": "id"}`.
+/// For testing and for driving scripts on request: it goes through the Papyrus VM.
+fn papyrus_call(p: &Value) -> Result<Value, RpcError> {
+    use f4x_engine::papyrus::{Arg, Returned, Vm};
+    let function = p
+        .get("function")
+        .and_then(Value::as_str)
+        .ok_or_else(|| RpcError::new(code::INVALID_PARAMS, "params.function: \"Script.Function\""))?;
+    let (script, name) = function
+        .split_once('.')
+        .map(|(a, b)| (a.to_owned(), b.to_owned()))
+        .ok_or_else(|| RpcError::new(code::INVALID_PARAMS, "params.function: \"Script.Function\""))?;
+    let self_id = match p.get("self") {
+        None | Some(Value::Null) => None,
+        Some(v) => Some(v.as_str().and_then(FormId::parse).ok_or_else(|| RpcError::new(code::INVALID_PARAMS, "params.self: hex form id"))?),
+    };
+    let args_json: Vec<Value> = p.get("args").and_then(Value::as_array).cloned().unwrap_or_default();
+    let timeout = Duration::from_secs_f64(p.get("timeout_s").and_then(Value::as_f64).unwrap_or(5.0));
+    let vm = Vm(crate::observe::virtual_machine().ok_or_else(|| engine_error("no Papyrus VM yet"))? as *mut _);
+
+    let pending = on_main(
+        move || {
+            let handler = data_handler()?;
+            let object_for = |id: FormId, script: Option<&str>| -> Result<*mut std::ffi::c_void, RpcError> {
+                let form = handler.lookup(id).ok_or_else(|| engine_error(format!("no form {id}")))?;
+                let form_type = form.form_type();
+                let script = match script {
+                    Some(s) => s.to_owned(),
+                    None => vm.script_for_type(u32::from(form_type.0)).ok_or_else(|| engine_error(format!("no script type for {}", form_type.signature())))?,
+                };
+                vm.object_for_form(form.as_ptr(), form_type, &script)
+                    .ok_or_else(|| engine_error(format!("could not get a {script} object for {id}")))
+            };
+            let mut args = Vec::new();
+            for (i, a) in args_json.iter().enumerate() {
+                args.push(match a {
+                    Value::Null => Arg::None,
+                    Value::Bool(b) => Arg::Bool(*b),
+                    Value::Number(n) if n.is_i64() => Arg::Int(n.as_i64().unwrap_or(0) as i32),
+                    Value::Number(n) => Arg::Float(n.as_f64().unwrap_or(0.0) as f32),
+                    Value::String(s) => Arg::String(s.clone()),
+                    Value::Object(o) => {
+                        let id = o.get("form").and_then(Value::as_str).and_then(FormId::parse).ok_or_else(|| {
+                            RpcError::new(code::INVALID_PARAMS, format!("args[{i}]: {{\"form\": \"id\"}}"))
+                        })?;
+                        Arg::Object(object_for(id, o.get("script").and_then(Value::as_str))?)
+                    }
+                    Value::Array(_) => return Err(RpcError::new(code::INVALID_PARAMS, format!("args[{i}]: arrays are not supported"))),
+                });
+            }
+            let pending = match self_id {
+                Some(id) => vm.call_method(object_for(id, Some(&script))?, &name, args),
+                None => vm.call_static(&script, &name, args),
+            };
+            pending.ok_or_else(|| engine_error(format!("the VM refused the call to {script}.{name}")))
+        },
+        TIMEOUT,
+    )??;
+
+    let started = std::time::Instant::now();
+    let returned = loop {
+        if let Some(r) = pending.get() {
+            break r;
+        }
+        if started.elapsed() > timeout {
+            return Err(engine_error(format!("{function}: no result within {:.1} s", timeout.as_secs_f64())));
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    };
+    let value = match returned {
+        Returned::None => Value::Null,
+        Returned::Bool(b) => json!(b),
+        Returned::Int(i) => json!(i),
+        Returned::Float(f) => json!(f),
+        Returned::String(s) => json!(s),
+        Returned::Object { handle, script } => {
+            let id = FormId(handle as u32);
+            let form = on_main(move || Ok::<_, RpcError>(data_handler()?.lookup(id).map(form_json)), TIMEOUT)??;
+            json!({"handle": format!("{handle:#x}"), "script": script, "form": form})
+        }
+        Returned::Other(u32::MAX) => return Err(engine_error(format!("{function}: call canceled"))),
+        Returned::Other(raw) => json!({"raw_type": raw}),
+    };
+    Ok(json!({"result": value}))
 }
