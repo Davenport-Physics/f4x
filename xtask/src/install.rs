@@ -7,8 +7,12 @@
 //!   `~/.config/heroic/GamesConfig/<app>.json`) at `f4x_loader.exe`. The whole config
 //!   file is backed up and only that one value is edited in place.
 //!
-//! F4SE's own files stay where they are: `f4se_loader.exe` is simply no longer launched.
-//! Its plugins in `Data/F4SE/Plugins` are loaded by f4x. Uninstall removes our files
+//! - replaces `f4se_loader.exe` with a copy of `f4x_loader.exe` (the original is backed
+//!   up), so anything that still launches F4SE's loader runs f4x: a launcher's cached
+//!   settings, a mod manager's "F4SE" tool, shortcuts.
+//!
+//! F4SE's runtime DLLs stay in place, unused. Plugins in `Data/F4SE/Plugins` are loaded by
+//! f4x. Uninstall removes our files
 //! (only if unchanged), restores backups, and puts the previous `targetExe` back (only if
 //! the value is still ours).
 
@@ -17,7 +21,9 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 
-const FILES: [&str; 2] = ["f4x_loader.exe", "f4x_runtime.dll"];
+/// (installed name, built file).
+const FILES: [(&str, &str); 3] =
+    [("f4x_loader.exe", "f4x_loader.exe"), ("f4x_runtime.dll", "f4x_runtime.dll"), ("f4se_loader.exe", "f4x_loader.exe")];
 const HEROIC_APP: &str = "1998527297";
 
 fn install_dir() -> PathBuf {
@@ -33,8 +39,15 @@ fn sha256(path: &Path) -> Result<String, String> {
     String::from_utf8_lossy(&out.stdout).split_whitespace().next().map(str::to_owned).ok_or_else(|| "sha256sum failed".into())
 }
 
+/// Whether a process's program (argv[0], a Windows path under Wine) is `Fallout4.exe`.
 fn running_game() -> bool {
-    std::process::Command::new("pgrep").args(["-f", "Fallout4.exe"]).output().is_ok_and(|o| o.status.success() && !o.stdout.is_empty())
+    let Ok(dir) = fs::read_dir("/proc") else { return false };
+    dir.flatten().any(|entry| {
+        let Ok(cmdline) = fs::read(entry.path().join("cmdline")) else { return false };
+        let argv0 = cmdline.split(|&b| b == 0).next().unwrap_or_default();
+        let argv0 = String::from_utf8_lossy(argv0);
+        argv0.rsplit(['\\', '/']).next().is_some_and(|name| name.eq_ignore_ascii_case("Fallout4.exe"))
+    })
 }
 
 /// Replace the string value of `"key": "..."` (first occurrence) without reformatting
@@ -80,8 +93,8 @@ pub fn install(args: &[String]) -> Result<(), String> {
     fs::create_dir_all(install_dir().join("backup")).map_err(|e| e.to_string())?;
 
     let mut files = Vec::new();
-    for name in FILES {
-        let source = build.join(name);
+    for (name, built) in FILES {
+        let source = build.join(built);
         if !source.is_file() {
             return Err(format!("{} is missing; build with `cargo xwin build --release --target x86_64-pc-windows-msvc -p f4x-loader -p f4x-runtime`", source.display()));
         }
@@ -126,7 +139,8 @@ pub fn install(args: &[String]) -> Result<(), String> {
     });
     fs::write(&manifest_path, serde_json::to_string_pretty(&manifest).unwrap()).map_err(|e| e.to_string())?;
     println!("manifest: {}", manifest_path.display());
-    println!("logs and crash reports while playing: <Documents>/My Games/Fallout4/F4SE/f4x/latest");
+    println!("f4se_loader.exe now starts f4x (F4SE's is backed up in {})", install_dir().join("backup").display());
+    println!("logs and crash reports while playing: <Documents>/My Games/Fallout4/f4x/latest");
     Ok(())
 }
 

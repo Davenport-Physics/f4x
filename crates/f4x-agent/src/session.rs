@@ -2,7 +2,7 @@
 //!
 //! Without a host (normal play, launched by `f4x_loader.exe` from the game folder) the
 //! agent still keeps its logs and crash reports, in
-//! `Documents\My Games\Fallout4\F4SE\f4x\latest` (the run before is kept in `previous`).
+//! `Documents\My Games\Fallout4\f4x\latest` (the run before is kept in `previous`).
 
 use std::fs;
 use std::path::PathBuf;
@@ -38,7 +38,7 @@ pub fn init_with(dir: PathBuf) -> Option<&'static Session> {
     SESSION.get_or_init(|| Some(Session { dir, hosted: true })).as_ref()
 }
 
-/// `Documents\My Games\Fallout4\F4SE\f4x\latest`, rotating the last run to `previous`.
+/// `Documents\My Games\Fallout4\f4x\latest`, rotating the last run to `previous`.
 #[cfg(windows)]
 fn play_dir() -> Option<PathBuf> {
     // Only inside the game process (not, e.g., unit tests).
@@ -46,7 +46,7 @@ fn play_dir() -> Option<PathBuf> {
     if !exe.file_name()?.to_string_lossy().eq_ignore_ascii_case("Fallout4.exe") {
         return None;
     }
-    let root = documents()?.join("My Games").join("Fallout4").join("F4SE").join("f4x");
+    let root = documents()?.join("My Games").join("Fallout4").join("f4x");
     let (latest, previous) = (root.join("latest"), root.join("previous"));
     let _ = fs::remove_dir_all(&previous);
     let _ = fs::rename(&latest, &previous);

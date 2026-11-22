@@ -121,8 +121,9 @@ f4x quit --session "$S"
   - points Heroic's `targetExe` at the loader;
   - records everything, with backups, in `~/.local/share/f4x/install/manifest.json`.
 - `cargo xtask uninstall-game` reverts it.
-- F4SE's files stay in place but are no longer launched.
-- Logs while playing go to `Documents\My Games\Fallout4\F4SE\f4x\latest` (the run before is in `previous`).
+- `f4se_loader.exe` is replaced by a copy of the f4x loader (the original is backed up), so stale launch paths still run f4x. F4SE's DLLs stay in place, unused.
+- f4x never writes into F4SE's folders (`My Games\Fallout4\F4SE` holds F4SE's and the plugins' own logs).
+- Logs while playing go to `Documents\My Games\Fallout4\f4x\latest` (the run before is in `previous`).
 - Never run install or uninstall while the user's game is running. Heroic must be restarted to pick up the new launch target.
 
 ## Commands
