@@ -169,7 +169,7 @@ pub fn dispatch_from_host(kind: u32, data: *mut c_void, data_len: u32) {
     deliver(HOST_SENDER, kind, data, data_len, None, true);
 }
 
-// ---- Scaleform (registrations kept; movies are injected in Phase 5) ----
+// ---- Scaleform (callbacks run per movie by `scaleform.rs`) ----
 
 static SCALEFORM: ScaleformInterface =
     ScaleformInterface { interface_version: ScaleformInterface::VERSION, register: Some(scaleform_register) };
@@ -182,7 +182,7 @@ unsafe extern "C" fn scaleform_register(name: *const c_char, callback: *mut c_vo
     }
     // SAFETY: NUL-terminated name.
     let name = unsafe { CStr::from_ptr(name) }.to_string_lossy().into_owned();
-    log::info!(target: "f4x::f4se", "Scaleform registration {name:?} (not injected yet)");
+    log::info!(target: "f4x::f4se", "Scaleform registration {name:?}");
     SCALEFORM_CALLBACKS.lock().map(|mut c| c.push((name, callback as usize))).is_ok()
 }
 

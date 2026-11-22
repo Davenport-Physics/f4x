@@ -42,11 +42,15 @@
     - a SetWorkshop round trip.
   - Script declarations: f4x patches the user's own vanilla scripts into f4x profiles. `pex declare --verify` finds 0 mismatches with F4SE's signatures.
 - **Agent:** `input.press`/`input.recent` (engine-level input injection) and `papyrus.call`.
+- **Scaleform (Phase 5, first slice):**
+  - `root.f4se` is injected and plugin Scaleform callbacks run, both from where F4SE does it.
+  - It implements AllowTextInput, GetDirectoryListing, SendExternalEvent, plugins and version (`docs/formats/scaleform-f4se.md`).
+  - The surface was captured with `ui.*` on both hosts; the captures are byte-identical.
+  - MCM's menu opens and lists the same mods as under F4SE.
 - **Next:**
-  - Scaleform injection for MCM (Phase 5):
-    - `root.f4se` at the call at LoadMovie+0x188 (rva 0x2110c58), where F4SE's callbacks run (bb return address +0x18d);
-    - `GFx::Value` and ObjectInterface bindings;
-  - `NewGame` (needs a real new-game start).
+  - Papyrus external events (Register/UnregisterForExternalEvent and the EXEV co-save section);
+  - `NewGame` (needs a real new-game start);
+  - the remaining F4SE natives, ordered by what mods use.
 
 Plan deviations that came out of the spikes:
 - Tests run in dedicated Proton prefixes (`~/.local/share/f4x`), never the user's prefix.

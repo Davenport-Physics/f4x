@@ -90,7 +90,7 @@ fn redirect_calls(target: usize, hook: usize) -> usize {
 }
 
 /// Like [`redirect_calls`], restricted to `len` bytes of code at `start`.
-fn redirect_calls_in(start: usize, len: usize, target: usize, hook: usize) -> usize {
+pub(super) fn redirect_calls_in(start: usize, len: usize, target: usize, hook: usize) -> usize {
     let game = f4x_engine::game();
     // SAFETY: a range inside the mapped game code.
     let bytes = unsafe { std::slice::from_raw_parts(start as *const u8, len) };

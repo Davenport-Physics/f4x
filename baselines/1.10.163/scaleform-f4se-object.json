@@ -1,0 +1,136 @@
+{
+ "allow_text_input": [
+  {
+   "after": {
+    "text_entry_count": 1
+   },
+   "args": [
+    true
+   ],
+   "before": {
+    "text_entry_count": 0
+   },
+   "result": {
+    "result": {
+     "type": "undefined"
+    }
+   }
+  },
+  {
+   "after": {
+    "text_entry_count": 2
+   },
+   "args": [
+    true
+   ],
+   "before": {
+    "text_entry_count": 1
+   },
+   "result": {
+    "result": {
+     "type": "undefined"
+    }
+   }
+  },
+  {
+   "after": {
+    "text_entry_count": 1
+   },
+   "args": [
+    false
+   ],
+   "before": {
+    "text_entry_count": 2
+   },
+   "result": {
+    "result": {
+     "type": "undefined"
+    }
+   }
+  },
+  {
+   "after": {
+    "text_entry_count": 0
+   },
+   "args": [
+    false
+   ],
+   "before": {
+    "text_entry_count": 1
+   },
+   "result": {
+    "result": {
+     "type": "undefined"
+    }
+   }
+  },
+  {
+   "after": {
+    "text_entry_count": 0
+   },
+   "args": [
+    false
+   ],
+   "before": {
+    "text_entry_count": 0
+   },
+   "result": {
+    "result": {
+     "type": "undefined"
+    }
+   }
+  }
+ ],
+ "send_external_event": {
+  "result": {
+   "type": "undefined"
+  }
+ },
+ "tree": {
+  "members": {
+   "AllowTextInput": {
+    "members": {},
+    "type": "object"
+   },
+   "GetDirectoryListing": {
+    "members": {},
+    "type": "object"
+   },
+   "SendExternalEvent": {
+    "members": {},
+    "type": "object"
+   },
+   "plugins": {
+    "members": {
+     "f4mcm": {
+      "members": {},
+      "type": "object"
+     }
+    },
+    "type": "object"
+   },
+   "version": {
+    "members": {
+     "beta": {
+      "type": "int",
+      "value": 0.0
+     },
+     "major": {
+      "type": "int",
+      "value": 0.0
+     },
+     "minor": {
+      "type": "int",
+      "value": 0.0
+     },
+     "releaseIdx": {
+      "type": "int",
+      "value": 0.0
+     }
+    },
+    "type": "object"
+   }
+  },
+  "type": "object"
+ }
+}

@@ -91,6 +91,12 @@ f4x quit --session "$S"
   - Object results come back as handle, script and form.
 - Scripts only run in-game. At the main menu, calls are accepted but never finish (timeout).
 
+**Scaleform** (a menu's movie; runs inside that menu's next `AdvanceMovie`):
+- `ui.get {menu, path, fields?, depth?}`: the value at an ActionScript path, e.g. `root.f4se`.
+- `ui.has {menu, path, names}`: which of `names` are members, with types. Use it to enumerate black-box.
+- `ui.invoke {menu, path, method, args?, fields?}`.
+- Dates come back with `time_ms`.
+
 **MCP:** `.mcp.json` registers the `f4x` server (`tools/f4x-mcp.sh`). Smoke test it with `python3 -I tools/mcp_smoke.py tools/f4x-mcp.sh`.
 
 **Crashes:** `f4x status --session "$S"` prints symbolized crash reports. The files are `crash-*.json` in the session directory.

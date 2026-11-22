@@ -15,6 +15,7 @@
 mod interfaces;
 mod lifecycle;
 mod natives;
+mod scaleform;
 mod serialization;
 mod trampoline;
 
@@ -126,6 +127,7 @@ pub fn load_all() {
     }
     lifecycle::install();
     natives::install_input_hook();
+    scaleform::install();
     dispatch_from_host(message::POST_LOAD, std::ptr::null_mut(), 0);
     dispatch_from_host(message::POST_POST_LOAD, std::ptr::null_mut(), 0);
 }
