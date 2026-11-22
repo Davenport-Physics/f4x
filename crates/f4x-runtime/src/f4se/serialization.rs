@@ -152,16 +152,28 @@ unsafe extern "C" fn resolve_handle(handle: u64, out: *mut u64) -> bool {
     true
 }
 
-/// Map a form id from the save's load order to the current one (by file name).
+/// Map a form id from the save's load order to the current one (by file name), for
+/// full (`II xxxxxx`) and light (`FE LLL xxx`) files.
 unsafe extern "C" fn resolve_form_id(form_id: u32, out: *mut u32) -> bool {
     let index = (form_id >> 24) as u8;
-    let resolved = if index == 0xFF || index == 0xFE {
-        Some(form_id) // created forms; light files: TODO once the light PLGN encoding is known
+    let resolved = if index == 0xFF {
+        Some(form_id) // created at run time
+    } else if index == plgn::LIGHT {
+        let light = ((form_id >> 12) & 0xFFF) as u16;
+        let name = with(|s| s.save_order.iter().find(|e| e.light_index == Some(light)).map(|e| e.name.clone()));
+        match name {
+            None => Some(form_id),
+            Some(name) => current_file(&name)
+                .and_then(|f| f.light_index)
+                .map(|l| 0xFE00_0000 | (u32::from(l) << 12) | (form_id & 0xFFF)),
+        }
     } else {
-        let name = with(|s| s.save_order.iter().find(|e| e.index == index).map(|e| e.name.clone()));
+        let name = with(|s| s.save_order.iter().find(|e| e.index == index && e.light_index.is_none()).map(|e| e.name.clone()));
         match name {
             None => Some(form_id), // no co-save load order (e.g. no co-save): identity
-            Some(name) => current_index(&name).map(|i| (u32::from(i) << 24) | (form_id & 0x00FF_FFFF)),
+            Some(name) => current_file(&name)
+                .filter(|f| f.light_index.is_none())
+                .map(|f| (u32::from(f.index) << 24) | (form_id & 0x00FF_FFFF)),
         }
     };
     match resolved {
@@ -174,15 +186,22 @@ unsafe extern "C" fn resolve_form_id(form_id: u32, out: *mut u32) -> bool {
     }
 }
 
-fn current_index(name: &str) -> Option<u8> {
-    let handler = f4x_engine::DataHandler::get()?;
-    handler.files().into_iter().find(|f| f.light_index.is_none() && f.name.eq_ignore_ascii_case(name)).map(|f| f.index)
+fn current_file(name: &str) -> Option<f4x_engine::File> {
+    f4x_engine::DataHandler::get()?.load_order().into_iter().find(|f| f.name.eq_ignore_ascii_case(name))
 }
 
-/// The current load order as `PLGN` entries (full plugins).
+/// The current load order as `PLGN` entries (full and light, in load order).
 pub fn current_load_order() -> Vec<plgn::Entry> {
     f4x_engine::DataHandler::get()
-        .map(|h| h.files().into_iter().filter(|f| f.light_index.is_none()).map(|f| plgn::Entry { index: f.index, name: f.name }).collect())
+        .map(|h| {
+            h.load_order()
+                .into_iter()
+                .map(|f| match f.light_index {
+                    Some(light) => plgn::Entry::light(light, &f.name),
+                    None => plgn::Entry::full(f.index, &f.name),
+                })
+                .collect()
+        })
         .unwrap_or_default()
 }
 

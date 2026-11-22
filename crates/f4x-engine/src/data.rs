@@ -112,6 +112,33 @@ impl DataHandler {
         out
     }
 
+    /// Active files in load order (full and light interleaved, as the game loaded them):
+    /// `TESDataHandler::files` (a `BSSimpleList<TESFile*>` with an inline head node
+    /// `{value, next}`), keeping files with a compile index (CommonLibF4 layouts).
+    pub fn load_order(self) -> Vec<File> {
+        let mut out = Vec::new();
+        let mut node = unsafe { self.ptr().add(RE::TESDataHandler::files) };
+        for _ in 0..4096 {
+            // SAFETY: list nodes: TESFile* value at 0, next node at 8.
+            let (file, next): (*const u8, *const u8) = unsafe { (read(node, 0), read(node, 8)) };
+            if !file.is_null() {
+                // SAFETY: a live TESFile.
+                let (index, light): (u8, u16) =
+                    unsafe { (read(file, RE::TESFile::compileIndex), read(file, RE::TESFile::smallFileCompileIndex)) };
+                if index != 0xFF {
+                    // SAFETY: TESFile::filename is char[260].
+                    let name = unsafe { crate::mem::c_str(file.add(RE::TESFile::filename)) };
+                    out.push(File { name, index, light_index: (index == 0xFE).then_some(light) });
+                }
+            }
+            if next.is_null() {
+                break;
+            }
+            node = next;
+        }
+        out
+    }
+
     /// Total forms in the per-type arrays.
     pub fn form_count(self) -> usize {
         (0..FormType::COUNT as u8).map(|t| self.count_of_type(FormType(t))).sum()

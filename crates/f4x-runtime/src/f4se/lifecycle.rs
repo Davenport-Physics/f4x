@@ -188,7 +188,10 @@ fn write_cosave(save: &str) {
         let (Some(uid), Some(save_callback)) = (registration.uid, registration.save) else { continue };
         let chunks = serialization::collect_save(save_callback);
         log::debug!(target: "f4x::f4se", "plugin {handle} wrote {} co-save records", chunks.len());
-        cosave.plugins.push(PluginBlock { uid, chunks });
+        // F4SE leaves out plugins that wrote nothing.
+        if !chunks.is_empty() {
+            cosave.plugins.push(PluginBlock { uid, chunks });
+        }
     }
     match saves_dir() {
         Some(dir) => {

@@ -38,3 +38,20 @@ Still to learn:
 - the non-empty registration tables;
 - `DeleteGame`;
 - `NewGame`.
+
+## Light plugins in `PLGN` (black-box, user-mods profile, 2026-11-21)
+
+- Entries are in load order, with full and light files interleaved.
+- A light file has index byte `0xFE`, then a `u16` light index, then the usual `u16` name length and the name.
+  - Example: `FE 00 00 18 00 "CRP Radio Towers 2.5.esp"`.
+- Under the same load order, f4x's `PLGN` is byte-identical to F4SE 0.6.23's (489 bytes).
+- A plugin that registered serialization callbacks but wrote no records gets no block (mcm.dll is an example).
+
+## `REGS` (control registrations, seen but not implemented yet)
+
+From Settle Anywhere's `RegisterForControl("WorkshopMode")`, `REGS` v1 holds, for one control name:
+- `u16` length, then the name;
+- `u32` count;
+- per registration: a `u64` VM handle, then a `u16` length and the script name.
+
+Example: `0C 00 "WorkshopMode" 01 00 00 00 1C 00 00 0C 01 00 00 00 13 00 "SAPlayerAliasScript"`.

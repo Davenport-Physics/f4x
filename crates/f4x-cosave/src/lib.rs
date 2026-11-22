@@ -155,27 +155,52 @@ impl CoSave {
     }
 }
 
-/// The `PLGN` chunk: the save's load order (index, file name). Format seen in F4SE 0.6.23
-/// co-saves: `u16 count`, then per file `u8 index`, `u16 name length`, name bytes.
+/// The `PLGN` chunk: the save's load order, full and light plugins interleaved in load
+/// order. Format seen in F4SE 0.6.23 co-saves: `u16 count`, then per file `u8 index`;
+/// for light files (`index == 0xFE`) a `u16 light index` follows; then `u16 name length`
+/// and the name bytes.
 pub mod plgn {
     pub const KIND: [u8; 4] = *b"PLGN";
+    pub const LIGHT: u8 = 0xFE;
 
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct Entry {
         pub index: u8,
+        /// For light files (`index == 0xFE`).
+        pub light_index: Option<u16>,
         pub name: String,
+    }
+
+    impl Entry {
+        #[must_use]
+        pub fn full(index: u8, name: &str) -> Entry {
+            Entry { index, light_index: None, name: name.to_owned() }
+        }
+
+        #[must_use]
+        pub fn light(light_index: u16, name: &str) -> Entry {
+            Entry { index: LIGHT, light_index: Some(light_index), name: name.to_owned() }
+        }
     }
 
     pub fn parse(data: &[u8]) -> Option<Vec<Entry>> {
         let count = u16::from_le_bytes(data.get(..2)?.try_into().ok()?) as usize;
         let mut at = 2;
         let mut out = Vec::with_capacity(count);
+        let u16_at = |at: usize| data.get(at..at + 2).map(|b| u16::from_le_bytes([b[0], b[1]]));
         for _ in 0..count {
             let index = *data.get(at)?;
-            let len = u16::from_le_bytes(data.get(at + 1..at + 3)?.try_into().ok()?) as usize;
-            let name = String::from_utf8_lossy(data.get(at + 3..at + 3 + len)?).into_owned();
-            out.push(Entry { index, name });
-            at += 3 + len;
+            at += 1;
+            let light_index = if index == LIGHT {
+                at += 2;
+                Some(u16_at(at - 2)?)
+            } else {
+                None
+            };
+            let len = u16_at(at)? as usize;
+            let name = String::from_utf8_lossy(data.get(at + 2..at + 2 + len)?).into_owned();
+            out.push(Entry { index, light_index, name });
+            at += 2 + len;
         }
         Some(out)
     }
@@ -184,6 +209,9 @@ pub mod plgn {
         let mut out = (entries.len() as u16).to_le_bytes().to_vec();
         for e in entries {
             out.push(e.index);
+            if e.index == LIGHT {
+                out.extend_from_slice(&e.light_index.unwrap_or(0).to_le_bytes());
+            }
             out.extend_from_slice(&(e.name.len() as u16).to_le_bytes());
             out.extend_from_slice(e.name.as_bytes());
         }
@@ -231,7 +259,7 @@ mod tests {
         assert_eq!(host.chunks.len(), 14);
         let order = plgn::parse(&host.chunks[0].data).unwrap();
         assert_eq!(order.len(), 7);
-        assert_eq!(order[0], plgn::Entry { index: 0, name: "Fallout4.esm".into() });
+        assert_eq!(order[0], plgn::Entry::full(0, "Fallout4.esm"));
         assert_eq!(order[6].name, "DLCNukaWorld.esm");
 
         let probe = save.plugin(tag(b"F4XP")).unwrap();
@@ -250,6 +278,20 @@ mod tests {
         let host = save.plugin(HOST_UID).unwrap();
         let order = plgn::parse(&host.chunks[0].data).unwrap();
         assert_eq!(empty_host_chunks(&order), host.chunks);
+    }
+
+    #[test]
+    fn plgn_light_entries_round_trip() {
+        // As F4SE 0.6.23 writes them for a load order with light plugins.
+        let order = vec![
+            plgn::Entry::full(0x0D, "StartMeUp.esp"),
+            plgn::Entry::light(0, "CRP Radio Towers 2.5.esp"),
+            plgn::Entry::light(1, "YAWA2_CRPMMRRN_Patch.esp"),
+            plgn::Entry::full(0x0E, "FCOM.esp"),
+        ];
+        let bytes = plgn::write(&order);
+        assert_eq!(&bytes[2..21], b"\x0d\x0d\x00StartMeUp.esp\xfe\x00\x00");
+        assert_eq!(plgn::parse(&bytes).unwrap(), order);
     }
 
     #[test]
