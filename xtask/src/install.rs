@@ -39,11 +39,17 @@ fn sha256(path: &Path) -> Result<String, String> {
     String::from_utf8_lossy(&out.stdout).split_whitespace().next().map(str::to_owned).ok_or_else(|| "sha256sum failed".into())
 }
 
-/// Whether a process's program (argv[0], a Windows path under Wine) is `Fallout4.exe`.
+/// Whether the user's game is running: a process whose program (argv[0], a Windows path
+/// under Wine) is `Fallout4.exe`, other than f4x's own test sessions.
 fn running_game() -> bool {
     let Ok(dir) = fs::read_dir("/proc") else { return false };
     dir.flatten().any(|entry| {
         let Ok(cmdline) = fs::read(entry.path().join("cmdline")) else { return false };
+        // f4x's own test sessions carry their session marker; they use profiles, not
+        // the real install.
+        if fs::read(entry.path().join("environ")).is_ok_and(|env| env.split(|&b| b == 0).any(|v| v.starts_with(b"F4X_SESSION_DIR="))) {
+            return false;
+        }
         let argv0 = cmdline.split(|&b| b == 0).next().unwrap_or_default();
         let argv0 = String::from_utf8_lossy(argv0);
         argv0.rsplit(['\\', '/']).next().is_some_and(|name| name.eq_ignore_ascii_case("Fallout4.exe"))
