@@ -55,6 +55,7 @@ fn script(name: &str) -> Vec<u8> {
             name: empty,
             functions: vec![NamedFunction { name: native_name, function: native }],
         }],
+        size_excludes_field: false,
     });
     pex.to_bytes().unwrap()
 }

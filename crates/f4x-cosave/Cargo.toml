@@ -1,0 +1,11 @@
+[package]
+name = "f4x-cosave"
+description = "Read and write F4SE-format co-saves (.f4se)"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

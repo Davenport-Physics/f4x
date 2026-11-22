@@ -13,3 +13,16 @@
 #![no_std]
 
 pub mod og_1_10_163;
+
+pub mod og_1_10_163_addresses;
+
+/// A non-virtual engine function: its RVA in one build plus a masked byte signature
+/// that is unique in the exe's `.text` (the recipe that re-finds it in any build).
+#[derive(Clone, Copy, Debug)]
+pub struct Address {
+    pub name: &'static str,
+    pub rva: u32,
+    /// Signature bytes; compare only where `mask` is non-zero.
+    pub signature: &'static [u8],
+    pub mask: &'static [u8],
+}

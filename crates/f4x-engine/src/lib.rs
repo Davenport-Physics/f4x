@@ -20,6 +20,10 @@ pub mod form_id;
 pub mod form_type;
 
 #[cfg(windows)]
+pub mod address;
+#[cfg(windows)]
+pub mod console;
+#[cfg(windows)]
 pub mod data;
 #[cfg(windows)]
 pub mod form;

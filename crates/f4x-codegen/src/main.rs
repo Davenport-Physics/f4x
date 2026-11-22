@@ -15,6 +15,8 @@ commands:
   layouts   parse <out>/records.txt into <out>/layouts.json
   tables    generate crates/f4x-engine-sys/src/og_1_10_163.rs (offset tables, vtable slots,
             RTTI names, form types) from <out>/{layouts.json, vtables.txt}
+  addresses resolve crates/f4x-engine-sys/wanted.txt with --bin <Address Library .bin>
+            and --exe <Fallout4.exe>; write signature recipes into f4x-engine-sys
   verify    check the generated tables against a game exe: --exe <Fallout4.exe>
             (vtable lengths vs RTTI, classes present); writes <out>/verify.json
 
@@ -38,6 +40,7 @@ struct Args {
     out: Option<PathBuf>,
     third_party: Option<PathBuf>,
     exe: Option<PathBuf>,
+    bin: Option<PathBuf>,
     offline: bool,
     delayed_templates: bool,
 }
@@ -53,6 +56,7 @@ fn parse_args(raw: &[String]) -> Result<Args, String> {
         out: None,
         third_party: None,
         exe: None,
+        bin: None,
         offline: false,
         delayed_templates: true,
     };
@@ -65,6 +69,7 @@ fn parse_args(raw: &[String]) -> Result<Args, String> {
             "--out" => args.out = Some(value()?),
             "--third-party" => args.third_party = Some(value()?),
             "--exe" => args.exe = Some(value()?),
+            "--bin" => args.bin = Some(value()?),
             "--offline" => args.offline = true,
             "--no-delayed-templates" => args.delayed_templates = false,
             other => return Err(format!("unknown option `{other}`")),
@@ -105,6 +110,16 @@ fn main() -> ExitCode {
         }
         "layouts" => layouts(&out),
         "tables" => tables(&out, &args.clf4.clone().unwrap_or_else(|| workspace_root().join("../CommonLibF4"))),
+        "addresses" => match (&args.bin, &args.exe) {
+            (Some(bin), Some(exe)) => f4x_codegen::addresses::run(
+                bin,
+                exe,
+                &workspace_root().join("crates/f4x-engine-sys/wanted.txt"),
+                &workspace_root().join("crates/f4x-engine-sys/src/og_1_10_163_addresses.rs"),
+                &workspace_root().join("provenance/addresses.jsonl"),
+            ),
+            _ => Err("addresses needs --bin <version-1-10-163-0.bin> and --exe <Fallout4.exe>".into()),
+        },
         "verify" => match &args.exe {
             Some(exe) => verify(&out, exe, &args.clf4.clone().unwrap_or_else(|| workspace_root().join("../CommonLibF4"))),
             None => Err("verify needs --exe <Fallout4.exe>".into()),

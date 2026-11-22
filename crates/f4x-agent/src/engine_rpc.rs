@@ -161,6 +161,16 @@ pub fn register() {
             Duration::from_secs(60),
         )?
     });
+    server::register("console.exec", |_, p| {
+        let command = p
+            .get("command")
+            .and_then(Value::as_str)
+            .ok_or_else(|| RpcError::new(code::INVALID_PARAMS, "params.command: a console command"))?
+            .to_owned();
+        log::info!(target: "f4x::console", "console: {command}");
+        on_main(move || f4x_engine::console::execute(&command).map_err(engine_error), TIMEOUT)??;
+        Ok(json!({"ok": true}))
+    });
     server::register("engine.singletons", |_, _| {
         on_main(
             || {

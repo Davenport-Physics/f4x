@@ -6,7 +6,7 @@ use std::sync::{Mutex, OnceLock};
 
 use f4x_abi::f4se::{
     F4seInterface, Message, MessageCallback, MessagingInterface, PapyrusInterface, PapyrusRegisterCallback,
-    PluginHandle, ScaleformInterface, SerializationInterface, TaskDelegate, TaskInterface, TrampolineInterface,
+    PluginHandle, ScaleformInterface, TaskDelegate, TaskInterface, TrampolineInterface,
     interface_id, message,
 };
 use f4x_abi::version::PackedVersion;
@@ -15,7 +15,7 @@ use super::trampoline::{self, Pool};
 use super::{CURRENT, PLUGINS};
 
 /// What we report as the F4SE version (0.6.23, as plugins expect on old-gen).
-const F4SE_VERSION: PackedVersion = PackedVersion::new(0, 6, 23, 0);
+pub(crate) const F4SE_VERSION: PackedVersion = PackedVersion::new(0, 6, 23, 0);
 const RELEASE_INDEX: u32 = 25;
 const HOST_SENDER: &CStr = c"F4SE";
 
@@ -46,7 +46,7 @@ unsafe extern "C" fn query_interface(id: u32) -> *mut c_void {
         interface_id::MESSAGING => &MESSAGING as *const _ as *const c_void,
         interface_id::SCALEFORM => &SCALEFORM as *const _ as *const c_void,
         interface_id::PAPYRUS => &PAPYRUS as *const _ as *const c_void,
-        interface_id::SERIALIZATION => &SERIALIZATION as *const _ as *const c_void,
+        interface_id::SERIALIZATION => &super::serialization::INTERFACE as *const _ as *const c_void,
         interface_id::TASK => &TASK as *const _ as *const c_void,
         interface_id::TRAMPOLINE => &TRAMPOLINE as *const _ as *const c_void,
         other => {
@@ -236,53 +236,7 @@ pub(super) fn run_papyrus_registrations() {
     }
 }
 
-// ---- Serialization (callbacks kept; co-saves arrive with the save/load hooks) ----
-
-static SERIALIZATION: SerializationInterface = SerializationInterface {
-    version: SerializationInterface::VERSION,
-    set_unique_id: Some(set_unique_id),
-    set_revert_callback: Some(set_callback),
-    set_save_callback: Some(set_callback),
-    set_load_callback: Some(set_callback),
-    set_form_delete_callback: Some(set_callback),
-    write_record: Some(write_record),
-    open_record: Some(open_record),
-    write_record_data: Some(write_record_data),
-    get_next_record_info: Some(get_next_record_info),
-    read_record_data: Some(read_record_data),
-    resolve_handle: Some(resolve_handle),
-    resolve_form_id: Some(resolve_form_id),
-};
-
-unsafe extern "C" fn set_unique_id(handle: PluginHandle, uid: u32) {
-    log::debug!(target: "f4x::f4se", "{} co-save id {:?}", plugin_name(handle), String::from_utf8_lossy(&uid.to_be_bytes()));
-}
-unsafe extern "C" fn set_callback(_handle: PluginHandle, _callback: *mut c_void) {}
-unsafe extern "C" fn write_record(_kind: u32, _version: u32, _buf: *const c_void, _len: u32) -> bool {
-    false
-}
-unsafe extern "C" fn open_record(_kind: u32, _version: u32) -> bool {
-    false
-}
-unsafe extern "C" fn write_record_data(_buf: *const c_void, _len: u32) -> bool {
-    false
-}
-unsafe extern "C" fn get_next_record_info(_kind: *mut u32, _version: *mut u32, _len: *mut u32) -> bool {
-    false
-}
-unsafe extern "C" fn read_record_data(_buf: *mut c_void, _len: u32) -> u32 {
-    0
-}
-unsafe extern "C" fn resolve_handle(handle: u64, out: *mut u64) -> bool {
-    // SAFETY: caller-provided out pointer.
-    unsafe { *out = handle };
-    true
-}
-unsafe extern "C" fn resolve_form_id(form_id: u32, out: *mut u32) -> bool {
-    // SAFETY: caller-provided out pointer.
-    unsafe { *out = form_id };
-    true
-}
+// ---- Serialization: see `serialization.rs` ----
 
 // ---- Tasks (run on the main-thread pump, then destroyed like F4SE does: slot 0, flags 1) ----
 

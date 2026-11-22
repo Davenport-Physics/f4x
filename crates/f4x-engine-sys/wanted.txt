@@ -1,0 +1,14 @@
+# Non-virtual engine functions f4x calls or hooks. One per line:
+#   name  clf4-id  clf4-source  description
+# `f4x-codegen addresses` resolves each through a locally installed Address Library bin
+# (a hint, never committed), then commits the RVA plus a masked byte signature that is
+# unique in .text, so the function can be re-found without the bin.
+console_execute_command       1061864  CommonLibF4/include/RE/Bethesda/IMenu.h:443                  RE::Console::ExecuteCommand(const char*)
+save_load_manager_queue_task  1487308  origin/community:CommonLibF4/include/RE/Bethesda/BGSSaveLoad.h:133  RE::BGSSaveLoadManager::QueueSaveLoadTask(QUEUED_TASK)
+scaleform_manager_load_movie  1526234  CommonLibF4/include/RE/Bethesda/BSScaleformManager.h      RE::BSScaleformManager::LoadMovie
+script_compile_and_run        526625   CommonLibF4/include/RE/Bethesda/Script.h                  RE::Script::CompileAndRun
+console_log_add_string        764      CommonLibF4/include/RE/Bethesda/Console.h:21              RE::ConsoleLog::AddString(const char*)
+# Found by our own analysis (no CommonLibF4 ID): `rva:` entries. Source = how we found it.
+save_game_worker              rva:0xcde4f0  bb:PreSaveGame-stack+re:call-at-0xced56b  saves the game: (manager, const char* name, u8 flag); called from 0xced17d and 0xced56b
+load_game_worker              rva:0xcde9f0  bb:PreLoadGame-stack+re:call-at-0xceda78  loads a save: (manager, const char* name, u8 flag, out*) -> bool
+data_ready_caller             rva:0xd3eff0  bb:GameDataReady-stack+re:call-at-0xd3f268  finishes loading game data, then calls data_ready_callee (on a loader thread)

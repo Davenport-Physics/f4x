@@ -12,6 +12,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["unbounded_depth"] }
 sha2 = "0.10"
 f4x-pe = { path = "../f4x-pe" }
+iced-x86 = { version = "1", default-features = false, features = ["std", "decoder", "instr_info"] }
 
 [lints]
 workspace = true

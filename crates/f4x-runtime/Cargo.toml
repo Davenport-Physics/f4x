@@ -13,6 +13,9 @@ crate-type = ["cdylib", "rlib"]
 f4x-abi = { path = "../f4x-abi" }
 f4x-agent = { path = "../f4x-agent" }
 f4x-engine = { path = "../f4x-engine" }
+f4x-engine-sys = { path = "../f4x-engine-sys" }
+f4x-cosave = { path = "../f4x-cosave" }
+f4x-pe = { path = "../f4x-pe" }
 f4x-proto = { path = "../f4x-proto" }
 log = "0.4"
 
@@ -23,6 +26,9 @@ windows-sys = { workspace = true, features = [
     "Win32_System_Memory",
     "Win32_System_SystemServices",
     "Win32_System_Threading",
+    "Win32_System_Com",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_UI_Shell",
 ] }
 
 [lints]

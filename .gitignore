@@ -6,3 +6,4 @@
 *.pex
 *.fos
 *.f4se
+!crates/f4x-cosave/tests/fixtures/*.f4se

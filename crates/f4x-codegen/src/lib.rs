@@ -8,6 +8,7 @@
 //! - [`dump`]: the `dump` subcommand that ties them together.
 //! - [`tables`]: per-build offset tables for `f4x-engine-sys`.
 
+pub mod addresses;
 pub mod ast;
 pub mod clang;
 pub mod dump;

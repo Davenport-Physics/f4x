@@ -13,6 +13,8 @@
 //!   followed by `GameLoaded`, once the main menu is up.
 
 mod interfaces;
+mod lifecycle;
+mod serialization;
 mod trampoline;
 
 use std::ffi::{CStr, CString, OsStr, c_void};
@@ -48,6 +50,18 @@ pub(crate) static PLUGINS: Mutex<Vec<Plugin>> = Mutex::new(Vec::new());
 /// The plugin whose `Query`/`Load` is running (`u32::MAX`: none).
 pub(crate) static CURRENT: AtomicU32 = AtomicU32::new(u32::MAX);
 static DATA_READY_SENT: AtomicBool = AtomicBool::new(false);
+/// The engine's data-ready call is hooked (the main-menu detector is then unused).
+pub(crate) static DATA_READY_HOOKED: AtomicBool = AtomicBool::new(false);
+
+/// `GameDataReady(true)` (bool in the pointer) then `GameLoaded`, once.
+pub(crate) fn send_data_ready() {
+    if DATA_READY_SENT.swap(true, Relaxed) {
+        return;
+    }
+    log::info!(target: "f4x::f4se", "game data ready: sending GameDataReady + GameLoaded");
+    dispatch_from_host(message::GAME_DATA_READY, 1 as *mut c_void, 1);
+    dispatch_from_host(message::GAME_LOADED, std::ptr::null_mut(), 0);
+}
 
 /// `<game dir>\Data\F4SE\Plugins`.
 fn plugin_dir() -> PathBuf {
@@ -109,6 +123,7 @@ pub fn load_all() {
     if let Ok(mut plugins) = f4x_agent::PLUGINS.lock() {
         plugins.extend(states);
     }
+    lifecycle::install();
     dispatch_from_host(message::POST_LOAD, std::ptr::null_mut(), 0);
     dispatch_from_host(message::POST_POST_LOAD, std::ptr::null_mut(), 0);
 }
@@ -198,7 +213,7 @@ pub fn tick() {
             STABLE_FOR.store(0, Relaxed);
         }
     }
-    if DATA_READY_SENT.load(Relaxed) {
+    if DATA_READY_SENT.load(Relaxed) || DATA_READY_HOOKED.load(Relaxed) {
         return;
     }
     let menus = f4x_agent::observe::active_menus();
@@ -208,10 +223,7 @@ pub fn tick() {
     if f4x_engine::DataHandler::get().is_none() {
         return;
     }
-    DATA_READY_SENT.store(true, Relaxed);
-    log::info!(target: "f4x::f4se", "game data ready: sending GameDataReady + GameLoaded");
-    dispatch_from_host(message::GAME_DATA_READY, 1 as *mut c_void, 1);
-    dispatch_from_host(message::GAME_LOADED, std::ptr::null_mut(), 0);
+    send_data_ready();
 }
 
 /// Call the plugins' Papyrus `Register` callbacks with the VM (once, main thread).
