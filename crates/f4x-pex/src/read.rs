@@ -180,9 +180,15 @@ impl<'a> Reader<'a> {
             variables: self.list("variables", Reader::variable)?,
             properties: self.list("properties", Reader::property)?,
             states: self.list("states", Reader::state)?,
+            size_excludes_field: false,
         };
+        let mut object = object;
         let actual = self.pos - start + 4;
-        if actual != size {
+        if actual == size {
+            object.size_excludes_field = false;
+        } else if actual - 4 == size {
+            object.size_excludes_field = true;
+        } else {
             self.pos = size_at;
             return Err(
                 self.error(ParseErrorKind::ObjectSizeMismatch { declared: size, actual }, "object size")

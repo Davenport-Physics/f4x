@@ -9,7 +9,8 @@
 //! - Fallout 4 additions: a const flag on objects, variables and struct members; structs
 //!   in each object; property groups and struct member orders at the end of the debug
 //!   info; opcodes 0x24..=0x2E.
-//! - Object size fields are recomputed on write; parsing rejects files where they are wrong.
+//! - Object size fields are recomputed on write, in the convention the file used (with or
+//!   without counting the field itself); parsing rejects sizes that fit neither.
 //!
 //! ```
 //! # fn demo(bytes: &[u8]) -> Result<(), Box<dyn std::error::Error>> {

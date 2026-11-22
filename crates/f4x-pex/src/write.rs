@@ -137,7 +137,7 @@ impl Writer {
         self.list("variables", &o.variables, Writer::variable)?;
         self.list("properties", &o.properties, Writer::property)?;
         self.list("states", &o.states, Writer::state)?;
-        let size = self.out.len() - size_at;
+        let size = self.out.len() - size_at - if o.size_excludes_field { 4 } else { 0 };
         let size32 = u32::try_from(size).map_err(|_| WriteError::ObjectTooLarge(size))?;
         self.out[size_at..size_at + 4].copy_from_slice(&size32.to_le_bytes());
         Ok(())

@@ -137,6 +137,10 @@ pub struct Object {
     pub variables: Vec<Variable>,
     pub properties: Vec<Property>,
     pub states: Vec<State>,
+    /// How the object's size field was written. The Creation Kit's compiler counts the
+    /// 4-byte field itself (`false`); some community compilers (e.g. Caprica) do not
+    /// (`true`). Kept so files round-trip byte for byte.
+    pub size_excludes_field: bool,
 }
 
 /// Fallout 4 `Struct ... EndStruct`.
