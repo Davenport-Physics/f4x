@@ -375,11 +375,45 @@ unsafe extern "C" fn on_scaleform(movie: *mut c_void, value: *mut c_void) -> boo
     true
 }
 
-unsafe extern "C" fn on_save(_: *const f4se::SerializationInterface) {
-    emit("serialization_save", json!({"stack": stack()}));
+/// Patterned records: 'TST1' v1 written in one call; 'TST2' v2 opened then written in
+/// three pieces; 'TST3' v3 empty.
+unsafe extern "C" fn on_save(intfc: *const f4se::SerializationInterface) {
+    // SAFETY: F4SE passes its serialization interface.
+    let s = unsafe { &*intfc };
+    let tag = |t: &[u8; 4]| u32::from_be_bytes(*t);
+    let mut results = Vec::new();
+    // SAFETY: calling the interface during the save callback, as plugins do.
+    unsafe {
+        results.push(s.write_record.unwrap()(tag(b"TST1"), 1, b"hello".as_ptr().cast(), 5));
+        results.push(s.open_record.unwrap()(tag(b"TST2"), 2));
+        for piece in [&b"abc"[..], &b"defg"[..], &[0u8, 1, 2, 255][..]] {
+            results.push(s.write_record_data.unwrap()(piece.as_ptr().cast(), piece.len() as u32));
+        }
+        results.push(s.open_record.unwrap()(tag(b"TST3"), 3));
+    }
+    emit("serialization_save", json!({"results": results, "stack": stack()}));
 }
-unsafe extern "C" fn on_load(_: *const f4se::SerializationInterface) {
-    emit("serialization_load", json!({"stack": stack()}));
+
+unsafe extern "C" fn on_load(intfc: *const f4se::SerializationInterface) {
+    // SAFETY: F4SE passes its serialization interface.
+    let s = unsafe { &*intfc };
+    let mut records = Vec::new();
+    let (mut kind, mut version, mut len) = (0u32, 0u32, 0u32);
+    // SAFETY: reading records during the load callback.
+    unsafe {
+        while s.get_next_record_info.unwrap()(&mut kind, &mut version, &mut len) {
+            let mut buf = vec![0u8; len as usize];
+            let read = s.read_record_data.unwrap()(buf.as_mut_ptr().cast(), len);
+            records.push(json!({
+                "type": String::from_utf8_lossy(&kind.to_be_bytes()), "version": version, "len": len,
+                "read": read, "data": format!("{:02x?}", buf),
+            }));
+            if records.len() > 32 {
+                break;
+            }
+        }
+    }
+    emit("serialization_load", json!({"records": records, "stack": stack()}));
 }
 unsafe extern "C" fn on_revert(_: *const f4se::SerializationInterface) {
     emit("serialization_revert", json!({"stack": stack()}));
