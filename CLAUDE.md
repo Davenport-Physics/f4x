@@ -97,6 +97,11 @@ f4x quit --session "$S"
 - `ui.invoke {menu, path, method, args?, fields?}`.
 - Dates come back with `time_ms`.
 
+**Differential compatibility:** `cargo xtask compat [--only surface,saveload,mcm,natives]`.
+- It runs the same scenarios under real F4SE and under f4x and diffs them: `root.f4se`, co-saves byte for byte, Papyrus logs, MCM screenshots, and the F4SE natives.
+- It exits 1 on any difference. The report goes to `target/compat/report.json`.
+- It needs the `user-mods-*`, `f4se-baseline` and `vanilla-f4x` profiles; see `tools/compat/compat.py`.
+
 **MCP:** `.mcp.json` registers the `f4x` server (`tools/f4x-mcp.sh`). Smoke test it with `python3 -I tools/mcp_smoke.py tools/f4x-mcp.sh`.
 
 **Crashes:** `f4x status --session "$S"` prints symbolized crash reports. The files are `crash-*.json` in the session directory.

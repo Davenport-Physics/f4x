@@ -14,6 +14,8 @@ usage: cargo xtask <task>
 tasks:
   provenance-lint   reject banned F4SE-source citations and unsourced provenance entries
   baseline          [--host f4se] [--profile NAME] [--headless] [--out FILE]  S5: record what the host does to a probe plugin
+  compat            [--only surface,saveload,mcm,natives] [--hosts f4se,f4x] [--out DIR]
+                    run the same scenarios under F4SE and f4x and diff them (tools/compat)
   catalog-check     [--natives FILE]  S3: check a native catalog against Fallout4.exe and the vanilla .pex
   profile           create NAME --host f4se|f4x [--plugin DLL]...   isolated game dir + prefix for a host
   spike-launch      [--headless] [--runs N] [--no-build]  launch the game with the runtime injected (S1)
@@ -25,6 +27,7 @@ fn main() -> ExitCode {
         Some("provenance-lint") => lint::provenance_lint(),
         Some("baseline") => baseline::run(&args[1..]),
         Some("catalog-check") => catalog_check::run(&args[1..]),
+        Some("compat") => compat(&args[1..]),
         Some("profile") => profile::cli(&args[1..]),
         Some("spike-launch") => spike_launch::run(&args[1..]),
         _ => {
@@ -39,6 +42,21 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+/// Build what the scenarios need, then run `tools/compat/compat.py`.
+fn compat(args: &[String]) -> Result<(), String> {
+    let root = workspace_root();
+    let run = |cmd: &mut std::process::Command| -> Result<(), String> {
+        let status = cmd.current_dir(&root).status().map_err(|e| e.to_string())?;
+        if status.success() { Ok(()) } else { Err(format!("{cmd:?} failed")) }
+    };
+    run(std::process::Command::new("cargo").args([
+        "xwin", "build", "--release", "--target", "x86_64-pc-windows-msvc", "-p", "f4x-loader", "-p", "f4x-runtime", "-p", "f4x-agent-f4se",
+        "-p", "f4x-probe",
+    ]))?;
+    run(std::process::Command::new("cargo").args(["build", "-p", "f4x-cli", "-p", "f4x-pextool"]))?;
+    run(std::process::Command::new("python3").arg("-I").arg(root.join("tools/compat/compat.py")).args(args))
 }
 
 /// The workspace root (the parent of `xtask/`).
