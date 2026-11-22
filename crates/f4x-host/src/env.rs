@@ -1,7 +1,8 @@
 //! Where the game, the Proton prefix and the launch tools live.
 //!
-//! Defaults match this machine's Heroic install; every path can be overridden with an
-//! environment variable so the same tasks work elsewhere.
+//! Each setting comes from, in order: an environment variable (`F4X_GAME_DIR`, ...), the
+//! local file `~/.config/f4x/env` (`KEY=value` lines, kept out of the repository), or a
+//! default matching a stock Heroic + GOG install.
 
 use std::path::{Path, PathBuf};
 
@@ -20,8 +21,26 @@ pub struct GameEnv {
     pub store: String,
 }
 
+/// `~/.config/f4x/env`: `KEY=value` lines (`#` comments), per machine.
+pub fn config_file() -> PathBuf {
+    PathBuf::from(expand_home("~/.config/f4x/env"))
+}
+
+fn config_value(name: &str) -> Option<String> {
+    let text = std::fs::read_to_string(config_file()).ok()?;
+    text.lines().filter(|l| !l.trim_start().starts_with('#')).find_map(|l| {
+        let (k, v) = l.split_once('=')?;
+        (k.trim() == name).then(|| v.trim().to_owned())
+    })
+}
+
+/// An environment variable, else the local config file.
+pub fn setting(name: &str) -> Option<String> {
+    std::env::var(name).ok().or_else(|| config_value(name))
+}
+
 fn var_path(name: &str, default: &str) -> PathBuf {
-    std::env::var_os(name).map(PathBuf::from).unwrap_or_else(|| PathBuf::from(expand_home(default)))
+    PathBuf::from(expand_home(&setting(name).unwrap_or_else(|| default.to_owned())))
 }
 
 fn expand_home(path: &str) -> String {
@@ -34,7 +53,7 @@ fn expand_home(path: &str) -> String {
 impl GameEnv {
     pub fn from_env() -> Self {
         GameEnv {
-            game_dir: var_path("F4X_GAME_DIR", "/path/to/games/HeroicGames/Fallout 4 GOTY"),
+            game_dir: var_path("F4X_GAME_DIR", "~/Games/Heroic/Fallout 4 GOTY"),
             // A dedicated prefix: its own wineserver (so Vortex/Heroic sessions in the
             // user's prefix can't interfere, and headless gamescope works), its own
             // My Games folder (inis, saves) and nothing of the user's gets touched.
@@ -45,8 +64,8 @@ impl GameEnv {
             ),
             proton: var_path("F4X_PROTON", "~/.config/heroic/tools/proton/GE-Proton-latest"),
             umu: var_path("F4X_UMU", "~/.config/heroic/tools/runtimes/umu/umu_run.py"),
-            umu_game_id: std::env::var("F4X_UMU_GAMEID").unwrap_or_else(|_| "umu-377160".into()),
-            store: std::env::var("F4X_STORE").unwrap_or_else(|_| "gog".into()),
+            umu_game_id: setting("F4X_UMU_GAMEID").unwrap_or_else(|| "umu-377160".into()),
+            store: setting("F4X_STORE").unwrap_or_else(|| "gog".into()),
         }
     }
 

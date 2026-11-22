@@ -8,7 +8,7 @@ The plan is in `docs/PLAN.md`. Read it before starting a phase.
 
 f4x must never contain code or facts taken from F4SE's source, because F4SE has no usable license.
 
-- **Never read F4SE source.** It is quarantined at `/path/to/projects/Software/f4se-quarantine`, and `.claude/settings.json` has deny rules for it. Don't try to get around them: no `cat`, `grep` or `find` into it, and no web copies of F4SE source either, e.g. GitHub `ianpatt/f4se`.
+- **Never read F4SE source.** If a copy exists on the machine, it lives outside this repository in a folder named `f4se-quarantine`. Deny rules are in `.claude/settings.json`; per-machine absolute-path rules go in `.claude/settings.local.json`, which is not committed. Don't try to get around them: no `cat`, `grep` or `find` into it, and no web copies of F4SE source either, e.g. GitHub `ianpatt/f4se`.
 - **Don't disassemble or decompile F4SE's DLLs.**
   - You may observe F4SE as a black box through our probe plugins: the messages it sends and when, the data it passes, the files it writes, the versions it reports, and the `root.f4se` Scaleform object.
   - Return addresses into *game* code are fine.
@@ -113,18 +113,17 @@ f4x quit --session "$S"
 - Engine reads happen on the main thread (`f4x_agent::pump::on_main`).
 - Never call virtuals through unchecked pointers read from engine fields: use `Form::checked`.
 
-## Real install (the user's game)
+## Installing into a real game
 
-- The user asked (2026-11-21) to use f4x instead of F4SE in their install.
 - `cargo xtask install-game [--reinstall]`:
   - copies `f4x_loader.exe` and `f4x_runtime.dll` into the game folder;
-  - points Heroic's `targetExe` at the loader;
+  - points Heroic's `targetExe` at the loader, if a Heroic config exists for `F4X_HEROIC_APP` (default: GOG Fallout 4 GOTY);
   - records everything, with backups, in `~/.local/share/f4x/install/manifest.json`.
 - `cargo xtask uninstall-game` reverts it.
 - `f4se_loader.exe` is replaced by a copy of the f4x loader (the original is backed up), so stale launch paths still run f4x. F4SE's DLLs stay in place, unused.
 - f4x never writes into F4SE's folders (`My Games\Fallout4\F4SE` holds F4SE's and the plugins' own logs).
 - Logs while playing go to `Documents\My Games\Fallout4\f4x\latest` (the run before is in `previous`).
-- Never run install or uninstall while the user's game is running. Heroic must be restarted to pick up the new launch target.
+- Only install into a user's game when they ask. Never run install or uninstall while their game is running. Heroic must be restarted to pick up the new launch target.
 
 ## Commands
 
@@ -136,7 +135,14 @@ cargo xtask <task>                # see xtask/src/main.rs
 
 ## Environment
 
-- **Game:** GOG Fallout 4 1.10.163 at `/path/to/games/HeroicGames/Fallout 4 GOTY`.
-- **Proton prefix:** `~/Games/Heroic/Prefixes/default/Fallout 4 Game of the Year Edition`.
-- **Proton:** GE-Proton10-30 at `~/.config/heroic/tools/proton/GE-Proton-latest`, launched through `~/.config/heroic/tools/runtimes/umu/umu_run.py`.
-- **Don't modify the game install** outside f4x profiles. Write anything there through a manifest so it can be undone.
+Settings come from environment variables, else `~/.config/f4x/env` (`KEY=value` lines, per machine, not committed), else defaults for a stock Heroic + GOG install (`crates/f4x-host/src/env.rs`):
+
+| Setting | Default |
+|---|---|
+| `F4X_GAME_DIR` | `~/Games/Heroic/Fallout 4 GOTY` (Fallout 4 1.10.163) |
+| `F4X_SOURCE_PREFIX` | `~/Games/Heroic/Prefixes/default/Fallout 4 Game of the Year Edition` (read-only: seeds test prefixes) |
+| `F4X_PROTON` | `~/.config/heroic/tools/proton/GE-Proton-latest` |
+| `F4X_UMU` | `~/.config/heroic/tools/runtimes/umu/umu_run.py` |
+| `F4X_STORE`, `F4X_UMU_GAMEID` | `gog`, `umu-377160` |
+
+- **Don't modify the game install** outside f4x profiles, except through `install-game`. Write anything there through a manifest so it can be undone.

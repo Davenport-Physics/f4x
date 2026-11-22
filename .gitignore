@@ -7,3 +7,6 @@
 *.fos
 *.f4se
 !crates/f4x-cosave/tests/fixtures/*.f4se
+
+# Per-machine agent settings (e.g. deny rules for where F4SE source is kept).
+.claude/settings.local.json

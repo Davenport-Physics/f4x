@@ -14938,7 +14938,7 @@ pub mod RE {
         pub const string: usize = 0x18;
         /// `class RE::detail::BSFixedString<char, false>`
         pub const fixedString: usize = 0x20;
-        /// `union RE::BSUIMessageData::(unnamed at /path/to/projects/Software/Fallout 4/CommonLibF4/CommonLibF4/include/RE/Bethesda/UIMessage.h:90:3)`
+        /// `union RE::BSUIMessageData::(unnamed at CommonLibF4/CommonLibF4/include/RE/Bethesda/UIMessage.h:90:3)`
         pub const data: usize = 0x28;
         pub mod bases {
             /// `RE::IUIMessageData`

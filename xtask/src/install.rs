@@ -24,7 +24,12 @@ use serde_json::{Value, json};
 /// (installed name, built file).
 const FILES: [(&str, &str); 3] =
     [("f4x_loader.exe", "f4x_loader.exe"), ("f4x_runtime.dll", "f4x_runtime.dll"), ("f4se_loader.exe", "f4x_loader.exe")];
+/// Heroic's id for GOG's Fallout 4 GOTY (override with `F4X_HEROIC_APP`).
 const HEROIC_APP: &str = "1998527297";
+
+fn heroic_app() -> String {
+    f4x_host::env::setting("F4X_HEROIC_APP").unwrap_or_else(|| HEROIC_APP.to_owned())
+}
 
 fn install_dir() -> PathBuf {
     PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".local/share/f4x/install")
@@ -122,25 +127,34 @@ pub fn install(args: &[String]) -> Result<(), String> {
         println!("installed {}", target.display());
     }
 
-    let config = heroic_config(HEROIC_APP);
+    // Heroic (if installed): point the game's launch target at our loader. Other launchers
+    // that start f4se_loader.exe already run f4x (it was replaced above).
+    let app = heroic_app();
+    let config = heroic_config(&app);
     let loader = game.join("f4x_loader.exe").display().to_string();
-    let text = fs::read_to_string(&config).map_err(|e| format!("{}: {e}", config.display()))?;
-    let (edited, old_target) = replace_json_string(&text, "targetExe", &loader)?;
-    let original_target = previous
-        .as_ref()
-        .and_then(|m| m["heroic"]["previous_target_exe"].as_str().map(str::to_owned))
-        .unwrap_or(old_target.clone());
-    if previous.is_none() {
-        fs::copy(&config, install_dir().join(format!("heroic-{HEROIC_APP}.json.bak"))).map_err(|e| e.to_string())?;
-    }
-    serde_json::from_str::<Value>(&edited).map_err(|e| format!("edited Heroic config would not parse: {e}"))?;
-    fs::write(&config, edited).map_err(|e| format!("{}: {e}", config.display()))?;
-    println!("Heroic launch target: {old_target} -> {loader}");
+    let heroic = if config.is_file() {
+        let text = fs::read_to_string(&config).map_err(|e| format!("{}: {e}", config.display()))?;
+        let (edited, old_target) = replace_json_string(&text, "targetExe", &loader)?;
+        let original_target = previous
+            .as_ref()
+            .and_then(|m| m["heroic"]["previous_target_exe"].as_str().map(str::to_owned))
+            .unwrap_or(old_target.clone());
+        if previous.is_none() {
+            fs::copy(&config, install_dir().join(format!("heroic-{app}.json.bak"))).map_err(|e| e.to_string())?;
+        }
+        serde_json::from_str::<Value>(&edited).map_err(|e| format!("edited Heroic config would not parse: {e}"))?;
+        fs::write(&config, edited).map_err(|e| format!("{}: {e}", config.display()))?;
+        println!("Heroic launch target: {old_target} -> {loader} (restart Heroic to pick it up)");
+        json!({"config": config.display().to_string(), "app": app, "previous_target_exe": original_target, "target_exe": loader})
+    } else {
+        println!("no Heroic config for app {app}; launch the game through f4se_loader.exe or f4x_loader.exe");
+        Value::Null
+    };
 
     let manifest = json!({
         "game_dir": game.display().to_string(),
         "files": files,
-        "heroic": {"config": config.display().to_string(), "app": HEROIC_APP, "previous_target_exe": original_target, "target_exe": loader},
+        "heroic": heroic,
         "installed_at_unix": std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs()),
     });
     fs::write(&manifest_path, serde_json::to_string_pretty(&manifest).unwrap()).map_err(|e| e.to_string())?;

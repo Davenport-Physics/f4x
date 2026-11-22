@@ -70,7 +70,7 @@ What exists today:
 - `./CommonLibF4`: MIT C++ reverse-engineering library, covering 1.10.163 only.
 - `./f4se`: F4SE's source. Off limits.
 - `./mod-setup`: Python script that installs F4SE 0.6.23 safely.
-- Game: GOG Fallout 4 GOTY **1.10.163**, at `/path/to/games/HeroicGames/Fallout 4 GOTY`. Launched by Heroic through gogdl, umu and GE-Proton10-30 (DXVK). Prefix is `~/Games/Heroic/Prefixes/default/Fallout 4 Game of the Year Edition`.
+- Game: GOG Fallout 4 GOTY **1.10.163**, launched by Heroic through gogdl, umu and GE-Proton (DXVK). Prefix is `~/Games/Heroic/Prefixes/default/Fallout 4 Game of the Year Edition`.
 - Toolchain: Rust 1.99.1, cargo-xwin, clang 22, gamescope.
 
 ## Decisions made with the user
@@ -161,7 +161,7 @@ f4x/
 
 ### Phase 0: bootstrap and spikes
 **Repo setup:**
-- Move `./f4se` to `/path/to/projects/Software/f4se-quarantine/`.
+- Move `./f4se` (F4SE source) out of the tree, to a `f4se-quarantine` folder outside the repository.
 - Create `f4x/` (git init, MIT `LICENSE`, `THIRD_PARTY.md`, `CLAUDE.md` with the clean-room rules).
 - Add `.claude/settings.json` deny rules for Read/Grep/Glob on the quarantine path.
 - Port `.cargo/config.toml` (crt-static, xwin alias) and `rustfmt.toml` from f4se-rs.

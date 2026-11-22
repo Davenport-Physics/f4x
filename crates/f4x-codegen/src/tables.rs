@@ -248,7 +248,7 @@ pub fn generate(inputs: &Inputs, header: &str) -> Generated {
             if !field_names.insert(id.clone()) {
                 continue;
             }
-            let _ = writeln!(body, "/// `{}`", field["type"].as_str().unwrap_or("?").replace('`', "'"));
+            let _ = writeln!(body, "/// `{}`", strip_paths(&field["type"].as_str().unwrap_or("?").replace('`', "'")));
             let _ = writeln!(body, "pub const {id}: usize = {offset:#x};");
         }
         let bases: Vec<&Value> = layout["bases"].as_array().into_iter().flatten().filter(|b| b["virtual"] != true).collect();
@@ -339,4 +339,21 @@ mod tests {
         assert_eq!(f.len(), 2);
         assert_eq!((f[1].name.as_str(), f[1].value, f[1].class.as_str()), ("WEAP", 0x2B, "TESObjectWEAP"));
     }
+}
+
+/// clang names anonymous types after their file (`(unnamed at /abs/path/CommonLibF4/...)`):
+/// keep the path from `CommonLibF4/` on, so generated code carries no machine paths.
+fn strip_paths(text: &str) -> String {
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(i) = rest.find("unnamed at ") {
+        let (head, tail) = rest.split_at(i + "unnamed at ".len());
+        out.push_str(head);
+        let end = tail.find(')').unwrap_or(tail.len());
+        let path = &tail[..end];
+        out.push_str(path.find("CommonLibF4/").map_or(path, |j| &path[j..]));
+        rest = &tail[end..];
+    }
+    out.push_str(rest);
+    out
 }

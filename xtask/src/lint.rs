@@ -21,7 +21,7 @@ const BANNED: &[&str] = &[
 ];
 
 /// Files allowed to name the banned strings because they define the rule.
-const EXEMPT: &[&str] = &["CLAUDE.md", "docs/PLAN.md", "xtask/src/lint.rs", ".claude/settings.json"];
+const EXEMPT: &[&str] = &["CLAUDE.md", "docs/PLAN.md", "xtask/src/lint.rs", ".claude/settings.json", ".claude/settings.local.json"];
 
 const TEXT_EXTENSIONS: &[&str] =
     &["rs", "toml", "md", "json", "jsonl", "txt", "py", "sh", "yml", "yaml", "c", "cpp", "h", "hpp", "psc"];
