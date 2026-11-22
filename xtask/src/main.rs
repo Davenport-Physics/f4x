@@ -2,6 +2,7 @@
 
 mod baseline;
 mod catalog_check;
+mod install;
 mod lint;
 mod profile;
 mod spike_launch;
@@ -14,6 +15,8 @@ usage: cargo xtask <task>
 tasks:
   provenance-lint   reject banned F4SE-source citations and unsourced provenance entries
   baseline          [--host f4se] [--profile NAME] [--headless] [--out FILE]  S5: record what the host does to a probe plugin
+  install-game      [--reinstall]  use f4x instead of F4SE in the real install (Heroic launch target)
+  uninstall-game    undo install-game (manifest in ~/.local/share/f4x/install)
   compat            [--only surface,saveload,mcm,natives] [--hosts f4se,f4x] [--out DIR]
                     run the same scenarios under F4SE and f4x and diff them (tools/compat)
   catalog-check     [--natives FILE]  S3: check a native catalog against Fallout4.exe and the vanilla .pex
@@ -28,6 +31,8 @@ fn main() -> ExitCode {
         Some("baseline") => baseline::run(&args[1..]),
         Some("catalog-check") => catalog_check::run(&args[1..]),
         Some("compat") => compat(&args[1..]),
+        Some("install-game") => install::install(&args[1..]),
+        Some("uninstall-game") => install::uninstall(&args[1..]),
         Some("profile") => profile::cli(&args[1..]),
         Some("spike-launch") => spike_launch::run(&args[1..]),
         _ => {

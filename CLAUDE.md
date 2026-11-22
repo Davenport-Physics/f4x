@@ -113,6 +113,18 @@ f4x quit --session "$S"
 - Engine reads happen on the main thread (`f4x_agent::pump::on_main`).
 - Never call virtuals through unchecked pointers read from engine fields: use `Form::checked`.
 
+## Real install (the user's game)
+
+- The user asked (2026-11-21) to use f4x instead of F4SE in their install.
+- `cargo xtask install-game [--reinstall]`:
+  - copies `f4x_loader.exe` and `f4x_runtime.dll` into the game folder;
+  - points Heroic's `targetExe` at the loader;
+  - records everything, with backups, in `~/.local/share/f4x/install/manifest.json`.
+- `cargo xtask uninstall-game` reverts it.
+- F4SE's files stay in place but are no longer launched.
+- Logs while playing go to `Documents\My Games\Fallout4\F4SE\f4x\latest` (the run before is in `previous`).
+- Never run install or uninstall while the user's game is running. Heroic must be restarted to pick up the new launch target.
+
 ## Commands
 
 ```sh

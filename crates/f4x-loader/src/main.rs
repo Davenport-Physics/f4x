@@ -70,7 +70,13 @@ mod windows {
 
     fn parse_options() -> Result<Options, String> {
         let mut args = std::env::args().skip(1);
-        let mut game_dir = std::env::current_dir().map_err(|e| e.to_string())?;
+        // The loader's own folder when it sits next to the game (normal play: launchers
+        // may start it from anywhere), else the working directory.
+        let mut game_dir = std::env::current_exe()
+            .ok()
+            .and_then(|me| me.parent().map(Path::to_path_buf))
+            .filter(|dir| dir.join("Fallout4.exe").is_file())
+            .map_or_else(|| std::env::current_dir().map_err(|e| e.to_string()), Ok)?;
         let mut exe = String::from("Fallout4.exe");
         let mut dll = None;
         let mut game_args = Vec::new();

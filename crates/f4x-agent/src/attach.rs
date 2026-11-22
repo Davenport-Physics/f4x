@@ -90,7 +90,8 @@ pub fn attach(options: AttachOptions) -> &'static Service {
             Err(error) => log::error!(target: "f4x::server", "control server not started: {error}"),
         }
     }
-    if let Some(session) = session {
+    // The heartbeat is for the host's supervisor; normal play has none.
+    if let Some(session) = session.filter(|s| s.hosted) {
         let _ = std::thread::Builder::new().name("f4x-heartbeat".into()).spawn(move || {
             loop {
                 let beat = Heartbeat { uptime_ms: clock::uptime_ms(), frames: clock::frames(), pumps: clock::pumps() };
