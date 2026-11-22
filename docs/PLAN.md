@@ -31,10 +31,22 @@
   - f4x takes free slots (named commands with release no-op handlers).
   - Arguments are decoded by the engine's own `Script::ParseParameters`: int, float, string, reference, form, ….
   - Works under f4x and under real F4SE (through the agent).
+- **Settle Anywhere's F4SE natives (Phase 4, first slice):**
+  - Implemented on engine internals: EncounterZone Is/SetWorkshop and Is/SetNeverResetable, Location.GetEncounterZone, and Register/UnregisterForControl with OnControlDown/Up.
+  - Rust natives are bound through the VM's own `NativeFunctionBase::Call`.
+  - Control registrations are saved in F4SE's co-save format.
+    - On the user's mod set, co-saves are byte-identical to F4SE's across save → load → save.
+  - A differential run with `tools/natives_diff.py` (`papyrus.call`, vanilla profiles, QASmoke) gave byte-identical results under F4SE and f4x:
+    - every Location: GetEncounterZone(false) and GetEncounterZone(true), 487 locations;
+    - every EncounterZone: IsWorkshop and IsNeverResetable, 362 zones;
+    - a SetWorkshop round trip.
+  - Script declarations: f4x patches the user's own vanilla scripts into f4x profiles. `pex declare --verify` finds 0 mismatches with F4SE's signatures.
+- **Agent:** `input.press`/`input.recent` (engine-level input injection) and `papyrus.call`.
 - **Next:**
-  - `NewGame` (needs a real new-game start);
-  - Settle Anywhere's 9 F4SE natives (Phase 4);
-  - Scaleform injection for MCM (Phase 5).
+  - Scaleform injection for MCM (Phase 5):
+    - `root.f4se` at the call at LoadMovie+0x188 (rva 0x2110c58), where F4SE's callbacks run (bb return address +0x18d);
+    - `GFx::Value` and ObjectInterface bindings;
+  - `NewGame` (needs a real new-game start).
 
 Plan deviations that came out of the spikes:
 - Tests run in dedicated Proton prefixes (`~/.local/share/f4x`), never the user's prefix.
