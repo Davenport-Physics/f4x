@@ -13,13 +13,33 @@ tested under Proton on Linux (GOG version via Heroic); native Windows is unteste
   Papyrus, Scaleform, serialization, tasks and trampolines. Co-saves (`.f4se`) are written
   in F4SE's format, so saves move freely between the two.
 - **Implements F4SE's script and UI surface.** This covers:
-  - `root.f4se` in every menu (MCM works);
-  - 222 of F4SE's 224 Papyrus natives, plus its 5 scripted functions;
+  - all 224 of F4SE's Papyrus natives, plus its 5 scripted functions. The 16 that F4SE
+    runs as latent functions (the calling script waits for the main thread) are latent
+    here too, and return in the same frame as under F4SE;
   - every F4SE event: control, key, camera, furniture, external events;
-  - custom menus (`UI.RegisterCustomMenu`).
+  - `root.f4se` in every menu (MCM works): `GetMembers`, `AllowTextInput`,
+    `SendExternalEvent`, `CallFunctionNoWait`, `CallGlobalFunctionNoWait`,
+    `GetDirectoryListing`, `MountImage`/`UnmountImage` (`img://` images), `version`,
+    plugin objects, and `onF4SEObjCreated(codeObject)` on the root and its first-level
+    children;
+  - the HUD tint hook: a display object's `onApplyColorChange(r, g, b, brightness)` may
+    return `[r, g, b, brightness]`;
+  - custom menus (`UI.RegisterCustomMenu`), with F4SE's `UI:MenuData` defaults;
+  - `Interface\Translations\<plugin>_<language>.txt` for each active plugin in
+    `plugins.txt` (UCS-2 LE with BOM, `$KEY<TAB>text`, existing keys kept);
+  - `Data\F4SE\CustomControlMap.txt`, which replaces the game's control map (lines that
+    would crash the game are skipped);
+  - `bEnableGFXLog=1` under `[Interface]` in `Data\F4SE\f4se.ini`: Scaleform's log goes
+    to f4x's log;
+  - the version on the main menu (`v (f4x <version>) 1.10.163.0.0`) and the console's
+    `GetF4SEVersion` (plus `GetF4XVersion`);
+  - F4SE's messages from the same points in the game (save, load, delete, new game,
+    data ready), Papyrus registration right after the game's own natives, and camera
+    events from every `PlayerCamera::SetState`.
 
   For a game without F4SE's own script files, f4x generates the declarations F4SE adds
-  (functions, structs, 168 of 172 constants) from the user's vanilla scripts.
+  (functions, structs with their defaults, all 172 constants) from the user's vanilla
+  scripts.
 - **Adds:**
   - console commands with typed arguments;
   - crash reports (`Documents/My Games/Fallout4/f4x/`), symbolized by the `f4x` CLI;
@@ -46,12 +66,16 @@ Every F4SE native is also compared call by call against real F4SE:
 `tools/f4se_natives_check.py` calls each one with arguments generated from its declared
 types, under both hosts, and diffs the results.
 
+Beyond results, the hook points were compared: the places where F4SE 0.6.23 patches
+the game's code (found with the `patches` RPC, never by reading F4SE) were each traced
+to a feature, and f4x implements every one of those features except the object
+interface below.
+
 Not implemented:
-- `ObjectReference.Scrap` and `ApplyMaterialSwap`: their effects couldn't be observed
-  cleanly;
-- 4 `InstanceData` flag constants that have no clean source;
-- F4SE's object interface (plugin interface 6). Its objects are defined only in F4SE's
-  source, so plugins get "not available";
+- F4SE's object interface (plugin interface 6: delay functors and persistent objects for
+  plugins). Its objects are defined only in F4SE's source, so plugins get "not
+  available". CommonLibF4-based plugins ask for it but cannot use it; none of the tested
+  plugins needs it;
 - next-gen game versions.
 
 ## Install
@@ -102,6 +126,9 @@ the formats f4x observed.
     sends and when, the data and files it produces, its co-saves, and its `root.f4se`
     object. F4SE's DLLs were not disassembled;
   - F4SE's distributed `.pex` files, for Papyrus function signatures only;
+  - public documentation: F4SE's published changelog, as the list of features to match,
+    and [xEdit](https://github.com/TES5Edit/TES5Edit)'s record definitions (MPL-2.0) for
+    the names of four weapon flags;
   - the Address Library, only as a local hint to locate functions, never shipped.
 
   Every fact is logged with its source in `provenance/`, and `cargo xtask provenance-lint`

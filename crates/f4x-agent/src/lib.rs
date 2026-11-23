@@ -27,6 +27,8 @@ pub mod tests;
 #[cfg(windows)]
 mod attach;
 #[cfg(windows)]
+mod compat_rpc;
+#[cfg(windows)]
 pub mod console_cmds;
 #[cfg(windows)]
 pub mod crash;

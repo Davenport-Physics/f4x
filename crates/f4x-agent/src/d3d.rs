@@ -54,6 +54,7 @@ struct Request {
 static REQUESTS: Mutex<Vec<Request>> = Mutex::new(Vec::new());
 
 /// Hook the game's device creation. Must run before the game creates its device.
+#[allow(clippy::not_unsafe_ptr_arg_deref, reason = "called once at startup with the game's own mapped image base")]
 pub fn install(base: *mut u8) {
     // SAFETY: `base` is the mapped game image.
     match unsafe { hooks::iat_hook(base, "d3d11.dll", "D3D11CreateDeviceAndSwapChain", create_hook as CreateDeviceAndSwapChain as usize) } {

@@ -420,6 +420,79 @@ pub fn transmit_power(item: Reference, workshop_data: *mut u8) -> bool {
     true
 }
 
+/// The workshop whose area holds `item`, searched over the loaded cells: the engine's
+/// own lookup (what it runs for the player when workshop mode starts). None when the
+/// reference has no parent cell or no loaded workshop covers it.
+#[must_use]
+pub fn find_workshop(item: Reference) -> Option<Reference> {
+    let f = resolve(&addr::WORKSHOP_FIND_FOR_REF)?;
+    item.parent_cell()?;
+    // SAFETY: (TESObjectREFR*) -> TESObjectREFR*; a live reference with a parent cell.
+    let p = unsafe { transmute::<usize, unsafe extern "C" fn(*mut u8) -> *mut u8>(f)(item.form().as_ptr()) };
+    Form::checked(p)?.as_reference()
+}
+
+/// `TESObjectREFR::GetHandle` (MSVC: the handle is returned through a hidden pointer).
+fn reference_handle(reference: Reference) -> Option<u32> {
+    let f = resolve(&addr::REFR_GET_HANDLE)?;
+    let mut handle: u32 = 0;
+    // SAFETY: (TESObjectREFR*, ObjectRefHandle* out) -> ObjectRefHandle*.
+    unsafe { transmute::<usize, unsafe extern "C" fn(*mut u8, *mut u32) -> *mut u32>(f)(reference.form().as_ptr(), &mut handle) };
+    (handle != 0).then_some(handle)
+}
+
+/// Scrap `item` into `workshop` with the engine's workshop-mode scrap
+/// (`Workshop::ScrapReference`), which credits the current workshop: the current-workshop
+/// handle is pointed at `workshop` for the call and restored after it. The engine
+/// disables the item (and deletes it when it comes from a plugin), moves its inventory and
+/// adds its scrap components to the workshop's container, unlinks it from its workshop,
+/// updates power and sends the workshop's item-destroyed event. Main thread only.
+pub fn scrap(item: Reference, workshop: Reference) -> bool {
+    let (Some(f), Some(global)) = (resolve(&addr::WORKSHOP_SCRAP_REFERENCE), resolve(&addr::WORKSHOP_CURRENT_HANDLE)) else { return false };
+    // The engine reads both references' extra data lists unchecked.
+    if ExtraList::of(item).is_none() || ExtraList::of(workshop).is_none() {
+        return false;
+    }
+    let Some(handle) = reference_handle(workshop) else { return false };
+    // Workshop::ContextData (CommonLibF4 `Workshop.h`, 0x30 bytes): look position and
+    // direction, z angle, parent cell, worldspace.
+    #[repr(C)]
+    struct ContextData {
+        look_pos: [f32; 3],
+        look_dir: [f32; 3],
+        z_angle: f32,
+        parent_cell: *mut u8,
+        world_space: *mut u8,
+    }
+    const _: () = assert!(std::mem::size_of::<ContextData>() == 0x30);
+    let pos = item.position();
+    let cell = item.parent_cell();
+    let world = cell.map_or(null_mut(), |c| {
+        // SAFETY: a live TESObjectCELL; cellFlags bit 0 = interior; the worldSpace union
+        // member at +0xC8 (see `create_reference`).
+        unsafe {
+            let flags: u16 = read(c.as_ptr(), RE::TESObjectCELL::cellFlags);
+            if flags & 1 != 0 { null_mut() } else { read(c.as_ptr(), RE::TESObjectCELL::spinLock + 8) }
+        }
+    });
+    let context = ContextData { look_pos: [pos.x, pos.y, pos.z], look_dir: [0.0; 3], z_angle: 0.0, parent_cell: cell.map_or(null_mut(), Form::as_ptr), world_space: world };
+    let p = item.form().as_ptr();
+    // The smart pointer the engine takes (NiPointer<TESObjectREFR>); keep the item alive
+    // for the call (NiRefObject count of the BSHandleRefObject base at +0x28).
+    // SAFETY: the refcount word of a live reference (4-aligned).
+    let refcount = || unsafe { AtomicU32::from_ptr(p.add(0x28).cast::<u32>()) };
+    refcount().fetch_add(1, Ordering::SeqCst);
+    let smart: *mut u8 = p;
+    // SAFETY: the current-workshop handle global (a u32 inside the mapped image).
+    let current = unsafe { AtomicU32::from_ptr(global as *mut u32) };
+    let previous = current.swap(handle, Ordering::SeqCst);
+    // SAFETY: (const ContextData&, NiPointer<TESObjectREFR>&, rewards array or null).
+    unsafe { transmute::<usize, unsafe extern "C" fn(*const ContextData, *const *mut u8, *mut u8)>(f)(&context, &smart, null_mut()) };
+    current.store(previous, Ordering::SeqCst);
+    refcount().fetch_sub(1, Ordering::SeqCst);
+    true
+}
+
 /// Wire connection kinds: the `linkType` of a power link is the kind of connect point
 /// the wire uses on that end (our analysis of the engine's connect-point matcher at
 /// 0x2001f0: `P-WS-Snap` 0, `P-WS-Input` 1, `P-WS-Output` 2).

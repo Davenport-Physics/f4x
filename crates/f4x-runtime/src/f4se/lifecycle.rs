@@ -16,7 +16,10 @@ use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
 use f4x_abi::f4se::message;
 use f4x_cosave::{CoSave, HOST_UID, PluginBlock, plgn};
-use f4x_engine_sys::og_1_10_163_addresses::{DATA_READY_CALLER, LOAD_GAME_WORKER, NEW_GAME_STARTER, SAVE_DELETE_FILES, SAVE_GAME_WORKER};
+use f4x_engine_sys::og_1_10_163_addresses::{
+    DATA_READY_CALLER, LOAD_GAME_WORKER, NEW_GAME_STARTER, SAVE_DELETE_FILES, SAVE_GAME_WORKER, VM_REGISTER_VANILLA_NATIVES,
+    VM_UPDATE_STACKS,
+};
 
 /// Offset of the data-ready `call` inside `data_ready_caller` (1.10.163: 0xd3f268 -
 /// 0xd3eff0; black-box stack + our disassembly). Verified to be `E8` before use.
@@ -34,6 +37,10 @@ static DELETE_FILES: AtomicUsize = AtomicUsize::new(0);
 static LOAD_WORKER: AtomicUsize = AtomicUsize::new(0);
 static DATA_READY: AtomicUsize = AtomicUsize::new(0);
 static QUEST_START: AtomicUsize = AtomicUsize::new(0);
+static REGISTER_VANILLA: AtomicUsize = AtomicUsize::new(0);
+static VM_FRAME_START: AtomicUsize = AtomicUsize::new(0);
+/// The VM update's first call (+0x6a), where F4SE runs its latent work (black-box patch).
+const VM_FRAME_START_CALL_OFFSET: usize = 0x6a;
 /// The new-game starter's call that starts the starting quest (black-box: F4SE's
 /// `NewGame` comes from there, return address +0x5f; our disassembly: `call` at +0x5a).
 const NEW_GAME_CALL_OFFSET: usize = 0x5a;
@@ -57,6 +64,8 @@ pub fn install() {
     install_data_ready();
     install_new_game();
     install_delete_game();
+    install_papyrus_registration();
+    install_latent_runner();
 }
 
 /// `DeleteGame` (data: the save name without extension, not NUL-terminated in the
@@ -144,6 +153,59 @@ unsafe extern "C" fn data_ready_hook(a: usize, b: usize, c: usize, d: usize) -> 
     result
 }
 
+/// Plugins' Papyrus registrations (and f4x's own F4SE natives) run where F4SE runs them:
+/// right after the engine has registered every vanilla native class, on the thread that
+/// sets the VM up, before any script runs. Black-box: F4SE 0.6.23 patches the tail of
+/// `vm_register_vanilla_natives` (its last `RegisterFuncs` jump, +0x461); our RE: that
+/// function is called once, so f4x wraps that call. If it is not found, the main-loop
+/// detector in `mod.rs` registers once the native count settles.
+fn install_papyrus_registration() {
+    let Some(target) = f4x_engine::address::resolve(&VM_REGISTER_VANILLA_NATIVES) else {
+        log::warn!(target: "f4x::f4se", "vanilla native registration not found; Papyrus registrations wait for the main loop");
+        return;
+    };
+    REGISTER_VANILLA.store(target, Relaxed);
+    let sites = redirect_calls(target, register_vanilla_hook as Worker as usize);
+    log::info!(target: "f4x::f4se", "Papyrus registration hooked ({sites} call site(s))");
+}
+
+unsafe extern "C" fn register_vanilla_hook(vm: usize, b: usize, c: usize, d: usize) -> usize {
+    // SAFETY: the engine's own function with its own arguments.
+    let result = unsafe { std::mem::transmute::<usize, Worker>(REGISTER_VANILLA.load(Relaxed))(vm, b, c, d) };
+    if std::panic::catch_unwind(super::register_papyrus).is_err() {
+        log::error!(target: "f4x::f4se", "Papyrus registrations panicked");
+    }
+    result
+}
+
+/// Latent natives' handlers run where F4SE runs its latent work: at the start of the
+/// Papyrus VM's frame update on the main thread (black-box: F4SE redirects the update's
+/// first call, at +0x6a; its latent natives then cost no more than plain ones, ~one
+/// round trip, where running them from the main-loop pump cost one extra frame). The
+/// main-loop pump drains the queue too, in case the hook is not in place.
+fn install_latent_runner() {
+    f4x_agent::pump::add_ticker(f4x_engine::papyrus::run_latent_jobs);
+    let site = f4x_engine::address::resolve(&VM_UPDATE_STACKS).map(|f| f + VM_FRAME_START_CALL_OFFSET);
+    // SAFETY: inside the resolved function's code.
+    let Some(site) = site.filter(|&s| unsafe { *(s as *const u8) } == 0xE8) else {
+        log::warn!(target: "f4x::f4se", "VM update call not found; latent natives run from the main-loop pump");
+        return;
+    };
+    // SAFETY: an `E8 rel32` call in the game's code.
+    let callee = unsafe { (site + 5).wrapping_add_signed((site as *const u8).add(1).cast::<i32>().read_unaligned() as isize) };
+    VM_FRAME_START.store(callee, Relaxed);
+    let sites = redirect_calls_in(site, 5, callee, vm_frame_start_hook as Worker as usize);
+    log::info!(target: "f4x::f4se", "latent natives run at the VM frame start ({sites} site)");
+}
+
+unsafe extern "C" fn vm_frame_start_hook(a: usize, b: usize, c: usize, d: usize) -> usize {
+    if std::panic::catch_unwind(f4x_engine::papyrus::run_latent_jobs).is_err() {
+        log::error!(target: "f4x::f4se", "latent natives panicked");
+    }
+    // SAFETY: the engine's own function with its own arguments.
+    unsafe { std::mem::transmute::<usize, Worker>(VM_FRAME_START.load(Relaxed))(a, b, c, d) }
+}
+
 /// Point every `call rel32` to `target` in the game's code at `hook` (via a stub near the
 /// image). Returns the number of sites.
 fn redirect_calls(target: usize, hook: usize) -> usize {
@@ -155,11 +217,24 @@ fn redirect_calls(target: usize, hook: usize) -> usize {
 
 /// Like [`redirect_calls`], restricted to `len` bytes of code at `start`.
 pub(super) fn redirect_calls_in(start: usize, len: usize, target: usize, hook: usize) -> usize {
+    redirect_in(start, len, target, hook, &[0xE8])
+}
+
+/// Like [`redirect_calls`], also redirecting tail jumps (`jmp rel32`) to `target`: the
+/// hook then returns straight to the jumping function's caller, as `target` would.
+pub(crate) fn redirect_calls_and_jumps(target: usize, hook: usize) -> usize {
+    let game = f4x_engine::game();
+    let image = game.image();
+    let Some(text) = image.section(".text").cloned() else { return 0 };
+    redirect_in(game.base() + text.rva as usize, text.readable_size as usize, target, hook, &[0xE8, 0xE9])
+}
+
+fn redirect_in(start: usize, len: usize, target: usize, hook: usize, opcodes: &[u8]) -> usize {
     let game = f4x_engine::game();
     // SAFETY: a range inside the mapped game code.
     let bytes = unsafe { std::slice::from_raw_parts(start as *const u8, len) };
     let sites: Vec<usize> = (0..(bytes.len() + 1).saturating_sub(5))
-        .filter(|&i| bytes[i] == 0xE8 && {
+        .filter(|&i| opcodes.contains(&bytes[i]) && {
             let rel = i32::from_le_bytes(bytes[i + 1..i + 5].try_into().unwrap());
             (start + i + 5).wrapping_add_signed(rel as isize) == target
         })
@@ -169,7 +244,7 @@ pub(super) fn redirect_calls_in(start: usize, len: usize, target: usize, hook: u
     if stub == 0 {
         return 0;
     }
-    // SAFETY: freshly allocated RWX stub memory; call sites are `E8 rel32` in .text.
+    // SAFETY: freshly allocated RWX stub memory; sites are `E8`/`E9 rel32` in .text.
     unsafe {
         let code = stub as *mut u8;
         std::ptr::copy_nonoverlapping([0xFFu8, 0x25, 0, 0, 0, 0].as_ptr(), code, 6);

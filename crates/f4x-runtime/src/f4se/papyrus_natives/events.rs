@@ -9,8 +9,12 @@
 //!   mouse (256..266) and 266 + the XInput button index for the gamepad (266..282), as in
 //!   the stub's `Input.h`. `OnKeyDown` on a press, `OnKeyUp(code, heldDownSecs)` on the
 //!   release, menus open or not;
-//! - camera states: `RE::CameraStates::CameraState` (`TESCamera.h`), the player camera's
-//!   current state, polled once per main-loop pass;
+//! - camera states: `RE::CameraStates::CameraState` (`TESCamera.h`). F4SE hooks
+//!   `PlayerCamera::SetState` (black-box: its patch at the entry, RVA 0x82e930) and sends
+//!   `(old, new)` from inside each change: two changes in one frame (`bat` running `tfc`
+//!   twice) give `(0, 3)` then `(3, 0)`. f4x wraps every call and tail jump to
+//!   `SetState` the same way, for the player camera only (the local-map camera uses the
+//!   same function); if that fails it falls back to polling once per main-loop pass;
 //! - furniture: `RE::TESFurnitureEvent` (`Events.h`), observed through the sink
 //!   `PlayerControls` already registers (its vtable found by RTTI). Every registrant gets
 //!   every event: F4SE ignores the filter, and its `UnregisterForFurnitureEvent` removes
@@ -28,7 +32,7 @@ use f4x_engine::layout::RE;
 use f4x_engine::mem;
 use f4x_engine::papyrus::{Arg, NativeCall, Vm};
 use f4x_engine::papyrus_value::PValue;
-use f4x_engine_sys::og_1_10_163_addresses::PLAYER_CAMERA_SINGLETON;
+use f4x_engine_sys::og_1_10_163_addresses::{PLAYER_CAMERA_SET_STATE, PLAYER_CAMERA_SINGLETON};
 
 use super::Entry;
 use crate::f4se::natives::registrant;
@@ -216,38 +220,43 @@ fn unregister_for_camera_state(call: &mut NativeCall) -> Result<(), String> {
     Ok(())
 }
 
-/// `PlayerCamera::GetSingleton()->currentState->id` (main thread). The singleton is the
-/// global CommonLibF4 reads (`REL::ID(1171980)`): a memory scan for PlayerCamera
-/// objects also finds objects that are not the live camera.
-fn camera_state() -> Option<u32> {
-    let mut camera = PLAYER_CAMERA.load(Relaxed);
-    if camera == 0 {
-        if CAMERA_RETRY.load(Relaxed) > 0 {
-            CAMERA_RETRY.fetch_sub(1, Relaxed);
-            return None;
+/// `PlayerCamera::GetSingleton()`. The singleton is the global CommonLibF4 reads
+/// (`REL::ID(1171980)`): a memory scan for PlayerCamera objects also finds objects that
+/// are not the live camera.
+fn player_camera() -> Option<usize> {
+    let camera = PLAYER_CAMERA.load(Relaxed);
+    if camera != 0 {
+        return Some(camera);
+    }
+    if CAMERA_RETRY.load(Relaxed) > 0 {
+        CAMERA_RETRY.fetch_sub(1, Relaxed);
+        return None;
+    }
+    let global = f4x_engine::address::resolve(&PLAYER_CAMERA_SINGLETON).filter(|&g| mem::readable(g, 8));
+    // SAFETY: the singleton's global slot (readable).
+    let found = global.map(|g| unsafe { mem::read::<usize>(g as *const u8, 0) });
+    match found.filter(|&c| f4x_engine::game().is_instance_of(c, RE::TESCamera::RTTI)) {
+        Some(c) => {
+            log::info!(target: "f4x::papyrus", "player camera at {c:#x}");
+            PLAYER_CAMERA.store(c, Relaxed);
+            Some(c)
         }
-        let global = f4x_engine::address::resolve(&PLAYER_CAMERA_SINGLETON).filter(|&g| mem::readable(g, 8));
-        // SAFETY: the singleton's global slot (readable).
-        let found = global.map(|g| unsafe { mem::read::<usize>(g as *const u8, 0) });
-        match found.filter(|&c| f4x_engine::game().is_instance_of(c, RE::TESCamera::RTTI)) {
-            Some(c) => {
-                log::info!(target: "f4x::papyrus", "player camera at {c:#x}");
-                camera = c;
-                PLAYER_CAMERA.store(c, Relaxed);
+        None => {
+            if global.is_none() {
+                log::warn!(target: "f4x::papyrus", "PlayerCamera singleton not found; no OnPlayerCameraState");
             }
-            None => {
-                if global.is_none() {
-                    log::warn!(target: "f4x::papyrus", "PlayerCamera singleton not found; no OnPlayerCameraState");
-                }
-                CAMERA_RETRY.store(600, Relaxed);
-                return None;
-            }
+            CAMERA_RETRY.store(600, Relaxed);
+            None
         }
     }
+}
+
+/// `camera->currentState->id`, for a live TESCamera.
+fn state_of(camera: usize) -> Option<u32> {
     if !mem::readable(camera, RE::PlayerCamera::SIZE) {
         return None;
     }
-    // SAFETY: the live PlayerCamera singleton (readable).
+    // SAFETY: a live TESCamera (readable).
     let state: usize = unsafe { mem::read(camera as *const u8, RE::TESCamera::currentState) };
     if state == 0 || !mem::readable(state, RE::TESCameraState::SIZE) {
         return None;
@@ -257,8 +266,52 @@ fn camera_state() -> Option<u32> {
     (id < 13).then_some(id) // CameraStates::kTotal
 }
 
-/// Main-loop ticker: `OnPlayerCameraState(old, new)` when the camera's state changed.
+/// The player camera's current state (main thread).
+fn camera_state() -> Option<u32> {
+    state_of(player_camera()?)
+}
+
+fn send_camera_state(before: u32, now: u32) {
+    let targets = CAMERA.lock().map(|c| c.clone()).unwrap_or_default();
+    let sent = dispatch(&targets, "OnPlayerCameraState", || vec![Arg::Int(before as i32), Arg::Int(now as i32)]);
+    log::info!(target: "f4x::papyrus", "camera state {before} -> {now}: {sent} event(s)");
+}
+
+static SET_STATE: AtomicUsize = AtomicUsize::new(0);
+static SET_STATE_HOOKED: AtomicBool = AtomicBool::new(false);
+type SetState = unsafe extern "C" fn(usize, usize, usize, usize) -> usize;
+
+fn install_camera_hook() {
+    let Some(target) = f4x_engine::address::resolve(&PLAYER_CAMERA_SET_STATE) else {
+        log::warn!(target: "f4x::papyrus", "PlayerCamera::SetState not found; polling the camera state");
+        return;
+    };
+    SET_STATE.store(target, Relaxed);
+    let sites = crate::f4se::lifecycle::redirect_calls_and_jumps(target, set_state_hook as SetState as usize);
+    SET_STATE_HOOKED.store(sites > 0, Relaxed);
+    log::info!(target: "f4x::papyrus", "PlayerCamera::SetState hooked ({sites} call/jump sites)");
+}
+
+unsafe extern "C" fn set_state_hook(camera: usize, state: usize, c: usize, d: usize) -> usize {
+    let watched = ANY_CAMERA.load(Relaxed) && player_camera() == Some(camera);
+    let before = if watched { state_of(camera) } else { None };
+    // SAFETY: the engine's own function with its own arguments.
+    let result = unsafe { std::mem::transmute::<usize, SetState>(SET_STATE.load(Relaxed))(camera, state, c, d) };
+    if let Some(before) = before
+        && let Some(now) = state_of(camera)
+        && now != before
+    {
+        let _ = std::panic::catch_unwind(|| send_camera_state(before, now));
+    }
+    result
+}
+
+/// Main-loop ticker (only when the `SetState` hook is not in place):
+/// `OnPlayerCameraState(old, new)` when the camera's state changed since the last pass.
 fn poll_camera() {
+    if SET_STATE_HOOKED.load(Relaxed) {
+        return;
+    }
     if !ANY_CAMERA.load(Relaxed) {
         LAST_STATE.store(-1, Relaxed);
         return;
@@ -268,10 +321,7 @@ fn poll_camera() {
     if before < 0 || before == i64::from(now) {
         return;
     }
-    let targets = CAMERA.lock().map(|c| c.clone()).unwrap_or_default();
-    let sent =
-        dispatch(&targets, "OnPlayerCameraState", || vec![Arg::Int(before as i32), Arg::Int(now as i32)]);
-    log::info!(target: "f4x::papyrus", "camera state {before} -> {now}: {sent} event(s)");
+    send_camera_state(before as u32, now);
 }
 
 // ---- furniture ----
@@ -369,6 +419,7 @@ fn install_furniture_hook() {
 /// Watch input, the camera and furniture events (once, at plugin load).
 pub(crate) fn install() {
     f4x_agent::input::add_observer(scan_input);
+    install_camera_hook();
     f4x_agent::pump::add_ticker(poll_camera);
     install_furniture_hook();
 }

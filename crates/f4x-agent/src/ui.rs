@@ -11,9 +11,16 @@
 //!   with their types. This is how an object is enumerated black-box: by asking about
 //!   every candidate name.
 //! - `ui.invoke {menu, path, method, args?, fields?}`: call `path.method(args...)`.
-//!   Arguments are JSON scalars; results are converted like `ui.get`.
+//!   Arguments are JSON scalars, `{"int": n}` / `{"uint": n}`, `{"path": "root.x"}` (the
+//!   value at that path), `{"object": {name: arg}}` (a new object) or `{"array": [arg]}`;
+//!   results are converted like `ui.get`.
+//! - `ui.menu {menu, dump?}`: the engine fields of the menu registered as `menu` (any
+//!   menu, custom ones included; read on the main thread): `IMenu` flags, depth priority,
+//!   input context, the movie's scale mode and alignment (`GFx::Movie` slots 0x0F/0x11),
+//!   and with `dump` (a byte count) the object's first bytes as hex (plus, for a dump of
+//!   at least 0x90 bytes, the 0xB0 bytes of `GameMenuBase::filterHolder` at +0x88).
 
-use std::ffi::{CString, c_void};
+use std::ffi::c_void;
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -100,6 +107,36 @@ fn resolve(movie: Movie, path: &str) -> Result<Value, RpcError> {
     Ok(value)
 }
 
+/// A `ui.invoke` argument as a Scaleform value of `movie` (see the module docs).
+fn arg_value(movie: Movie, a: &Json, depth: u32) -> Result<Value, RpcError> {
+    let bad = || RpcError::new(code::INVALID_PARAMS, format!("unsupported argument {a}"));
+    Ok(match a {
+        Json::Null => Value::null(),
+        Json::Bool(b) => Value::bool(*b),
+        Json::Number(n) => Value::number(n.as_f64().unwrap_or(0.0)),
+        Json::String(s) => movie.create_string(s).ok_or_else(bad)?,
+        // Typed numbers, for code-object functions that check the GFx type.
+        Json::Object(o) if o.contains_key("int") => Value::int(o["int"].as_i64().unwrap_or(0) as i32),
+        Json::Object(o) if o.contains_key("uint") => Value::uint(o["uint"].as_u64().unwrap_or(0) as u32),
+        Json::Object(o) if o.contains_key("path") => resolve(movie, o["path"].as_str().ok_or_else(bad)?)?,
+        Json::Object(o) if depth < 8 && o.get("object").is_some_and(Json::is_object) => {
+            let mut object = movie.create_object().ok_or_else(bad)?;
+            for (name, v) in o["object"].as_object().into_iter().flatten() {
+                object.set_member(name, &arg_value(movie, v, depth + 1)?);
+            }
+            object
+        }
+        Json::Object(o) if depth < 8 && o.get("array").is_some_and(Json::is_array) => {
+            let mut array = movie.create_array().ok_or_else(bad)?;
+            for v in o["array"].as_array().into_iter().flatten() {
+                array.push_back(&arg_value(movie, v, depth + 1)?);
+            }
+            array
+        }
+        _ => Value::undefined(),
+    })
+}
+
 fn string_list(p: &Json, key: &str) -> Vec<String> {
     p.get(key).and_then(Json::as_array).map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_owned)).collect()).unwrap_or_default()
 }
@@ -110,7 +147,54 @@ fn menu_and_path(p: &Json) -> Result<(String, String), RpcError> {
     Ok((menu.to_owned(), path.to_owned()))
 }
 
+/// `ui.menu`: a registered menu's engine fields (CommonLibF4 `IMenu` layout).
+fn menu_fields(name: &str, dump: usize) -> Json {
+    use f4x_engine::mem::{fixed_string, read, readable};
+    let registered = f4x_engine::ui::is_registered(name);
+    let fields = f4x_engine::ui::with_menu(name, |menu| {
+        let m = menu.as_ptr();
+        // SAFETY: a live IMenu (found readable for IMenu::SIZE, referenced for the call).
+        unsafe {
+            let movie: *const u8 = read(m, RE::IMenu::uiMovie);
+            let (scale, align) = if movie.is_null() || !readable(movie as usize, 8) {
+                (Json::Null, Json::Null)
+            } else {
+                let vtbl: *const usize = read(movie, 0);
+                let get = |slot: usize| std::mem::transmute::<usize, unsafe extern "C" fn(*const u8) -> i32>(*vtbl.add(slot))(movie);
+                (json!(get(0x0F)), json!(get(0x11)))
+            };
+            let bytes: Vec<u8> = if dump > 0 && readable(m as usize, dump) { (0..dump).map(|i| read::<u8>(m, i)).collect() } else { Vec::new() };
+            // GameMenuBase::filterHolder (+0x88, a BSGFxShaderFXTarget of 0xB0 bytes), when
+            // the dump covers it and it points somewhere readable.
+            let holder: *const u8 = if bytes.len() >= 0x90 { read(m, 0x88) } else { std::ptr::null() };
+            let holder_bytes: Vec<u8> = if !holder.is_null() && readable(holder as usize, 0xB0) { (0..0xB0).map(|i| read::<u8>(holder, i)).collect() } else { Vec::new() };
+            json!({
+                "flags": read::<u32>(m, RE::IMenu::menuFlags),
+                "depth": read::<u8>(m, RE::IMenu::depthPriority),
+                "input_context": read::<i32>(m, RE::IMenu::inputContext),
+                "passes_top_menu_test": read::<u8>(m, RE::IMenu::passesTopMenuTest),
+                "can_be_visible": read::<u8>(m, RE::IMenu::menuCanBeVisible),
+                "menu_name": fixed_string(read(m, RE::IMenu::menuName)),
+                "renderer": fixed_string(read(m, RE::IMenu::customRendererName)),
+                "has_movie": !movie.is_null(),
+                "scale_mode": scale,
+                "align": align,
+                "vtable_rva": read::<usize>(m, 0).wrapping_sub(f4x_engine::game().base()),
+                "dump": bytes.iter().map(|b| format!("{b:02x}")).collect::<String>(),
+                "filter_holder": format!("{holder:p}"),
+                "filter_holder_dump": holder_bytes.iter().map(|b| format!("{b:02x}")).collect::<String>(),
+            })
+        }
+    });
+    json!({"registered": registered, "exists": fields.is_some(), "menu": fields})
+}
+
 pub fn register() {
+    crate::server::register("ui.menu", |_, p| {
+        let menu = p.get("menu").and_then(Json::as_str).ok_or_else(|| RpcError::new(code::INVALID_PARAMS, "params.menu: a registered menu name"))?.to_owned();
+        let dump = p.get("dump").and_then(Json::as_u64).unwrap_or(0).min(0x400) as usize;
+        crate::pump::on_main(move || menu_fields(&menu, dump), TIMEOUT)
+    });
     crate::server::register("ui.get", |_, p| {
         let (menu, path) = menu_and_path(&p)?;
         let fields = string_list(&p, "fields");
@@ -147,21 +231,7 @@ pub fn register() {
         let depth = p.get("depth").and_then(Json::as_u64).unwrap_or(3) as usize;
         in_menu(&menu, move |movie| {
             let target = resolve(movie, &path)?;
-            let strings: Vec<CString> = args.iter().map(|a| CString::new(a.as_str().unwrap_or_default()).unwrap_or_default()).collect();
-            let values: Vec<Value> = args
-                .iter()
-                .zip(&strings)
-                .map(|(a, s)| match a {
-                    Json::Null => Value::null(),
-                    Json::Bool(b) => Value::bool(*b),
-                    Json::Number(n) => Value::number(n.as_f64().unwrap_or(0.0)),
-                    Json::String(_) => Value::borrowed_str(s),
-                    // Typed numbers, for code-object functions that check the GFx type.
-                    Json::Object(o) if o.contains_key("int") => Value::int(o["int"].as_i64().unwrap_or(0) as i32),
-                    Json::Object(o) if o.contains_key("uint") => Value::uint(o["uint"].as_u64().unwrap_or(0) as u32),
-                    _ => Value::undefined(),
-                })
-                .collect();
+            let values = args.iter().map(|a| arg_value(movie, a, 0)).collect::<Result<Vec<_>, _>>()?;
             let result = target.invoke(&method, &values).ok_or_else(|| RpcError::new(code::INTERNAL, format!("{path}.{method} failed")))?;
             Ok(json!({"result": to_json(&result, &fields, depth)}))
         })

@@ -1,14 +1,22 @@
 //! `root.f4se` in every Scaleform movie, plus F4SE plugins' Scaleform callbacks.
 //!
-//! Black-box facts (F4SE 0.6.23, probe + `ui.*` on the user's mod set, 2026-11-21):
+//! Black-box facts (F4SE 0.6.23; probe + `ui.*`, 2026-11-21 and 2026-11-23;
+//! `provenance/scaleform-features.jsonl`):
 //! - plugin callbacks run once per movie, from the call at `BSScaleformManager::LoadMovie`
 //!   + 0x188 (return address +0x18d), right after the movie instance is created;
-//! - each callback gets (movie, the plugin's object) and runs before `root.f4se` is
-//!   attached to the movie's root. The object then becomes `root.f4se.plugins.<name>`;
-//! - `root.f4se` members that any vanilla or installed SWF can name: `AllowTextInput`,
-//!   `GetDirectoryListing`, `SendExternalEvent` (functions), `plugins`, and `version`
-//!   `{major, minor, beta, releaseIdx}`. Those four are ints and read 0 under F4SE
-//!   0.6.23, so f4x reports the same;
+//! - `root.f4se` is built first, in this order: the functions `GetMembers`,
+//!   `AllowTextInput`, `SendExternalEvent`, `CallFunctionNoWait`,
+//!   `CallGlobalFunctionNoWait`, `GetDirectoryListing`, `MountImage`, `UnmountImage`,
+//!   then `version` `{major, minor, beta, releaseIdx}` (ints, 0 under F4SE 0.6.23). Then
+//!   each plugin callback gets (movie, the plugin's object), which becomes
+//!   `root.f4se.plugins.<name>`; then `plugins` is set, then `root.f4se`. No other
+//!   member exists (2961 candidate names asked with `ui.has`);
+//! - `onF4SEObjCreated(codeObject)`: right after `root.f4se` is attached, the root and
+//!   then each first-level display child (`numChildren`/`getChildAt`, in display order;
+//!   not grandchildren, not non-display properties) is asked `HasMember` +
+//!   `GetMember("onF4SEObjCreated")`; when that is a function (an AS3 method closure, GFx
+//!   kind 11; a plain `Function` object is skipped) it is invoked with one argument, the
+//!   `root.f4se` object. Every movie gets this, custom menus included;
 //! - `GetDirectoryListing(path, pattern = "*")`:
 //!   - `path` is relative to the game folder;
 //!   - it returns an array in FindFirstFile order (`.` and `..` included, not
@@ -19,15 +27,31 @@
 //!     them as local time). f4x builds them the same way;
 //!   - F4SE crashes when called without arguments; f4x returns an empty array.
 //! - `AllowTextInput` and `SendExternalEvent` return undefined. `SendExternalEvent`
-//!   calls Papyrus external-event registrations (`natives.rs`).
+//!   calls Papyrus external-event registrations (`natives.rs`);
+//! - `GetMembers(object)`: an array of the member names, in the engine's
+//!   `VisitMembers` order (dynamic members, then a display object's children by
+//!   instance name); `[]` for arrays and functions; extra arguments are ignored. F4SE
+//!   crashes on a string or number; f4x returns `[]` for anything that is not an object;
+//! - `CallFunctionNoWait`, `CallGlobalFunctionNoWait`: [`papyrus_calls`];
+//! - `MountImage`, `UnmountImage`: [`images`];
+//! - the tint hook (`onApplyColorChange`): [`tint`].
+//!
+//! Differential (the same probe and scripts under f4x, sessions 1795441244..1795442372):
+//! member set, build order, `GetMembers`, `onF4SEObjCreated` calls, the tint hook and
+//! `img://` loading match F4SE; the remaining differences are listed in [`images`]
+//! (missing files) and [`papyrus_calls`] (an empty `Var` reads as `[]`).
 
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
-use f4x_engine::scaleform::{Call, Function, Movie, Value};
+use f4x_engine::scaleform::{Call, Function, Movie, Value, kind};
 use f4x_engine_sys::og_1_10_163_addresses::SCALEFORM_MANAGER_LOAD_MOVIE;
 
 use super::interfaces::SCALEFORM_CALLBACKS;
+
+mod images;
+mod papyrus_calls;
+mod tint;
 
 /// Offset of the call that F4SE's injection follows (black-box return address - 5).
 const LOAD_MOVIE_CALL_OFFSET: usize = 0x188;
@@ -40,6 +64,7 @@ type Worker = unsafe extern "C" fn(usize, usize, usize, usize) -> usize;
 type PluginCallback = unsafe extern "C" fn(*mut c_void, *mut Value) -> bool;
 
 pub(super) fn install() {
+    tint::install();
     let site = f4x_engine::address::resolve(&SCALEFORM_MANAGER_LOAD_MOVIE).map(|f| f + LOAD_MOVIE_CALL_OFFSET);
     // SAFETY: inside the resolved function's code.
     let Some(site) = site.filter(|&s| unsafe { *(s as *const u8) } == 0xE8) else {
@@ -60,37 +85,38 @@ unsafe extern "C" fn after_create_hook(movie: usize, b: usize, c: usize, d: usiz
     result
 }
 
-struct Functions {
-    allow_text_input: &'static Function,
-    get_directory_listing: &'static Function,
-    send_external_event: &'static Function,
-}
-
-fn functions() -> &'static Functions {
-    static F: std::sync::OnceLock<Functions> = std::sync::OnceLock::new();
-    F.get_or_init(|| Functions {
-        allow_text_input: Function::leak(allow_text_input),
-        get_directory_listing: Function::leak(get_directory_listing),
-        send_external_event: Function::leak(send_external_event),
+/// `root.f4se`'s functions, in the order F4SE adds them.
+fn functions() -> &'static [(&'static str, &'static Function)] {
+    static F: std::sync::OnceLock<Vec<(&'static str, &'static Function)>> = std::sync::OnceLock::new();
+    F.get_or_init(|| {
+        vec![
+            ("GetMembers", Function::leak(get_members)),
+            ("AllowTextInput", Function::leak(allow_text_input)),
+            ("SendExternalEvent", Function::leak(send_external_event)),
+            ("CallFunctionNoWait", Function::leak(papyrus_calls::call_function_no_wait)),
+            ("CallGlobalFunctionNoWait", Function::leak(papyrus_calls::call_global_function_no_wait)),
+            ("GetDirectoryListing", Function::leak(get_directory_listing)),
+            ("MountImage", Function::leak(images::mount_image)),
+            ("UnmountImage", Function::leak(images::unmount_image)),
+        ]
     })
 }
 
 fn inject(movie: Movie) {
     let Some(mut root) = movie.get_variable("root").filter(Value::is_object) else { return };
     let Some(mut f4se) = movie.create_object() else { return };
-    let Some(mut version) = movie.create_object() else { return };
     let mut set_ok = Vec::new();
-    for field in ["major", "minor", "beta", "releaseIdx"] {
-        set_ok.push(version.set_member(field, &Value::int(0)));
-    }
-    f4se.set_member("version", &version);
-    let fs = functions();
-    for (name, f) in [("AllowTextInput", fs.allow_text_input), ("GetDirectoryListing", fs.get_directory_listing), ("SendExternalEvent", fs.send_external_event)] {
+    for (name, f) in functions() {
         match movie.create_function(f, 0) {
             Some(function) => set_ok.push(f4se.set_member(name, &function)),
             None => log::warn!(target: "f4x::scaleform", "CreateFunction failed for {name}"),
         }
     }
+    let Some(mut version) = movie.create_object() else { return };
+    for field in ["major", "minor", "beta", "releaseIdx"] {
+        set_ok.push(version.set_member(field, &Value::int(0)));
+    }
+    f4se.set_member("version", &version);
     let Some(mut plugins) = movie.create_object() else { return };
     let callbacks: Vec<(String, usize)> = SCALEFORM_CALLBACKS.lock().map(|c| c.clone()).unwrap_or_default();
     for (name, callback) in &callbacks {
@@ -106,10 +132,46 @@ fn inject(movie: Movie) {
     }
     f4se.set_member("plugins", &plugins);
     root.set_member("f4se", &f4se);
+    let created = notify_obj_created(&root, &f4se);
     let n = INJECTED.fetch_add(1, Relaxed);
     if n < 64 {
-        log::debug!(target: "f4x::scaleform", "root.f4se injected ({} plugin object(s)); set_member results {set_ok:?}", callbacks.len());
+        log::debug!(target: "f4x::scaleform", "root.f4se injected ({} plugin object(s), {created} onF4SEObjCreated call(s)); set_member results {set_ok:?}", callbacks.len());
     }
+}
+
+const OBJ_CREATED: &str = "onF4SEObjCreated";
+
+/// Call `onF4SEObjCreated(f4se)` on the root and its first-level display children that
+/// have it as a method. Returns the number of calls.
+fn notify_obj_created(root: &Value, f4se: &Value) -> usize {
+    let call = |object: &Value| -> bool {
+        let is_method = object.has_member(OBJ_CREATED) && object.get_member(OBJ_CREATED).is_some_and(|f| f.kind() == kind::CLOSURE);
+        is_method && {
+            let _ = object.invoke(OBJ_CREATED, &[f4se.clone_ref()]);
+            true
+        }
+    };
+    let mut calls = usize::from(call(root));
+    let count = root.get_member("numChildren").and_then(|n| n.as_number()).unwrap_or(0.0).max(0.0) as usize;
+    for i in 0..count.min(4096) {
+        if let Some(child) = root.invoke("getChildAt", &[Value::int(i as i32)]).filter(|c| c.kind() == kind::DISPLAY_OBJECT) {
+            calls += usize::from(call(&child));
+        }
+    }
+    calls
+}
+
+/// `GetMembers(object)`: the member names in the engine's `VisitMembers` order.
+fn get_members(call: &mut Call) {
+    let Some(mut array) = call.movie.create_array() else { return };
+    if let Some(object) = call.args.first().filter(|v| matches!(v.kind(), kind::OBJECT | kind::DISPLAY_OBJECT)) {
+        for name in f4x_engine::scaleform_ext::visit_members(object, false) {
+            if let Some(text) = call.movie.create_string(&name) {
+                array.push_back(&text);
+            }
+        }
+    }
+    call.ret(array);
 }
 
 // ---- root.f4se functions ----

@@ -40,6 +40,7 @@ pub mod menu_flags {
     pub const USES_MENU_CONTEXT: u32 = 1 << 3;
     pub const MODAL: u32 = 1 << 4;
     pub const ON_STACK: u32 = 1 << 6;
+    pub const CUSTOM_RENDERING: u32 = 1 << 15;
 }
 
 /// `UI_MESSAGE_TYPE` (CommonLibF4 `UIMessage.h`).
@@ -293,8 +294,10 @@ pub struct CustomMenu {
     pub root: String,
     pub menu_flags: u32,
     pub depth: u8,
-    /// `GFx::Movie::ScaleModeType`.
+    /// `GFx::Movie::ScaleModeType` (F4SE's `MenuData.movieFlags`).
     pub scale_mode: i32,
+    /// F4SE's `MenuData.extendedFlags`: bit 0 tints the menu with the HUD color.
+    pub extended_flags: u32,
     /// `GFx::Movie::AlignType`, applied after loading when set.
     pub align: Option<i32>,
     /// Called on the UI thread right after the menu and its movie are created.
@@ -436,10 +439,92 @@ unsafe fn construct(name: &str, def: &CustomMenu, v: &Vtables) -> *mut u8 {
             transmute::<usize, unsafe extern "C" fn(*mut c_void, i32)>(*vtbl.add(0x10))(movie.0, align);
         }
     }
+    // SAFETY: our menu, created with its movie on this (the UI) thread.
+    unsafe { set_up_code_object(menu, def) };
     if let Some(f) = def.on_create {
         f(menu, def);
     }
     menu
+}
+
+/// What F4SE adds to its custom menus on creation (black-box, F4SE 0.6.23;
+/// `provenance/scaleform-features.jsonl`), done once the movie is loaded:
+/// - the code object (`IMenu::menuObj`, the value at the registered root path) gets
+///   `menuFlags`, `movieFlags` and `extendedFlags` as uint members, in that order. F4SE
+///   crashes when the path gives no object (`""`, `"root"`); f4x then skips all of this;
+/// - `GameMenuBase::filterHolder` is a `BSGFxShaderFXTarget` on the code object, built by
+///   the engine's constructor in game memory (the menu's destructor deletes it);
+/// - `extendedFlags` bit 0: the holder is tinted with `CreateAndSetFiltersToHUD(
+///   kGameplayHUDColor, 1.0)`;
+/// - with `kCustomRendering` in the menu flags the holder is the one entry of
+///   `shaderFXObjects` (capacity 10), so the renderer applies its tint.
+///
+/// # Safety
+/// `menu` is our live custom menu, on the thread that owns its movie.
+unsafe fn set_up_code_object(menu: *mut u8, def: &CustomMenu) {
+    use crate::scaleform::Value;
+    // SAFETY: IMenu::menuObj, a GFx::Value filled by LoadMovie.
+    let code = unsafe { &mut *(menu.add(RE::IMenu::menuObj) as *mut Value) };
+    if !code.is_object() {
+        return;
+    }
+    code.set_member("menuFlags", &Value::uint(def.menu_flags));
+    code.set_member("movieFlags", &Value::uint(def.scale_mode as u32));
+    code.set_member("extendedFlags", &Value::uint(def.extended_flags));
+    let (Some(ctor), Some(holder)) = (resolve(&addr::SHADER_FX_TARGET_CTOR_VALUE), game_alloc(SHADER_FX_TARGET_SIZE)) else {
+        log::warn!(target: "f4x::ui", "custom menu: no filter holder (constructor or allocator not found)");
+        return;
+    };
+    // SAFETY: BSGFxShaderFXTarget::BSGFxShaderFXTarget(this, const GFx::Value&) on fresh game
+    // memory; the holder is owned by GameMenuBase::filterHolder from here on.
+    unsafe {
+        transmute::<usize, unsafe extern "C" fn(*mut u8, *const Value) -> *mut u8>(ctor)(holder, code);
+        menu.add(RE::GameMenuBase::filterHolder).cast::<*mut u8>().write(holder);
+    }
+    if def.extended_flags & 1 != 0
+        && let Some(to_hud) = resolve(&addr::SHADER_FX_TARGET_FILTERS_TO_HUD)
+    {
+        // SAFETY: CreateAndSetFiltersToHUD(this, HUDColorTypes, float scale).
+        unsafe { transmute::<usize, unsafe extern "C" fn(*mut u8, u32, f32)>(to_hud)(holder, HUD_COLOR_GAMEPLAY, 1.0) };
+    }
+    if def.menu_flags & menu_flags::CUSTOM_RENDERING != 0
+        && let Some(data) = game_alloc(SHADER_FX_OBJECTS_CAPACITY as usize * 8)
+    {
+        // SAFETY: GameMenuBase::shaderFXObjects, an empty BSTArray<BSGFxShaderFXTarget*>
+        // (data, capacity u32 at +8, size u32 at +0x10); game memory, freed by its destructor.
+        unsafe {
+            data.cast::<*mut u8>().write(holder);
+            let array = menu.add(RE::GameMenuBase::shaderFXObjects);
+            array.cast::<*mut u8>().write(data);
+            array.add(8).cast::<u32>().write(SHADER_FX_OBJECTS_CAPACITY);
+            array.add(0x10).cast::<u32>().write(1);
+        }
+    }
+}
+
+/// `sizeof(BSGFxShaderFXTarget)` (CommonLibF4 community `IMenu.h`; the engine's
+/// `make_unique` of it allocates 0xB0 bytes).
+const SHADER_FX_TARGET_SIZE: usize = 0xB0;
+/// `HUDColorTypes::kGameplayHUDColor` (CommonLibF4 community `IMenu.h`).
+const HUD_COLOR_GAMEPLAY: u32 = 2;
+/// The capacity F4SE's custom menus show for their one `shaderFXObjects` entry.
+const SHADER_FX_OBJECTS_CAPACITY: u32 = 10;
+
+/// `size` bytes from the game's heap (`MemoryManager::Allocate(size, 0, false)`, as the
+/// engine's own `make_unique` does), zeroed.
+fn game_alloc(size: usize) -> Option<*mut u8> {
+    let (singleton, allocate) = (resolve(&addr::MEMORY_MANAGER_SINGLETON)?, resolve(&addr::MEMORY_MANAGER_ALLOCATE)?);
+    // SAFETY: MemoryManager::GetSingleton(); Allocate(this, size, alignment, alignmentRequired).
+    let p = unsafe {
+        let manager = transmute::<usize, unsafe extern "C" fn() -> *mut c_void>(singleton)();
+        transmute::<usize, unsafe extern "C" fn(*mut c_void, usize, u32, bool) -> *mut u8>(allocate)(manager, size, 0, false)
+    };
+    if p.is_null() {
+        return None;
+    }
+    // SAFETY: a fresh allocation of `size` bytes.
+    unsafe { std::ptr::write_bytes(p, 0, size) };
+    Some(p)
 }
 
 /// `BSScaleformManager::LoadMovie(menu, menu.uiMovie, name, menuObjPath, scaleMode, 0)`.

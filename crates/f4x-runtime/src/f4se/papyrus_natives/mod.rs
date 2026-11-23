@@ -38,6 +38,33 @@ pub(crate) fn signature(script: &str, name: &str) -> Option<(Vec<(String, String
     Some((params, f["returns"].as_str().unwrap_or("None").to_owned(), f["global"].as_bool().unwrap_or(false)))
 }
 
+/// The F4SE natives that F4SE 0.6.23 binds as latent (black-box: its native catalog,
+/// `catalog.natives` under F4SE): the calling script waits while they run on the main
+/// thread. f4x binds the same ones latent (`f4x_engine::papyrus::enable_latent`), run at the start
+/// of the VM's frame update as F4SE does (`lifecycle::install_latent_runner`).
+const LATENT: &[(&str, &str)] = &[
+    ("ObjectReference", "AttachWire"),
+    ("ObjectReference", "GetInventoryItems"),
+    ("ObjectReference", "GetConnectPoints"),
+    ("ObjectReference", "TransmitConnectedPower"),
+    ("ObjectReference", "ApplyMaterialSwap"),
+    ("ObjectReference", "Scrap"),
+    ("UI", "Set"),
+    ("UI", "Get"),
+    ("UI", "Invoke"),
+    ("UI", "Load"),
+    ("FavoritesManager", "GetTaggedForms"),
+    ("FavoritesManager", "AddTaggedForms"),
+    ("FavoritesManager", "RemoveTaggedForms"),
+    ("FavoritesManager", "IsTaggedForm"),
+    ("FavoritesManager", "GetFavorites"),
+    ("FavoritesManager", "SetFavorites"),
+];
+
+pub(crate) fn is_latent(script: &str, name: &str) -> bool {
+    LATENT.iter().any(|(s, n)| s.eq_ignore_ascii_case(script) && n.eq_ignore_ascii_case(name))
+}
+
 /// Every implemented family.
 pub(crate) fn all() -> Vec<Entry> {
     let mut v = Vec::new();

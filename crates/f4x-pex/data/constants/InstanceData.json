@@ -31,6 +31,10 @@
     "source": "re: Fallout4.exe 1.10.163 weapon OMOD property 48 'bHasScope' (table @rva 0x36e64c0): its applier at VA 0x1403519e0 sets/clears 0x200000 in TESObjectWEAP::InstanceData::flags (+0x110, CommonLibF4/include/RE/Bethesda/TESBoundObjects.h:550)",
     "value": 2097152
   },
+  "Flag_HideBackpack": {
+    "source": "doc: xEdit https://github.com/TES5Edit/TES5Edit/blob/99a0f9dc024cc872b86e08403c75db8c68bb1854/Core/wbDefinitionsFO4.pas#L12880 WEAP DNAM 'Flags' bit 0x40000 'Hide Backpack' (MPL-2.0, read 2026-11-23); that field is TESObjectWEAP::InstanceData::flags (+0x110): xEdit's names for the other 14 bits match the engine-derived masks above",
+    "value": 262144
+  },
   "Flag_HoldInputToPower": {
     "source": "re: Fallout4.exe 1.10.163 weapon OMOD property 85 'bHoldInputToPower' (table @rva 0x36e64c0): its applier at VA 0x140350080 sets/clears 0x800 in TESObjectWEAP::InstanceData::flags (+0x110, CommonLibF4/include/RE/Bethesda/TESBoundObjects.h:550)",
     "value": 2048
@@ -47,12 +51,24 @@
     "source": "re: Fallout4.exe 1.10.163 weapon OMOD property 17 'bnpcsuseammo' (table @rva 0x36e64c0): its applier at VA 0x14034fc20 sets/clears 0x2 in TESObjectWEAP::InstanceData::flags (+0x110, CommonLibF4/include/RE/Bethesda/TESBoundObjects.h:550)",
     "value": 2
   },
+  "Flag_NoJamAfterReload": {
+    "source": "doc: xEdit https://github.com/TES5Edit/TES5Edit/blob/99a0f9dc024cc872b86e08403c75db8c68bb1854/Core/wbDefinitionsFO4.pas#L12864 WEAP DNAM 'Flags' bit 0x4 'No Jam After Reload' (MPL-2.0, read 2026-11-23); that field is TESObjectWEAP::InstanceData::flags (+0x110): xEdit's names for the other 14 bits match the engine-derived masks above",
+    "value": 4
+  },
   "Flag_NonHostile": {
     "source": "re: Fallout4.exe 1.10.163 weapon OMOD property 23 'bnonhostile' (table @rva 0x36e64c0): its applier at VA 0x140350160 sets/clears 0x1000 in TESObjectWEAP::InstanceData::flags (+0x110, CommonLibF4/include/RE/Bethesda/TESBoundObjects.h:550)",
     "value": 4096
   },
+  "Flag_NotUsedInNormalCombat": {
+    "source": "doc: xEdit https://github.com/TES5Edit/TES5Edit/blob/99a0f9dc024cc872b86e08403c75db8c68bb1854/Core/wbDefinitionsFO4.pas#L12868 WEAP DNAM 'Flags' bit 0x40 'Not Used In Normal Combat' (MPL-2.0, read 2026-11-23); that field is TESObjectWEAP::InstanceData::flags (+0x110): xEdit's names for the other 14 bits match the engine-derived masks above",
+    "value": 64
+  },
   "Flag_RepeatableSingleFire": {
     "source": "re: Fallout4.exe 1.10.163 weapon OMOD property 86 'bRepeatableSingleFire' (table @rva 0x36e64c0): its applier at VA 0x1403500f0 sets/clears 0x10000 in TESObjectWEAP::InstanceData::flags (+0x110, CommonLibF4/include/RE/Bethesda/TESBoundObjects.h:550)",
     "value": 65536
+  },
+  "Flag_SecondaryWeapon": {
+    "source": "doc: xEdit https://github.com/TES5Edit/TES5Edit/blob/99a0f9dc024cc872b86e08403c75db8c68bb1854/Core/wbDefinitionsFO4.pas#L12885 WEAP DNAM 'Flags' bit 0x800000 'Secondary Weapon' (MPL-2.0, read 2026-11-23); that field is TESObjectWEAP::InstanceData::flags (+0x110): xEdit's names for the other 14 bits match the engine-derived masks above",
+    "value": 8388608
   }
 }

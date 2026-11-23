@@ -8,7 +8,7 @@
 use std::path::Path;
 
 use f4x_pex::Pex;
-use f4x_pex::f4x_natives::{create, inventory, load_constants, patch};
+use f4x_pex::f4x_natives::{create, inventory, load_constants, load_struct_defaults, patch};
 
 /// The script as the game would load it: a loose file in `Data/Scripts`, else the copy
 /// in `Fallout4 - Misc.ba2`.
@@ -33,6 +33,11 @@ fn constants_dir() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../f4x-pex/data/constants")
 }
 
+/// The struct member defaults shipped with f4x (`crates/f4x-pex/data/struct-defaults`).
+fn struct_defaults_dir() -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../f4x-pex/data/struct-defaults")
+}
+
 fn write(out: &Path, script: &str, pex: &Pex) -> Result<(), String> {
     let path = out.join(format!("{script}.pex"));
     if path.symlink_metadata().is_ok_and(|m| m.file_type().is_symlink()) {
@@ -45,7 +50,10 @@ fn write(out: &Path, script: &str, pex: &Pex) -> Result<(), String> {
 /// (replacing a symlink, never writing through one). Returns one line per script.
 pub fn generate(data: &Path, out: &Path) -> Result<Vec<String>, String> {
     let archive = f4x_ba2::Archive::open(&data.join("Fallout4 - Misc.ba2")).ok();
-    let constants = load_constants(&constants_dir())?;
+    let mut constants = load_constants(&constants_dir())?;
+    for (script, values) in load_struct_defaults(&struct_defaults_dir())? {
+        constants.entry(script).or_default().extend(values);
+    }
     std::fs::create_dir_all(out).map_err(|e| format!("{}: {e}", out.display()))?;
     let (_, template) = source(data, "ScriptObject", archive.as_ref())?;
     let template = Pex::parse(&template).map_err(|e| format!("ScriptObject.pex: {e}"))?;

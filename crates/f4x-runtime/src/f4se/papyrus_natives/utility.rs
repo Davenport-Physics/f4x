@@ -10,7 +10,8 @@ pub(crate) const NATIVES: &[Entry] = &[
     ("Utility", "VarArrayToVar", |c| {
         let inner = match c.value(0) {
             PValue::Array(items) if !items.is_empty() => PValue::Array(items),
-            _ => PValue::None,
+            // F4SE: a Var holding a None `Var[]` (see `papyrus_value::write_var`).
+            _ => PValue::Array(Vec::new()),
         };
         c.ret_value(&PValue::Var(Box::new(inner)))
     }),

@@ -24,6 +24,8 @@ pub mod address;
 #[cfg(windows)]
 pub mod console;
 #[cfg(windows)]
+pub mod control_map;
+#[cfg(windows)]
 pub mod controls;
 #[cfg(windows)]
 pub mod data;
@@ -31,6 +33,8 @@ pub mod data;
 pub mod form;
 #[cfg(windows)]
 pub mod game;
+#[cfg(windows)]
+pub mod matswap;
 #[cfg(windows)]
 pub mod mem;
 #[cfg(windows)]
@@ -43,6 +47,10 @@ pub mod papyrus_value;
 pub mod refr;
 #[cfg(windows)]
 pub mod scaleform;
+#[cfg(windows)]
+pub mod scaleform_ext;
+#[cfg(windows)]
+pub mod translation;
 #[cfg(windows)]
 pub mod ui;
 

@@ -98,6 +98,19 @@ pub fn read(vm: Vm, var: &Variable) -> PValue {
     read_depth(vm, var, 0)
 }
 
+/// As [`read`], but every script object stays a [`PValue::Object`] with its own script
+/// (the attached script, `MyQuestScript`, rather than the form's base type `Quest`).
+pub fn read_exact(vm: Vm, var: &Variable) -> PValue {
+    EXACT.with(|e| e.set(true));
+    let value = read_depth(vm, var, 0);
+    EXACT.with(|e| e.set(false));
+    value
+}
+
+thread_local! {
+    static EXACT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 fn read_depth(vm: Vm, var: &Variable, depth: u32) -> PValue {
     if depth > 8 || var.kind == 0 {
         return PValue::None;
@@ -135,7 +148,8 @@ fn read_object(vm: Vm, object: *mut ScriptObject) -> PValue {
     if object.is_null() {
         return PValue::None;
     }
-    if let Some((_, game)) = vm.game_object(object)
+    if !EXACT.with(std::cell::Cell::get)
+        && let Some((_, game)) = vm.game_object(object)
         && crate::Form::checked(game).is_some()
     {
         return PValue::Form(game);
@@ -313,13 +327,17 @@ fn write_var(vm: Vm, var: &mut Variable, inner: &PValue) -> Result<(), String> {
         heap.write(Variable { kind: 0, value: 0 });
         &mut *heap
     };
-    if matches!(inner, PValue::None) {
-        // A `Var` holding nothing is boxed as a None `Var[]`: a bare None would be
-        // unboxed by the VM. (Matches F4SE's `Utility.VarArrayToVar` of an empty array.)
-        boxed.kind = raw::VAR as usize + ARRAY_OFFSET;
-    } else {
-        let kind = natural_type(vm, inner);
-        write(vm, boxed, kind, inner)?;
+    match inner {
+        // An empty `Var` (F4SE's conversion of null/undefined/objects from Scaleform reads
+        // as None in Papyrus): the box holds a None variable.
+        PValue::None => {}
+        // `Var(Array([]))` is a `Var` holding a None `Var[]`, as F4SE's
+        // `Utility.VarArrayToVar` of an empty array gives.
+        PValue::Array(items) if items.is_empty() => boxed.kind = raw::VAR as usize + ARRAY_OFFSET,
+        _ => {
+            let kind = natural_type(vm, inner);
+            write(vm, boxed, kind, inner)?;
+        }
     }
     var.kind = raw::VAR as usize;
     var.value = heap as u64;

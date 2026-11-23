@@ -212,6 +212,32 @@ impl Variable {
         self.reset();
     }
 
+    /// Drop everything this variable owns, arrays, structs and boxed `Var`s included, for
+    /// variables f4x owns itself (not the VM's). The last reference to an array or a
+    /// struct is never dropped here (that needs the engine's destructors): it leaks.
+    pub fn release(&mut self) {
+        let raw_type = self.raw_type();
+        match raw_type {
+            raw::VAR if self.value != 0 => {
+                let boxed = self.value as *mut Variable;
+                // SAFETY: a `Var` owns its heap Variable (game allocator).
+                unsafe { (*boxed).release() };
+                if let (Some(singleton), Some(free)) = (resolve(&addr::MEMORY_MANAGER_SINGLETON), resolve(&addr::MEMORY_MANAGER_DEALLOCATE)) {
+                    // SAFETY: MemoryManager::GetSingleton / Deallocate(this, ptr, alignmentRequired).
+                    unsafe {
+                        let manager = transmute::<usize, unsafe extern "C" fn() -> *mut c_void>(singleton)();
+                        transmute::<usize, unsafe extern "C" fn(*mut c_void, *mut c_void, bool)>(free)(manager, boxed.cast(), false);
+                    }
+                }
+            }
+            raw::STRUCT if self.value != 0 => intrusive_dec_ref(self.value as *mut u8),
+            t if (raw::ARRAY_START..raw::ARRAY_END).contains(&t) && self.value != 0 => intrusive_dec_ref(self.value as *mut u8),
+            _ => return self.reset(),
+        }
+        self.kind = 0;
+        self.value = 0;
+    }
+
     pub fn set_bool(&mut self, v: bool) {
         self.reset();
         self.kind = raw::BOOL as usize;
@@ -248,6 +274,16 @@ impl Variable {
         self.kind = unsafe { mem::read::<usize>(object as *const u8, 8) };
         self.value = object as u64;
     }
+}
+
+/// Drop one reference of a `BSIntrusiveRefCounted` (refcount at +0), unless it is the last.
+fn intrusive_dec_ref(object: *mut u8) {
+    if !mem::readable(object as usize, 4) {
+        return;
+    }
+    // SAFETY: the refcount of a live BSIntrusiveRefCounted.
+    let count = unsafe { &*(object as *const std::sync::atomic::AtomicU32) };
+    let _ = count.try_update(std::sync::atomic::Ordering::AcqRel, std::sync::atomic::Ordering::Acquire, |c| (c > 1).then(|| c - 1));
 }
 
 pub(crate) fn object_dec_ref(object: *mut ScriptObject) {
@@ -303,6 +339,8 @@ pub(crate) mod slot {
     pub const CREATE_ARRAY: usize = 0x19;
     pub const CREATE_OBJECT: usize = 0x17;
     pub const BIND_NATIVE_METHOD: usize = 0x1B;
+    pub const IS_WAITING_ON_LATENT: usize = 0x30;
+    pub const RETURN_FROM_LATENT: usize = 0x31;
     pub const FIND_BOUND_OBJECT: usize = 0x1F;
     pub const DISPATCH_METHOD_CALL_BY_HANDLE: usize = 0x2E;
     pub const GET_OBJECT_HANDLE_POLICY: usize = 0x33;
@@ -826,6 +864,9 @@ pub struct NativeSpec {
     pub params: &'static [(&'static str, Type)],
     pub ret: Type,
     pub is_static: bool,
+    /// Latent: the calling script waits while the handler runs on the main thread (see
+    /// [`enable_latent`]); its result is returned with `ReturnFromLatent`.
+    pub latent: bool,
     pub handler: Handler,
 }
 
@@ -1045,7 +1086,17 @@ fn native_vtable() -> Option<*const usize> {
 
 /// Bind a native whose signature is given by type names (as in the F4SE signature
 /// inventory). Strings are leaked: natives live for the process.
-pub fn bind_named(vm: Vm, script: &str, name: &str, params: &[(String, String)], ret: &str, is_static: bool, handler: Handler) -> Result<(), String> {
+#[allow(clippy::too_many_arguments, reason = "one argument per part of the inventory's signature")]
+pub fn bind_named(
+    vm: Vm,
+    script: &str,
+    name: &str,
+    params: &[(String, String)],
+    ret: &str,
+    is_static: bool,
+    latent: bool,
+    handler: Handler,
+) -> Result<(), String> {
     fn leak(s: &str) -> &'static str {
         Box::leak(s.to_owned().into_boxed_str())
     }
@@ -1056,6 +1107,7 @@ pub fn bind_named(vm: Vm, script: &str, name: &str, params: &[(String, String)],
         params: Box::leak(params.into_boxed_slice()),
         ret: Type::Named(leak(if ret.is_empty() { "None" } else { ret })),
         is_static,
+        latent,
         handler,
     }));
     bind(vm, spec)
@@ -1085,7 +1137,9 @@ pub fn bind(vm: Vm, spec: &'static NativeSpec) -> Result<(), String> {
         _pad2: 0,
         is_static: spec.is_static,
         callable_from_tasklet: false,
-        is_latent: false,
+        // Without a host draining the latent queue a latent native would never return:
+        // run it inline then.
+        is_latent: spec.latent && LATENT_ENABLED.load(std::sync::atomic::Ordering::Relaxed),
         _pad3: 0,
         user_flags: 0,
         doc_string: fs("")?,
@@ -1226,7 +1280,24 @@ unsafe extern "C" fn nf_marshall_and_dispatch(
                 .collect()
         };
         // SAFETY: live function object.
-        let ret_kind = unsafe { (*this).ret_type };
+        let (ret_kind, latent) = unsafe { ((*this).ret_type, (*this).is_latent) };
+        if latent {
+            // The engine has already marked the stack as waiting on this call; its frame
+            // (arguments and `self`) stays put until `ReturnFromLatent`. Our RE of
+            // `NativeFunctionBase::Call` (RVA 0x270d550): a latent dispatch reports
+            // "started" with `Bool true` in the return slot; anything else logs "Latent
+            // function %s did not successfully start" and returns from the latent call at once.
+            // `self_var` is the engine's copy on this thread's C stack (gone once we
+            // return): the job uses the frame's own `StackFrame::self` (+0x28) instead.
+            let frame_self = frame.cast::<u8>().wrapping_add(0x28).cast_mut().cast::<Variable>();
+            let job = LatentJob { vm: Vm(vm), stack_id, spec, self_var: frame_self, args, ret_kind, tries: 0 };
+            if let Ok(mut queue) = LATENT_QUEUE.lock() {
+                queue.push(job);
+            }
+            // SAFETY: the VM's return slot.
+            unsafe { (*ret).set_bool(true) };
+            return true;
+        }
         let mut call = NativeCall { vm: Vm(vm), stack_id, spec, self_var, args, ret, ret_kind };
         if let Err(error) = (spec.handler)(&mut call) {
             log::warn!(target: "f4x::papyrus", "{}.{}: {error}", spec.script, spec.name);
@@ -1234,6 +1305,82 @@ unsafe extern "C" fn nf_marshall_and_dispatch(
         true
     })
     .unwrap_or(false)
+}
+
+static LATENT_ENABLED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static LATENT_QUEUE: std::sync::Mutex<Vec<LatentJob>> = std::sync::Mutex::new(Vec::new());
+
+/// Bind natives marked `latent` as latent from now on: the calling script waits until
+/// the host has run the handler on the main thread with [`run_latent_jobs`].
+pub fn enable_latent() {
+    LATENT_ENABLED.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Run the queued latent calls (main thread), returning each result to its waiting
+/// script. Called by the host where F4SE runs its own: at the start of the VM's frame
+/// update, so the scripts continue in the same frame.
+pub fn run_latent_jobs() {
+    let jobs: Vec<LatentJob> = LATENT_QUEUE.lock().map(|mut q| std::mem::take(&mut *q)).unwrap_or_default();
+    for job in jobs {
+        job.run();
+    }
+}
+
+/// A latent native call waiting for the main thread: pointers into the waiting stack's
+/// frame, valid while the VM still reports the stack as waiting on a latent call.
+struct LatentJob {
+    vm: Vm,
+    stack_id: u32,
+    spec: &'static NativeSpec,
+    self_var: *mut Variable,
+    args: Vec<*mut Variable>,
+    ret_kind: usize,
+    tries: u32,
+}
+
+// SAFETY: the pointers are only used on the main thread while the owning stack is parked
+// waiting for this call (no VM thread touches its frame then).
+unsafe impl Send for LatentJob {}
+
+impl LatentJob {
+    fn run(mut self) {
+        // SAFETY: IVirtualMachine::IsWaitingOnLatent(stackID) const.
+        let waiting = unsafe { vcall::<unsafe extern "C" fn(*mut c_void, u32) -> bool>(self.vm.0, slot::IS_WAITING_ON_LATENT)(self.vm.0, self.stack_id) };
+        if !waiting {
+            // The engine marks the stack before dispatching to us, so this means the stack
+            // was dropped (e.g. a load reset the VM). Retry briefly in case of a slow mark.
+            self.tries += 1;
+            if self.tries < 3 {
+                if let Ok(mut queue) = LATENT_QUEUE.lock() {
+                    queue.push(self);
+                }
+            } else {
+                log::debug!(target: "f4x::papyrus", "{}: stack {} no longer waits; dropped", describe(self.spec), self.stack_id);
+            }
+            return;
+        }
+        let mut ret = Variable { kind: 0, value: 0 };
+        let mut call = NativeCall {
+            vm: self.vm,
+            stack_id: self.stack_id,
+            spec: self.spec,
+            self_var: self.self_var,
+            args: std::mem::take(&mut self.args),
+            ret: &raw mut ret,
+            ret_kind: self.ret_kind,
+        };
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (self.spec.handler)(&mut call)));
+        match outcome {
+            Ok(Err(error)) => log::warn!(target: "f4x::papyrus", "{}: {error}", describe(self.spec)),
+            Err(_) => log::error!(target: "f4x::papyrus", "{} panicked", describe(self.spec)),
+            Ok(Ok(())) => {}
+        }
+        // SAFETY: IVirtualMachine::ReturnFromLatent(stackID, const Variable&): copies it.
+        unsafe {
+            vcall::<unsafe extern "C" fn(*mut c_void, u32, *const Variable)>(self.vm.0, slot::RETURN_FROM_LATENT)(self.vm.0, self.stack_id, &ret);
+        }
+        ret.release();
+    }
 }
 
 /// The name of a native's script and function, for logs.

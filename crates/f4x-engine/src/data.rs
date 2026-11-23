@@ -150,12 +150,17 @@ impl DataHandler {
 }
 
 
-/// Any form by id, placed references included: a scan of the engine's global form map
-/// (`TESForm::allForms`, a `BSTHashMap<u32, TESForm*>`; CommonLibF4 `BSTHashMap.h`
-/// layout: capacity at +0x0C, entries at +0x28, 24-byte entries `{key, form, next}`, in
-/// use when `next` is set). Main thread; meant for tools, not hot paths.
+/// Any form by id, placed references included: the engine's own hashed
+/// `TESForm::GetFormByID` (under the form map's lock, [`crate::objref::lookup`]), else a
+/// scan of the global form map (`TESForm::allForms`, a `BSTHashMap<u32, TESForm*>`;
+/// CommonLibF4 `BSTHashMap.h` layout: capacity at +0x0C, entries at +0x28, 24-byte
+/// entries `{key, form, next}`, in use when `next` is set).
 #[must_use]
 pub fn form_by_id(id: crate::FormId) -> Option<Form> {
+    crate::objref::lookup(id).or_else(|| scan_form_by_id(id))
+}
+
+fn scan_form_by_id(id: crate::FormId) -> Option<Form> {
     use f4x_engine_sys::og_1_10_163_addresses::ALL_FORMS;
     let global = crate::address::resolve(&ALL_FORMS)?;
     // SAFETY: the allForms global (a pointer to the map) and the map's own fields.

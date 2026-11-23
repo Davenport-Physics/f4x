@@ -1,0 +1,20 @@
+{
+  "MenuData": {
+    "menuFlags": {
+      "value": 134317213,
+      "source": "bb: F4SE 0.6.23 session 1795440107-launch-f4se: UI.RegisterCustomMenu with a VM-constructed default MenuData; the opened menu's IMenu::menuFlags read 0x080184DD (0x0801849D | kOnStack) and F4SE set menuFlags = 134317213 on its code object (provenance/scaleform-features.jsonl bb/UI.MenuData/defaults)"
+    },
+    "movieFlags": {
+      "value": 3,
+      "source": "bb: same session: the movie's scale mode read 3 (noBorder) and F4SE set movieFlags = 3 on the code object"
+    },
+    "depth": {
+      "value": 6,
+      "source": "bb: same session: IMenu::depthPriority read 6 (all-zero MenuData: 0)"
+    },
+    "extendedFlags": {
+      "value": 3,
+      "source": "bb: same session: F4SE set extendedFlags = 3 on the code object"
+    }
+  }
+}

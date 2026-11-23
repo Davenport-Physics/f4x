@@ -11,8 +11,9 @@ f4x must never contain code or facts taken from F4SE's source, because F4SE has 
 - **Never read F4SE source.** If a copy exists on the machine, it lives outside this repository in a folder named `f4se-quarantine`. Deny rules are in `.claude/settings.json`; per-machine absolute-path rules go in `.claude/settings.local.json`, which is not committed. Don't try to get around them: no `cat`, `grep` or `find` into it, and no web copies of F4SE source either, e.g. GitHub `ianpatt/f4se`.
 - **Don't disassemble or decompile F4SE's DLLs.**
   - You may observe F4SE as a black box through our probe plugins: the messages it sends and when, the data it passes, the files it writes, the versions it reports, and the `root.f4se` Scaleform object.
-  - Return addresses into *game* code are fine.
-- **F4SE's distributed `.pex` files** may be read for function signatures only (names, parameter and return types). Never copy `.psc` comments.
+  - Return addresses into *game* code are fine, and so is the `patches` RPC (which bytes of *game* code F4SE changed, and into which module they jump). Never follow such a jump into F4SE's code.
+- **F4SE's public docs** (its website's readme and `whatsnew` changelog) may be read and cited as `doc`: they say which features exist. Behaviour still comes from black-box observation.
+- **F4SE's distributed `.pex` files** may be read for function signatures only (names, parameter and return types). Never copy `.psc` comments. Constant values and struct defaults come from CommonLibF4, the exe, public docs (e.g. xEdit's definitions) or F4SE's observed behaviour (`crates/f4x-pex/data/constants/`, `struct-defaults/`), never from F4SE's files.
 - **Treat `../f4se-rs` as untrusted.** It is the earlier Rust SDK. Several of its files cite F4SE source:
   - `ffi.rs`, `version.rs`, `declaration.rs`, `messaging.rs`, `patch.rs`, `rel.rs`, `game/mod.rs` offsets, `tools/mock-f4se`.
   - Don't copy them. Re-derive each from the clean sources below.
@@ -92,12 +93,16 @@ f4x quit --session "$S"
   - Results use the same shapes: forms as `{"form", "type"}`, other objects as `{"handle", "script"}`, floats as `{"float": x}`.
 - `engine.forms.all {type, limit}`: forms from the global form map, placed references included.
 - F4SE natives live in `crates/f4x-runtime/src/f4se/papyrus_natives/` (one file per family) and are bound by name with types from `crates/f4x-pex/data/f4se-0.6.23-signatures.json`. Check them against real F4SE with `tools/f4se_natives_check.py` (see its docstring).
+- Natives listed in `papyrus_natives::LATENT` (the 16 F4SE binds latent) run on the main thread at the start of the VM's frame update; the calling script waits. Their handlers may use the engine directly. Others run on VM threads: post main-thread work with `f4x_agent::pump::post`.
 - Scripts only run in-game. At the main menu, calls are accepted but never finish (timeout).
 
 **Scaleform** (a menu's movie; runs inside that menu's next `AdvanceMovie`):
 - `ui.get {menu, path, fields?, depth?}`: the value at an ActionScript path, e.g. `root.f4se`.
 - `ui.has {menu, path, names}`: which of `names` are members, with types. Use it to enumerate black-box.
-- `ui.invoke {menu, path, method, args?, fields?}`. Numbers are passed as AS3 Numbers; use `{"int": n}` or `{"uint": n}` for code-object functions that check the type (e.g. MainMenu `BGSCodeObj.DeleteSave`).
+- `ui.invoke {menu, path, method, args?, fields?}`. Numbers are passed as AS3 Numbers; use `{"int": n}` or `{"uint": n}` for code-object functions that check the type (e.g. MainMenu `BGSCodeObj.DeleteSave`). Also `{"path": "root.x"}`, `{"object": {...}}` and `{"array": [...]}`.
+- `ui.menu {menu, dump?}`: a registered menu's IMenu flags, depth, input context, scale mode and alignment (custom menus included), optionally a raw dump.
+- `ui.translations {keys?, prefix?, limit?}`: the Scaleform translation table. `ui.scaleform_states`, `ui.gfxlog.emit {text, id?}`.
+- `engine.controlmap {contexts?, events?}`: the control map. `console.commands {filter?}`, `console.text {tail?}`.
 - Dates come back with `time_ms`.
 
 **Differential compatibility:** `cargo xtask compat [--only surface,saveload,mcm,natives]`.

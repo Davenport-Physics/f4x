@@ -389,22 +389,24 @@ fn is_registered(control: &str) -> bool {
 // ---- binding ----
 
 static NATIVES: [NativeSpec; 9] = [
-    NativeSpec { script: "EncounterZone", name: "IsWorkshop", params: &[], ret: Type::Bool, is_static: false, handler: |c| zone_flag(c, WORKSHOP) },
+    NativeSpec { script: "EncounterZone", name: "IsWorkshop", params: &[], ret: Type::Bool, is_static: false, latent: false, handler: |c| zone_flag(c, WORKSHOP) },
     NativeSpec {
         script: "EncounterZone",
         name: "SetWorkshop",
         params: &[("ws", Type::Bool)],
         ret: Type::None,
         is_static: false,
+        latent: false,
         handler: |c| set_zone_flag(c, WORKSHOP),
     },
-    NativeSpec { script: "EncounterZone", name: "IsNeverResetable", params: &[], ret: Type::Bool, is_static: false, handler: |c| zone_flag(c, NEVER_RESET) },
+    NativeSpec { script: "EncounterZone", name: "IsNeverResetable", params: &[], ret: Type::Bool, is_static: false, latent: false, handler: |c| zone_flag(c, NEVER_RESET) },
     NativeSpec {
         script: "EncounterZone",
         name: "SetNeverResetable",
         params: &[("resetable", Type::Bool)],
         ret: Type::None,
         is_static: false,
+        latent: false,
         handler: |c| set_zone_flag(c, NEVER_RESET),
     },
     NativeSpec {
@@ -413,6 +415,7 @@ static NATIVES: [NativeSpec; 9] = [
         params: &[("recursive", Type::Bool)],
         ret: Type::Object("EncounterZone"),
         is_static: false,
+        latent: false,
         handler: get_encounter_zone,
     },
     NativeSpec {
@@ -421,6 +424,7 @@ static NATIVES: [NativeSpec; 9] = [
         params: &[("control", Type::String)],
         ret: Type::None,
         is_static: false,
+        latent: false,
         handler: register_for_control,
     },
     NativeSpec {
@@ -429,6 +433,7 @@ static NATIVES: [NativeSpec; 9] = [
         params: &[("control", Type::String)],
         ret: Type::None,
         is_static: false,
+        latent: false,
         handler: unregister_for_control,
     },
     NativeSpec {
@@ -437,6 +442,7 @@ static NATIVES: [NativeSpec; 9] = [
         params: &[("eventName", Type::String), ("callback", Type::String)],
         ret: Type::None,
         is_static: false,
+        latent: false,
         handler: register_for_external_event,
     },
     NativeSpec {
@@ -445,6 +451,7 @@ static NATIVES: [NativeSpec; 9] = [
         params: &[("eventName", Type::String)],
         ret: Type::None,
         is_static: false,
+        latent: false,
         handler: unregister_for_external_event,
     },
 ];
@@ -453,6 +460,9 @@ static NATIVES: [NativeSpec; 9] = [
 /// installed) simply refuse the binding.
 pub(crate) fn bind_all(vm: usize) {
     let vm = Vm(vm as *mut _);
+    // Latent natives run on the main thread (`lifecycle::install_latent_runner`), then
+    // return to the waiting script.
+    papyrus::enable_latent();
     let mut bound = Vec::new();
     for spec in &NATIVES {
         match papyrus::bind(vm, spec) {
@@ -466,7 +476,8 @@ pub(crate) fn bind_all(vm: usize) {
             failed.push(format!("{script}.{name}: not in the signature inventory"));
             continue;
         };
-        match papyrus::bind_named(vm, script, name, &params, &ret, is_static, handler) {
+        let latent = super::papyrus_natives::is_latent(script, name);
+        match papyrus::bind_named(vm, script, name, &params, &ret, is_static, latent, handler) {
             Ok(()) => ok += 1,
             Err(error) => failed.push(format!("{script}.{name}: {error}")),
         }

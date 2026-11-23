@@ -26,8 +26,13 @@
 //!   with `root` as its code object, `menuFlags` as its flags, `depth` as its depth
 //!   priority and `movieFlags` as the movie's scale mode (0 noScale, 1 showAll,
 //!   2 exactFit, 3 noBorder; other values read showAll, as GFx maps them). A missing SWF
-//!   still opens (an empty menu). `extendedFlags` showed no effect we can observe and is
-//!   ignored. `RegisterBasicCustomMenu` uses kPausesGame | kUsesCursor and noBorder;
+//!   still opens (an empty menu). On creation the code object gets `menuFlags`,
+//!   `movieFlags` and `extendedFlags` members, the menu a filter holder on it, tinted when
+//!   `extendedFlags` bit 0 is set (`ui::CustomMenu`; F4SE 0.6.23 sessions
+//!   1795440107/1795444082). `UI:MenuData` defaults (declared by f4x's generated `UI.pex`,
+//!   observed under F4SE): menuFlags 0x0801849D, movieFlags 3, extendedFlags 3, depth 6.
+//!   `RegisterBasicCustomMenu` registers exactly those defaults (same IMenu fields and
+//!   code object members under F4SE);
 //! - `Load(menu, sourceVar, asset, receiver, callback)`: false when the menu has no movie
 //!   or `sourceVar` ("" = root) does not resolve; else a `flash.display.Loader` loads
 //!   `asset` (relative to the movie), is added to `sourceVar` on success, and
@@ -38,7 +43,7 @@
 //! The callback goes to the receiver's own script object (the script that called
 //! `Load`), as the argument carries it.
 
-use f4x_engine::papyrus::{Arg, Vm};
+use f4x_engine::papyrus::{Arg, NativeCall, Vm};
 use f4x_engine::papyrus_value::PValue;
 use f4x_engine::scaleform::{Movie, Value, kind};
 use f4x_engine::ui;
@@ -174,13 +179,19 @@ fn menu_data_field(data: &PValue, name: &str) -> Option<i32> {
     })
 }
 
-fn register(name: &str, movie: String, root: String, menu_flags: i32, movie_flags: i32, depth: i32) -> bool {
+/// `UI:MenuData.menuFlags`' default under F4SE (kPausesGame, kUsesCursor,
+/// kUsesMenuContext, kModal, kDisablePauseMenu, kUpdateUsesCursor, kCustomRendering,
+/// kAssignCursorToRenderer, kUsesMovementToDirection).
+const BASIC_MENU_FLAGS: i32 = 0x0801_849D;
+
+fn register(name: &str, movie: String, root: String, menu_flags: i32, movie_flags: i32, extended_flags: i32, depth: i32) -> bool {
     let def = ui::CustomMenu {
         movie,
         root,
         menu_flags: menu_flags as u32,
         depth: depth.clamp(0, 255) as u8,
         scale_mode: movie_flags,
+        extended_flags: extended_flags as u32,
         align: None,
         on_create: None,
     };
@@ -290,6 +301,11 @@ fn load_finished(movie: Movie, id: usize, ok: bool) {
 }
 
 /// A receiver argument as (handle, script).
+/// Argument `i` with script objects as themselves (their own script and handle).
+fn exact_arg(c: &NativeCall, i: usize) -> PValue {
+    c.arg(i).map_or(PValue::None, |v| f4x_engine::papyrus_value::read_exact(c.vm, v))
+}
+
 fn receiver(vm: Vm, v: &PValue) -> Option<(u64, String)> {
     match v {
         PValue::Object { handle, script } => Some((*handle, script.clone())),
@@ -334,7 +350,9 @@ pub(crate) const NATIVES: &[Entry] = &[
         c.ret_value(&value)
     }),
     ("UI", "set", |c| {
-        let (menu, path, value, vm) = (c.string(0), c.string(1), c.value(2), c.vm);
+        // Objects keep their own script in `__type__` (black-box: F4SE stores an object's
+        // attached script, not the form's base type).
+        let (menu, path, value, vm) = (c.string(0), c.string(1), exact_arg(c, 2), c.vm);
         let ok = !path.is_empty()
             && with_movie(&menu, |movie| {
                 let Some(v) = from_pvalue(vm, movie, &value, 0) else { return false };
@@ -348,7 +366,7 @@ pub(crate) const NATIVES: &[Entry] = &[
         Ok(())
     }),
     ("UI", "Invoke", |c| {
-        let (menu, path, args, vm) = (c.string(0), c.string(1), c.value(2), c.vm);
+        let (menu, path, args, vm) = (c.string(0), c.string(1), exact_arg(c, 2), c.vm);
         let args = match args {
             PValue::Array(items) => items,
             _ => Vec::new(),
@@ -387,17 +405,15 @@ pub(crate) const NATIVES: &[Entry] = &[
     ("UI", "RegisterCustomMenu", |c| {
         let (name, path, root, data) = (c.string(0), c.string(1), c.string(2), c.value(3));
         let field = |n: &str| menu_data_field(&data, n).unwrap_or(0);
-        let ok = register(&name, path, root, field("menuFlags"), field("movieFlags"), field("depth"));
+        let ok = register(&name, path, root, field("menuFlags"), field("movieFlags"), field("extendedFlags"), field("depth"));
         c.ret_bool(ok);
         Ok(())
     }),
     ("UI", "RegisterBasicCustomMenu", |c| {
         let (name, path, root) = (c.string(0), c.string(1), c.string(2));
-        // Black-box: F4SE's basic menu shows the cursor, sets menu mode and scales
-        // noBorder. Other flag bits, the depth and the extended flags are not observable
-        // with our tools; the depth is IMenu's default.
-        let flags = (ui::menu_flags::PAUSES_GAME | ui::menu_flags::USES_CURSOR) as i32;
-        let ok = register(&name, path, root, flags, 3, i32::from(ui::DEPTH_STANDARD));
+        // Black-box (F4SE 0.6.23, session 1795444082): the same menu as a default
+        // `UI:MenuData` gives (IMenu flags, depth, scale mode, code object members).
+        let ok = register(&name, path, root, BASIC_MENU_FLAGS, 3, 3, i32::from(ui::DEPTH_STANDARD));
         c.ret_bool(ok);
         Ok(())
     }),

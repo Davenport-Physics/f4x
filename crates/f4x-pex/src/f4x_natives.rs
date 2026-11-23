@@ -13,6 +13,9 @@
 //! F4SE's scripted functions are declared native: f4x implements them in Rust. Constant
 //! property values come from `data/constants/<Script>.json`, each value with its own
 //! clean source (CommonLibF4 enums or the engine); properties without one are left out.
+//! Struct member defaults come from `data/struct-defaults/<Script>.json` (observed
+//! black-box: what a default-constructed struct holds under F4SE); members without one
+//! default to the type's zero value.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -127,6 +130,38 @@ pub fn load_constants(dir: &Path) -> Result<Constants, String> {
     Ok(out)
 }
 
+/// Read `<dir>/<Script>.json` struct default files (`{"Struct": {"member": {"value": n,
+/// "source": "..."}}}`) into the [`Constants`] shape, keyed `Struct.member`, so they can be
+/// merged with the constant properties (property names never contain a dot).
+pub fn load_struct_defaults(dir: &Path) -> Result<Constants, String> {
+    let mut out = Constants::new();
+    let Ok(entries) = std::fs::read_dir(dir) else { return Ok(out) };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().is_none_or(|e| e != "json") {
+            continue;
+        }
+        let script = path.file_stem().map(|s| s.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
+        let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+        let doc: Json = serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
+        let map = out.entry(script).or_default();
+        for (st, members) in doc.as_object().into_iter().flatten() {
+            for (member, v) in members.as_object().into_iter().flatten() {
+                if let Some(value) = v.get("value").and_then(Json::as_i64).or_else(|| v.as_i64()) {
+                    map.insert(format!("{st}.{member}"), value as i32);
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// The default of `structure.member` in a script's [`Constants`] (case-insensitive).
+fn struct_default(values: Option<&BTreeMap<String, i32>>, structure: &str, member: &str) -> Option<i32> {
+    let key = format!("{structure}.{member}");
+    values?.iter().find(|(k, _)| k.eq_ignore_ascii_case(&key)).map(|(_, v)| *v)
+}
+
 fn function(pex: &mut Pex, d: &FunctionDecl) -> Function {
     let params: Vec<(&str, &str)> = d.params.iter().map(|(t, n)| (t.as_str(), n.as_str())).collect();
     let mut flags = if d.kind == "stub" { 0 } else { Function::FLAG_NATIVE };
@@ -151,7 +186,7 @@ fn constant_property(pex: &mut Pex, name: &str, value: i32) -> Property {
     }
 }
 
-fn structure(pex: &mut Pex, d: &StructDecl) -> Struct {
+fn structure(pex: &mut Pex, d: &StructDecl, values: Option<&BTreeMap<String, i32>>) -> Struct {
     let members = d
         .members
         .iter()
@@ -159,7 +194,7 @@ fn structure(pex: &mut Pex, d: &StructDecl) -> Struct {
             name: pex.strings.intern_ignore_case(name),
             type_name: pex.strings.intern_ignore_case(ty),
             user_flags: 0,
-            default: Value::None,
+            default: struct_default(values, &d.name, name).map_or(Value::None, Value::Integer),
             is_const: false,
             doc_string: pex.strings.intern_ignore_case(""),
         })
@@ -178,15 +213,27 @@ pub fn patch(pex: &mut Pex, decl: &ScriptDecl, constants: &Constants) -> Result<
     let si = pex.objects[oi].states.iter().position(|s| pex.str(s.name).is_empty()).ok_or_else(|| format!("{script} has no default state"))?;
     let lower = |pex: &Pex, ids: Vec<crate::StringId>| ids.into_iter().map(|i| pex.str(i).to_ascii_lowercase()).collect::<Vec<_>>();
     let have_fns = lower(pex, pex.objects[oi].states[si].functions.iter().map(|f| f.name).collect());
-    let have_structs = lower(pex, pex.objects[oi].structs.iter().map(|s| s.name).collect());
     let have_props = lower(pex, pex.objects[oi].properties.iter().map(|p| p.name).collect());
     let mut added = Vec::new();
+    let values = constants.get(&script.to_ascii_lowercase());
 
     for d in &decl.structs {
-        if have_structs.contains(&d.name.to_ascii_lowercase()) {
+        if let Some(sti) = pex.objects[oi].structs.iter().position(|s| pex.str(s.name).eq_ignore_ascii_case(&d.name)) {
+            // Present (an earlier f4x run's, or F4SE's own): only fill defaults that are
+            // missing, so a script that already has them is left unchanged.
+            let names: Vec<String> = pex.objects[oi].structs[sti].members.iter().map(|m| pex.str(m.name).into_owned()).collect();
+            for (mi, member) in names.iter().enumerate() {
+                let m = &mut pex.objects[oi].structs[sti].members[mi];
+                if m.default == Value::None
+                    && let Some(v) = struct_default(values, &d.name, member)
+                {
+                    m.default = Value::Integer(v);
+                    added.push(format!("struct default {}.{member}", d.name));
+                }
+            }
             continue;
         }
-        let st = structure(pex, d);
+        let st = structure(pex, d, values);
         if let Some(debug) = pex.debug_info.as_mut() {
             debug.struct_orders.push(StructOrder { object_name: pex.objects[oi].name, struct_name: st.name, members: st.members.iter().map(|m| m.name).collect() });
         }
@@ -202,7 +249,6 @@ pub fn patch(pex: &mut Pex, decl: &ScriptDecl, constants: &Constants) -> Result<
         pex.objects[oi].states[si].functions.push(NamedFunction { name, function: f });
         added.push(d.name.clone());
     }
-    let values = constants.get(&script.to_ascii_lowercase());
     for name in &decl.properties {
         if have_props.contains(&name.to_ascii_lowercase()) {
             continue;
@@ -325,6 +371,59 @@ mod tests {
             assert_eq!(back, pex, "{}", decl.script);
             let funcs = back.functions().len();
             assert_eq!(funcs, decl.functions.len() + back.objects[0].properties.len(), "{}", decl.script);
+        }
+    }
+
+    #[test]
+    fn struct_defaults_are_written_and_filled() {
+        let template = Pex {
+            header: Header {
+                major_version: 3,
+                minor_version: 9,
+                game_id: 2,
+                compilation_time: 0,
+                source_file_name: PexString::new("x.psc"),
+                user_name: PexString::new(""),
+                machine_name: PexString::new(""),
+            },
+            strings: StringTable { strings: Vec::new() },
+            debug_info: None,
+            user_flags: Vec::new(),
+            objects: Vec::new(),
+        };
+        let decl = inventory().into_iter().find(|d| d.script == "UI").unwrap();
+        let default_of = |pex: &Pex, member: &str| {
+            let st = &pex.objects[0].structs[0];
+            st.members.iter().find(|m| pex.str(m.name) == member).map(|m| m.default.clone())
+        };
+        // Without defaults: every member is None (the type's zero).
+        let mut pex = create(&decl, &template, &Constants::new()).unwrap();
+        assert_eq!(default_of(&pex, "depth"), Some(Value::None));
+        // An existing script gets the missing defaults filled, once.
+        let mut constants = Constants::new();
+        constants.entry("ui".into()).or_default().insert("MenuData.depth".into(), 6);
+        let added = patch(&mut pex, &decl, &constants).unwrap();
+        assert_eq!(added, vec!["struct default MenuData.depth".to_owned()]);
+        assert_eq!(default_of(&pex, "depth"), Some(Value::Integer(6)));
+        assert!(patch(&mut pex, &decl, &constants).unwrap().is_empty());
+        // A new script has them from the start, and they survive a round trip.
+        let pex = create(&decl, &template, &constants).unwrap();
+        assert_eq!(default_of(&pex, "depth"), Some(Value::Integer(6)));
+        assert_eq!(default_of(&pex, "menuFlags"), Some(Value::None));
+        assert_eq!(Pex::parse(&pex.to_bytes().unwrap()).unwrap(), pex);
+    }
+
+    #[test]
+    fn shipped_struct_defaults_load() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("data/struct-defaults");
+        let defaults = load_struct_defaults(&dir).unwrap();
+        for (script, values) in &defaults {
+            let decl = inventory().into_iter().find(|d| d.script.eq_ignore_ascii_case(script)).expect("a known script");
+            for key in values.keys() {
+                let (st, member) = key.split_once('.').unwrap();
+                let s = decl.structs.iter().find(|s| s.name == st).expect("a known struct");
+                assert!(s.members.iter().any(|(m, _)| m == member), "{script}: {key}");
+            }
         }
     }
 }

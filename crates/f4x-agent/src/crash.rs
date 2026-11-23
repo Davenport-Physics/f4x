@@ -232,6 +232,7 @@ pub fn frame(address: u64) -> Frame {
 }
 
 /// Whether `len` bytes at `p` are committed, readable memory.
+#[allow(clippy::not_unsafe_ptr_arg_deref, reason = "`p` is never dereferenced, only passed to VirtualQuery")]
 pub fn readable(p: *const c_void, len: usize) -> bool {
     if (p as usize) < 0x10000 {
         return false;

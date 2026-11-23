@@ -12,13 +12,18 @@
 //! - `GameDataReady(true)` passes the bool in the pointer (`data = 1`, `data_len = 1`),
 //!   followed by `GameLoaded`, once the main menu is up.
 
+mod console_version;
+mod custom_control_map;
+mod gfx_log;
 mod interfaces;
-mod lifecycle;
+pub(crate) mod lifecycle;
 mod natives;
 mod papyrus_natives;
 mod scaleform;
 mod serialization;
 mod trampoline;
+mod translations;
+mod version_text;
 
 use std::ffi::{CStr, CString, OsStr, c_void};
 use std::os::windows::ffi::OsStrExt;
@@ -135,6 +140,11 @@ pub fn load_all() {
     lifecycle::install();
     natives::install_input_hook();
     scaleform::install();
+    translations::install();
+    custom_control_map::install();
+    gfx_log::install();
+    version_text::install();
+    console_version::install();
     dispatch_from_host(message::POST_LOAD, std::ptr::null_mut(), 0);
     dispatch_from_host(message::POST_POST_LOAD, std::ptr::null_mut(), 0);
 }
@@ -237,7 +247,8 @@ pub fn tick() {
     send_data_ready();
 }
 
-/// Call the plugins' Papyrus `Register` callbacks with the VM (once, main thread).
+/// Bind f4x's F4SE natives and call the plugins' Papyrus `Register` callbacks with the VM
+/// (once: from the VM-setup hook in `lifecycle.rs`, else from the main-loop detector).
 pub fn register_papyrus() {
     interfaces::run_papyrus_registrations();
 }

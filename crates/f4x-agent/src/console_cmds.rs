@@ -77,7 +77,15 @@ pub unsafe fn register(plugin: &str, spec: &ConsoleCommandSpec) -> Result<usize,
         // SAFETY: valid UTF-8 (contract).
         params.push(ScriptParameter { name: leak(unsafe { p.name.as_str() }), kind: p.kind as i32, optional: p.optional });
     }
-    let params: &'static [ScriptParameter] = Box::leak(params.into_boxed_slice());
+    // The shared `execute` finds its command by the parameter table the engine passes
+    // back, so every command gets its own non-null table: a command without parameters
+    // gets a one-entry table the engine never reads (`param_count` is 0).
+    let count = params.len();
+    if count == 0 {
+        params.push(ScriptParameter { name: leak(""), kind: param::STRING as i32, optional: true });
+    }
+    let params: &'static [ScriptParameter] = &Box::leak(params.into_boxed_slice())[..count];
+    let param_table: *const ScriptParameter = params.as_ptr();
 
     // SAFETY: rewriting one table entry; made writable for the duration.
     unsafe {
@@ -89,7 +97,7 @@ pub unsafe fn register(plugin: &str, spec: &ConsoleCommandSpec) -> Result<usize,
         (*entry).help = leak(&help);
         (*entry).reference_function = false;
         (*entry).param_count = params.len() as u16;
-        (*entry).params = if params.is_empty() { std::ptr::null() } else { params.as_ptr() };
+        (*entry).params = param_table;
         (*entry).execute = Some(execute);
         (*entry).condition = std::ptr::null();
         (*entry).editor_filter = false;
@@ -113,7 +121,7 @@ unsafe extern "C" fn execute(
 ) -> bool {
     let found = COMMANDS.lock().ok().and_then(|c| {
         c.iter()
-            .find(|c| (c.params.as_ptr() == params) || (c.params.is_empty() && params.is_null()))
+            .find(|c| c.params.as_ptr() == params)
             .map(|c| (c.plugin.clone(), c.name.clone(), c.params, c.kinds.clone(), c.handler, c.user))
     });
     let Some((plugin, name, table, kinds, handler, user)) = found else { return true };
