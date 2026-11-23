@@ -1,0 +1,458 @@
+{
+  "Actor_Target_fColorRemappingIndex": {
+    "source": "re: Fallout4.exe 1.10.163 Actor OMOD property table @rva 0x3715700 (6 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 4 is 'fColorRemappingIndex' + 0x200: F4SE ObjectMod.GetPropertyModifiers reports actor mods' targets as 0x200 | index (bb: 400 vanilla OMODs, natives-instance_data.jsonl)",
+    "value": 516
+  },
+  "Actor_Target_iXPOffset": {
+    "source": "re: Fallout4.exe 1.10.163 Actor OMOD property table @rva 0x3715700 (6 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 2 is 'iXPOffset' + 0x200: F4SE ObjectMod.GetPropertyModifiers reports actor mods' targets as 0x200 | index (bb: 400 vanilla OMODs, natives-instance_data.jsonl)",
+    "value": 514
+  },
+  "Actor_Target_peEnchantments": {
+    "source": "re: Fallout4.exe 1.10.163 Actor OMOD property table @rva 0x3715700 (6 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 3 is 'peEnchantments' + 0x200: F4SE ObjectMod.GetPropertyModifiers reports actor mods' targets as 0x200 | index (bb: 400 vanilla OMODs, natives-instance_data.jsonl)",
+    "value": 515
+  },
+  "Actor_Target_piForcedInventory": {
+    "source": "re: Fallout4.exe 1.10.163 Actor OMOD property table @rva 0x3715700 (6 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 1 is 'piForcedInventory' + 0x200: F4SE ObjectMod.GetPropertyModifiers reports actor mods' targets as 0x200 | index (bb: 400 vanilla OMODs, natives-instance_data.jsonl)",
+    "value": 513
+  },
+  "Actor_Target_pkKeywords": {
+    "source": "re: Fallout4.exe 1.10.163 Actor OMOD property table @rva 0x3715700 (6 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 0 is 'pkKeywords' + 0x200: F4SE ObjectMod.GetPropertyModifiers reports actor mods' targets as 0x200 | index (bb: 400 vanilla OMODs, natives-instance_data.jsonl)",
+    "value": 512
+  },
+  "Actor_Target_pwMaterialSwaps": {
+    "source": "re: Fallout4.exe 1.10.163 Actor OMOD property table @rva 0x3715700 (6 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 5 is 'pwMaterialSwaps' + 0x200: F4SE ObjectMod.GetPropertyModifiers reports actor mods' targets as 0x200 | index (bb: 400 vanilla OMODs, natives-instance_data.jsonl)",
+    "value": 517
+  },
+  "Armor_Target_fColorRemappingIndex": {
+    "source": "re: Fallout4.exe 1.10.163 Armor OMOD property table @rva 0x36e42c0 (14 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 12 is 'fColorRemappingIndex' + 0x100: F4SE ObjectMod.GetPropertyModifiers reports armor mods' targets as 0x100 | index (bb: 400 vanilla OMODs, natives-instance_data.jsonl)",
+    "value": 268
+  },
+  "Armor_Target_fWeight": {
+    "source": "re: Fallout4.exe 1.10.163 Armor OMOD property table @rva 0x36e42c0 (14 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 4 is 'fweight' + 0x100: F4SE ObjectMod.GetPropertyModifiers reports armor mods' targets as 0x100 | index (bb: 400 vanilla OMODs, natives-instance_data.jsonl)",
+    "value": 260
+  },
+  "Armor_Target_iHealth": {
+    "source": "re: Fallout4.exe 1.10.163 Armor OMOD property table @rva 0x36e42c0 (14 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 11 is 'ihealth' + 0x100: F4SE ObjectMod.GetPropertyModifiers reports armor mods' targets as 0x100 | index (bb: 400 vanilla OMODs, natives-instance_data.jsonl)",
+    "value": 267
+  },
+  "Armor_Target_iRating": {
+    "source": "re: Fallout4.exe 1.10.163 Armor OMOD property table @rva 0x36e42c0 (14 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 6 is 'irating' + 0x100: F4SE ObjectMod.GetPropertyModifiers reports armor mods' targets as 0x100 | index (bb: 400 vanilla OMODs, natives-instance_data.jsonl)",
+    "value": 262
+  },
+  "Armor_Target_iValue": {
+    "source": "re: Fallout4.exe 1.10.163 Armor OMOD property table @rva 0x36e42c0 (14 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 5 is 'ivalue' + 0x100: F4SE ObjectMod.GetPropertyModifiers reports armor mods' targets as 0x100 | index (bb: 400 vanilla OMODs, natives-instance_data.jsonl)",
+    "value": 261
+  },
+  "Armor_Target_peEnchantments": {
+    "source": "re: Fallout4.exe 1.10.163 Armor OMOD property table @rva 0x36e42c0 (14 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 0 is 'peEnchantments' + 0x100: F4SE ObjectMod.GetPropertyModifiers reports armor mods' targets as 0x100 | index (bb: 400 vanilla OMODs, natives-instance_data.jsonl)",
+    "value": 256
+  },
+  "Armor_Target_piBashImpactDataSet": {
+    "source": "re: Fallout4.exe 1.10.163 Armor OMOD property table @rva 0x36e42c0 (14 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 1 is 'piBashImpactDataSet' + 0x100: F4SE ObjectMod.GetPropertyModifiers reports armor mods' targets as 0x100 | index (bb: 400 vanilla OMODs, natives-instance_data.jsonl)",
+    "value": 257
+  },
+  "Armor_Target_pkKeywords": {
+    "source": "re: Fallout4.exe 1.10.163 Armor OMOD property table @rva 0x36e42c0 (14 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 3 is 'pkKeywords' + 0x100: F4SE ObjectMod.GetPropertyModifiers reports armor mods' targets as 0x100 | index (bb: 400 vanilla OMODs, natives-instance_data.jsonl)",
+    "value": 259
+  },
+  "Armor_Target_pmBlockMaterial": {
+    "source": "re: Fallout4.exe 1.10.163 Armor OMOD property table @rva 0x36e42c0 (14 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 2 is 'pmBlockMaterial' + 0x100: F4SE ObjectMod.GetPropertyModifiers reports armor mods' targets as 0x100 | index (bb: 400 vanilla OMODs, natives-instance_data.jsonl)",
+    "value": 258
+  },
+  "Armor_Target_pwMaterialSwaps": {
+    "source": "re: Fallout4.exe 1.10.163 Armor OMOD property table @rva 0x36e42c0 (14 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 13 is 'pwMaterialSwaps' + 0x100: F4SE ObjectMod.GetPropertyModifiers reports armor mods' targets as 0x100 | index (bb: 400 vanilla OMODs, natives-instance_data.jsonl)",
+    "value": 269
+  },
+  "Armor_Target_vaActorValues": {
+    "source": "re: Fallout4.exe 1.10.163 Armor OMOD property table @rva 0x36e42c0 (14 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 10 is 'vaActorValues' + 0x100: F4SE ObjectMod.GetPropertyModifiers reports armor mods' targets as 0x100 | index (bb: 400 vanilla OMODs, natives-instance_data.jsonl)",
+    "value": 266
+  },
+  "Armor_Target_vdDamageTypeValues": {
+    "source": "re: Fallout4.exe 1.10.163 Armor OMOD property table @rva 0x36e42c0 (14 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 9 is 'vdDamageTypeValues' + 0x100: F4SE ObjectMod.GetPropertyModifiers reports armor mods' targets as 0x100 | index (bb: 400 vanilla OMODs, natives-instance_data.jsonl)",
+    "value": 265
+  },
+  "Modifier_Operator_Add": {
+    "source": "F4SEStub/runtime/src/Papyrus/ObjectMod.h:14 Papyrus::ObjectMod::Operator::kAdd (implicit enumerator value)",
+    "value": 1
+  },
+  "Modifier_Operator_And": {
+    "source": "F4SEStub/runtime/src/Papyrus/ObjectMod.h:16 Papyrus::ObjectMod::Operator::kAnd (implicit enumerator value)",
+    "value": 3
+  },
+  "Modifier_Operator_Mult_Add": {
+    "source": "F4SEStub/runtime/src/Papyrus/ObjectMod.h:15 Papyrus::ObjectMod::Operator::kMultAdd (implicit enumerator value)",
+    "value": 2
+  },
+  "Modifier_Operator_Or": {
+    "source": "F4SEStub/runtime/src/Papyrus/ObjectMod.h:17 Papyrus::ObjectMod::Operator::kOr (implicit enumerator value)",
+    "value": 4
+  },
+  "Modifier_Operator_Rem": {
+    "source": "F4SEStub/runtime/src/Papyrus/ObjectMod.h:18 Papyrus::ObjectMod::Operator::kRem (implicit enumerator value)",
+    "value": 5
+  },
+  "Modifier_Operator_Set": {
+    "source": "F4SEStub/runtime/src/Papyrus/ObjectMod.h:13 Papyrus::ObjectMod::Operator::kSet (implicit enumerator value)",
+    "value": 0
+  },
+  "Weapon_Target_bAlternateRumble": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 22 is 'balternaterumble'",
+    "value": 22
+  },
+  "Weapon_Target_bAutomatic": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 25 is 'bautomatic'",
+    "value": 25
+  },
+  "Weapon_Target_bBoltAction": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 81 is 'bBoltAction'",
+    "value": 81
+  },
+  "Weapon_Target_bCantDrop": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 26 is 'bcantdrop'",
+    "value": 26
+  },
+  "Weapon_Target_bChargingAttack": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 93 is 'bChargingAttack'",
+    "value": 93
+  },
+  "Weapon_Target_bChargingReload": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 18 is 'bchargingreload'",
+    "value": 18
+  },
+  "Weapon_Target_bDisableShells": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 92 is 'bDisableShells'",
+    "value": 92
+  },
+  "Weapon_Target_bEffectOnDeath": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 21 is 'beffectondeath'",
+    "value": 21
+  },
+  "Weapon_Target_bFixedRange": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 20 is 'bfixedrange'",
+    "value": 20
+  },
+  "Weapon_Target_bHasScope": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 48 is 'bHasScope'",
+    "value": 48
+  },
+  "Weapon_Target_bHoldInputToPower": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 85 is 'bHoldInputToPower'",
+    "value": 85
+  },
+  "Weapon_Target_bIgnoreResist": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 24 is 'bignoreresist'",
+    "value": 24
+  },
+  "Weapon_Target_bMinorCrime": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 19 is 'bminorcrime'",
+    "value": 19
+  },
+  "Weapon_Target_bNPCsUseAmmo": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 17 is 'bnpcsuseammo'",
+    "value": 17
+  },
+  "Weapon_Target_bNonHostile": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 23 is 'bnonhostile'",
+    "value": 23
+  },
+  "Weapon_Target_bNonPlayable": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 27 is 'bnonplayable'",
+    "value": 27
+  },
+  "Weapon_Target_bPlayerOnly": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 16 is 'bplayeronly'",
+    "value": 16
+  },
+  "Weapon_Target_bRepeatableSingleFire": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 86 is 'bRepeatableSingleFire'",
+    "value": 86
+  },
+  "Weapon_Target_ehHitBehavior": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 9 is 'ehhitbehavior'",
+    "value": 9
+  },
+  "Weapon_Target_elSoundLevel": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 59 is 'elSoundLevel'",
+    "value": 59
+  },
+  "Weapon_Target_eoZoomDataOverlay": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 68 is 'eoZoomDataOverlay'",
+    "value": 68
+  },
+  "Weapon_Target_esStaggerValue": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 82 is 'esStaggerValue'",
+    "value": 82
+  },
+  "Weapon_Target_ewType": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 15 is 'ewtype'",
+    "value": 15
+  },
+  "Weapon_Target_fAimModelBaseStability": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 66 is 'fAimModelBaseStability'",
+    "value": 66
+  },
+  "Weapon_Target_fAimModelConeDecreasePerSec": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 36 is 'fAimModelConeDecreasePerSec'",
+    "value": 36
+  },
+  "Weapon_Target_fAimModelConeIncreasePerShot": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 35 is 'fAimModelConeIncreasePerShot'",
+    "value": 35
+  },
+  "Weapon_Target_fAimModelConeIronSightsMultiplier": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 47 is 'fAimModelConeIronSightsMultiplier'",
+    "value": 47
+  },
+  "Weapon_Target_fAimModelConeSneakMultiplier": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 38 is 'fAimModelConeSneakMultiplier'",
+    "value": 38
+  },
+  "Weapon_Target_fAimModelMaxConeDegrees": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 34 is 'fAimModelMaxConeDegrees'",
+    "value": 34
+  },
+  "Weapon_Target_fAimModelMinConeDegrees": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 33 is 'fAimModelMinConeDegrees'",
+    "value": 33
+  },
+  "Weapon_Target_fAimModelRecoilArgDeg": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 45 is 'fAimModelRecoilArcDeg' (engine spells it 'fAimModelRecoilArcDeg')",
+    "value": 45
+  },
+  "Weapon_Target_fAimModelRecoilArgRotateDeg": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 46 is 'fAimModelRecoilArcRotateDeg' (engine spells it 'fAimModelRecoilArcRotateDeg')",
+    "value": 46
+  },
+  "Weapon_Target_fAimModelRecoilDiminishSightsMult": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 40 is 'fAimModelRecoilDiminishSightsMult'",
+    "value": 40
+  },
+  "Weapon_Target_fAimModelRecoilDiminishSpringForce": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 39 is 'fAimModelRecoilDiminishSpringForce'",
+    "value": 39
+  },
+  "Weapon_Target_fAimModelRecoilHipMult": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 43 is 'fAimModelRecoilHipMult'",
+    "value": 43
+  },
+  "Weapon_Target_fAimModelRecoilMaxDegPerShot": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 41 is 'fAimModelRecoilMaxDegPerShot'",
+    "value": 41
+  },
+  "Weapon_Target_fAimModelRecoilMinDegPerShot": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 42 is 'fAimModelRecoilMinDegPerShot'",
+    "value": 42
+  },
+  "Weapon_Target_fAttackActionPointCost": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 79 is 'fAttackActionPointCost'",
+    "value": 79
+  },
+  "Weapon_Target_fAttackDelaySec": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 4 is 'fattackDelaySec'",
+    "value": 4
+  },
+  "Weapon_Target_fColorRemappingIndex": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 88 is 'fColorRemappingIndex'",
+    "value": 88
+  },
+  "Weapon_Target_fCriticalChargeBonus": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 8 is 'fcriticalchargebonus'",
+    "value": 8
+  },
+  "Weapon_Target_fCriticalDamageMult": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 90 is 'fcriticaldamagemult'",
+    "value": 90
+  },
+  "Weapon_Target_fFireSeconds": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 50 is 'fFireSeconds'",
+    "value": 50
+  },
+  "Weapon_Target_fFullPowerSeconds": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 84 is 'fFullPowerSeconds'",
+    "value": 84
+  },
+  "Weapon_Target_fMaxRange": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 3 is 'fmaxrange'",
+    "value": 3
+  },
+  "Weapon_Target_fMinPowerPerShot": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 87 is 'fMinPowerPerShot'",
+    "value": 87
+  },
+  "Weapon_Target_fMinRange": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 2 is 'fminrange'",
+    "value": 2
+  },
+  "Weapon_Target_fOutOfRangeDamageMult": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 6 is 'foutofrangedamagemult'",
+    "value": 6
+  },
+  "Weapon_Target_fReach": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 1 is 'freach'",
+    "value": 1
+  },
+  "Weapon_Target_fReloadSpeed": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 76 is 'fReloadSpeed'",
+    "value": 76
+  },
+  "Weapon_Target_fSecondaryDamage": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 7 is 'fsecondarydamage'",
+    "value": 7
+  },
+  "Weapon_Target_fSightedTransitionSeconds": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 83 is 'fSightedTransitionSeconds'",
+    "value": 83
+  },
+  "Weapon_Target_fSoundLevelMult": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 74 is 'fSoundLevelMult'",
+    "value": 74
+  },
+  "Weapon_Target_fSpeed": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 0 is 'fspeed'",
+    "value": 0
+  },
+  "Weapon_Target_fUnused": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 5 is 'funused'",
+    "value": 5
+  },
+  "Weapon_Target_fWeight": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 30 is 'fweight'",
+    "value": 30
+  },
+  "Weapon_Target_fZoomDataCameraOffsetX": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 70 is 'fZoomDataCameraOffsetX'",
+    "value": 70
+  },
+  "Weapon_Target_fZoomDataCameraOffsetY": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 71 is 'fZoomDataCameraOffsetY'",
+    "value": 71
+  },
+  "Weapon_Target_fZoomDataCameraOffsetZ": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 72 is 'fZoomDataCameraOffsetZ'",
+    "value": 72
+  },
+  "Weapon_Target_iAmmoCapacity": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 12 is 'iammocapacity'",
+    "value": 12
+  },
+  "Weapon_Target_iAttackDamage": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 28 is 'iattackdamage'",
+    "value": 28
+  },
+  "Weapon_Target_iRank": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 10 is 'irank'",
+    "value": 10
+  },
+  "Weapon_Target_iValue": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 29 is 'ivalue'",
+    "value": 29
+  },
+  "Weapon_Target_paAimModel": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 32 is 'paAimModel'",
+    "value": 32
+  },
+  "Weapon_Target_peEnchantments": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 65 is 'peEnchantments'",
+    "value": 65
+  },
+  "Weapon_Target_pgZoomDataImageSpace": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 69 is 'pgZoomDataImageSpace'",
+    "value": 69
+  },
+  "Weapon_Target_piBashImpactDataSet": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 63 is 'piBashImpactDataSet'",
+    "value": 63
+  },
+  "Weapon_Target_piImpactDataSet": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 60 is 'piImpactDataSet'",
+    "value": 60
+  },
+  "Weapon_Target_pkKeywords": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 31 is 'pkKeywords'",
+    "value": 31
+  },
+  "Weapon_Target_plCritEffect": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 62 is 'plCritEffect'",
+    "value": 62
+  },
+  "Weapon_Target_pmBlockMaterial": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 64 is 'pmBlockMaterial'",
+    "value": 64
+  },
+  "Weapon_Target_pnNPCAmmoList": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 75 is 'pnNPCammoList'",
+    "value": 75
+  },
+  "Weapon_Target_poAmmo": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 61 is 'poAmmo'",
+    "value": 61
+  },
+  "Weapon_Target_ppOverrideProjectile": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 80 is 'ppOverrideProjectile'",
+    "value": 80
+  },
+  "Weapon_Target_psAttackFailSound": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 55 is 'psAttackFailSound'",
+    "value": 55
+  },
+  "Weapon_Target_psAttackLoop": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 54 is 'psAttackLoop'",
+    "value": 54
+  },
+  "Weapon_Target_psAttackSound": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 52 is 'psAttackSound'",
+    "value": 52
+  },
+  "Weapon_Target_psAttackSound2D": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 53 is 'psAttackSound2D'",
+    "value": 53
+  },
+  "Weapon_Target_psEquipSound": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 57 is 'psEquipSound'",
+    "value": 57
+  },
+  "Weapon_Target_psFastEquipSound": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 91 is 'psFastEquipSound'",
+    "value": 91
+  },
+  "Weapon_Target_psIdleSound": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 56 is 'psIdleSound'",
+    "value": 56
+  },
+  "Weapon_Target_psUnEquipSound": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 58 is 'psUnEquipSound'",
+    "value": 58
+  },
+  "Weapon_Target_ptEquipSlot": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 73 is 'ptEquipSlot'",
+    "value": 73
+  },
+  "Weapon_Target_pwMaterialSwaps": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 89 is 'pwMaterialSwaps'",
+    "value": 89
+  },
+  "Weapon_Target_pzZoomData": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 67 is 'pzZoomData'",
+    "value": 67
+  },
+  "Weapon_Target_uAimModelConeDecreaseDelayMs": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 37 is 'uAimModelConeDecreaseDelayMs'",
+    "value": 37
+  },
+  "Weapon_Target_uAimModelRecoilShotsForRunaway": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 44 is 'uAimModelRecoilShotsForRunaway'",
+    "value": 44
+  },
+  "Weapon_Target_uNumProjectiles": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 51 is 'uNumProjectiles'",
+    "value": 51
+  },
+  "Weapon_Target_vaActorValues": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 94 is 'vaActorValues'",
+    "value": 94
+  },
+  "Weapon_Target_vdDamageTypeValues": {
+    "source": "re: Fallout4.exe 1.10.163 Weapon OMOD property table @rva 0x36e64c0 (95 x 0x30 records, indexed by BGSMod::Property::Mod::target & 0x7FF): record 77 is 'vdDamageTypeValues'",
+    "value": 77
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "Type_Misc": {"value": 0, "source": "CommonLibF4/include/RE/Bethesda/BGSHeadPart.h:33 BGSHeadPart::HeadPartType::kMisc"},
+  "Type_Face": {"value": 1, "source": "CommonLibF4/include/RE/Bethesda/BGSHeadPart.h:34 BGSHeadPart::HeadPartType::kFace"},
+  "Type_Eyes": {"value": 2, "source": "CommonLibF4/include/RE/Bethesda/BGSHeadPart.h:35 BGSHeadPart::HeadPartType::kEyes"},
+  "Type_Hair": {"value": 3, "source": "CommonLibF4/include/RE/Bethesda/BGSHeadPart.h:36 BGSHeadPart::HeadPartType::kHair"},
+  "Type_FacialHair": {"value": 4, "source": "CommonLibF4/include/RE/Bethesda/BGSHeadPart.h:37 BGSHeadPart::HeadPartType::kFacialHair"},
+  "Type_Scar": {"value": 5, "source": "CommonLibF4/include/RE/Bethesda/BGSHeadPart.h:38 BGSHeadPart::HeadPartType::kScar"},
+  "Type_Brows": {"value": 6, "source": "CommonLibF4/include/RE/Bethesda/BGSHeadPart.h:39 BGSHeadPart::HeadPartType::kEyebrows"},
+  "Type_HeadRear": {"value": 9, "source": "CommonLibF4/include/RE/Bethesda/BGSHeadPart.h:42 BGSHeadPart::HeadPartType::kHeadRear"}
+}

@@ -1,0 +1,58 @@
+{
+  "Flag_Automatic": {
+    "source": "re: Fallout4.exe 1.10.163 weapon OMOD property 25 'bautomatic' (table @rva 0x36e64c0): its applier at VA 0x1403502b0 sets/clears 0x8000 in TESObjectWEAP::InstanceData::flags (+0x110, CommonLibF4/include/RE/Bethesda/TESBoundObjects.h:550)",
+    "value": 32768
+  },
+  "Flag_BoltAction": {
+    "source": "re: Fallout4.exe 1.10.163 weapon OMOD property 81 'bBoltAction' (table @rva 0x36e64c0): its applier at VA 0x1403525b0 sets/clears 0x400000 in TESObjectWEAP::InstanceData::flags (+0x110, CommonLibF4/include/RE/Bethesda/TESBoundObjects.h:550)",
+    "value": 4194304
+  },
+  "Flag_BoundWeapon": {
+    "source": "re: Fallout4.exe 1.10.163 condition function HasBoundWeaponEquipped (SCRIPT_FUNCTION @rva 0x3704a70, conditionFunction VA 0x1404d75c0) returns 1.0 when the equipped TESObjectWEAP has bit 13 (0x2000) set at +0x2a8 = weaponData (+0x198) + InstanceData::flags (+0x110)",
+    "value": 8192
+  },
+  "Flag_CantDrop": {
+    "source": "re: Fallout4.exe 1.10.163 weapon OMOD property 26 'bcantdrop' (table @rva 0x36e64c0): its applier at VA 0x140350320 sets/clears 0x20000 in TESObjectWEAP::InstanceData::flags (+0x110, CommonLibF4/include/RE/Bethesda/TESBoundObjects.h:550)",
+    "value": 131072
+  },
+  "Flag_ChargingAttack": {
+    "source": "re: Fallout4.exe 1.10.163 weapon OMOD property 93 'bChargingAttack' (table @rva 0x36e64c0): its applier at VA 0x14034fd70 sets/clears 0x200 in TESObjectWEAP::InstanceData::flags (+0x110, CommonLibF4/include/RE/Bethesda/TESBoundObjects.h:550)",
+    "value": 512
+  },
+  "Flag_ChargingReload": {
+    "source": "re: Fallout4.exe 1.10.163 weapon OMOD property 18 'bchargingreload' (table @rva 0x36e64c0): its applier at VA 0x14034fd00 sets/clears 0x8 in TESObjectWEAP::InstanceData::flags (+0x110, CommonLibF4/include/RE/Bethesda/TESBoundObjects.h:550)",
+    "value": 8
+  },
+  "Flag_DisableShells": {
+    "source": "re: Fallout4.exe 1.10.163 weapon OMOD property 92 'bDisableShells' (table @rva 0x36e64c0): its applier at VA 0x140352620 sets/clears 0x1000000 in TESObjectWEAP::InstanceData::flags (+0x110, CommonLibF4/include/RE/Bethesda/TESBoundObjects.h:550)",
+    "value": 16777216
+  },
+  "Flag_HasScope": {
+    "source": "re: Fallout4.exe 1.10.163 weapon OMOD property 48 'bHasScope' (table @rva 0x36e64c0): its applier at VA 0x1403519e0 sets/clears 0x200000 in TESObjectWEAP::InstanceData::flags (+0x110, CommonLibF4/include/RE/Bethesda/TESBoundObjects.h:550)",
+    "value": 2097152
+  },
+  "Flag_HoldInputToPower": {
+    "source": "re: Fallout4.exe 1.10.163 weapon OMOD property 85 'bHoldInputToPower' (table @rva 0x36e64c0): its applier at VA 0x140350080 sets/clears 0x800 in TESObjectWEAP::InstanceData::flags (+0x110, CommonLibF4/include/RE/Bethesda/TESBoundObjects.h:550)",
+    "value": 2048
+  },
+  "Flag_IgnoresNormalResist": {
+    "source": "re: Fallout4.exe 1.10.163 weapon OMOD property 24 'bignoreresist' (table @rva 0x36e64c0): its applier at VA 0x140350240 sets/clears 0x4000 in TESObjectWEAP::InstanceData::flags (+0x110, CommonLibF4/include/RE/Bethesda/TESBoundObjects.h:550)",
+    "value": 16384
+  },
+  "Flag_MinorCrime": {
+    "source": "re: Fallout4.exe 1.10.163 weapon OMOD property 19 'bminorcrime' (table @rva 0x36e64c0): its applier at VA 0x14034fde0 sets/clears 0x10 in TESObjectWEAP::InstanceData::flags (+0x110, CommonLibF4/include/RE/Bethesda/TESBoundObjects.h:550)",
+    "value": 16
+  },
+  "Flag_NPCsUseAmmo": {
+    "source": "re: Fallout4.exe 1.10.163 weapon OMOD property 17 'bnpcsuseammo' (table @rva 0x36e64c0): its applier at VA 0x14034fc20 sets/clears 0x2 in TESObjectWEAP::InstanceData::flags (+0x110, CommonLibF4/include/RE/Bethesda/TESBoundObjects.h:550)",
+    "value": 2
+  },
+  "Flag_NonHostile": {
+    "source": "re: Fallout4.exe 1.10.163 weapon OMOD property 23 'bnonhostile' (table @rva 0x36e64c0): its applier at VA 0x140350160 sets/clears 0x1000 in TESObjectWEAP::InstanceData::flags (+0x110, CommonLibF4/include/RE/Bethesda/TESBoundObjects.h:550)",
+    "value": 4096
+  },
+  "Flag_RepeatableSingleFire": {
+    "source": "re: Fallout4.exe 1.10.163 weapon OMOD property 86 'bRepeatableSingleFire' (table @rva 0x36e64c0): its applier at VA 0x1403500f0 sets/clears 0x10000 in TESObjectWEAP::InstanceData::flags (+0x110, CommonLibF4/include/RE/Bethesda/TESBoundObjects.h:550)",
+    "value": 65536
+  }
+}

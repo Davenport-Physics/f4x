@@ -5,9 +5,12 @@ usage: python3 -I tools/compat/compat.py [--out DIR] [--only NAME,...] [--hosts 
 Scenarios (each runs once per host, headless, muted, in f4x-owned profiles):
   surface   root.f4se in MainMenu: members, directory listings, AllowTextInput's
             effect on the text-entry count, where plugin objects land (user-mods-*).
-  saveload  coc QASmoke -> save -> quit; relaunch -> load from the main menu (answer the
-            mods prompt) -> press WorkshopMode -> save. Compares the .f4se co-saves
-            byte for byte and the Papyrus logs (user-mods-*).
+  saveload  coc QASmoke -> register keys, the camera state and furniture events
+            (ScriptObject.RegisterForKey/CameraState/FurnitureEvent) -> save -> quit;
+            relaunch -> load from the main menu (answer the mods prompt) -> press
+            WorkshopMode -> change the registrations -> save. Compares the .f4se
+            co-saves byte for byte (KEYR, CTLR, EXEV, CAMR, FRNR) and the Papyrus logs
+            (user-mods-*).
   mcm       pause menu -> MOD CONFIG; screenshots compared within a tolerance
             (user-mods-*; needs Pillow for the pixel comparison).
   natives   every Location/EncounterZone through papyrus.call (vanilla profiles).
@@ -120,6 +123,33 @@ def scenario_surface(host, out):
         s.quit()
 
 
+# Forms whose bound script is deterministic: MQ101 (mq101questscript), TimeScale and
+# GameDaysPassed (GlobalVariable). The player is only a filter: mods attach scripts to it.
+EVENT_FORMS = ("0001ED86", "0000003A", "00000039")
+PLAYER = "00000014"
+
+
+def register_events(s):
+    """Key, camera-state and furniture registrations in an order F4SE does not store."""
+    call = lambda fn, form, args: s.call("papyrus.call", {"function": f"ScriptObject.{fn}", "self": form, "args": args})
+    for form, key in ((EVENT_FORMS[0], 48), (EVENT_FORMS[1], 0x21), (EVENT_FORMS[0], 256), (EVENT_FORMS[2], 48),
+                      (EVENT_FORMS[0], 276), (EVENT_FORMS[1], 48), (EVENT_FORMS[0], -1)):
+        call("RegisterForKey", form, [key])
+    for form in (EVENT_FORMS[1], EVENT_FORMS[0], EVENT_FORMS[1]):
+        call("RegisterForCameraState", form, [])
+    # F4SE crashes on a None filter; register with forms only.
+    for form, filt in ((EVENT_FORMS[1], PLAYER), (EVENT_FORMS[0], PLAYER), (EVENT_FORMS[2], EVENT_FORMS[0])):
+        call("RegisterForFurnitureEvent", form, [{"type": "Var", "value": {"form": filt}}])
+
+
+def change_events(s):
+    call = lambda fn, form, args: s.call("papyrus.call", {"function": f"ScriptObject.{fn}", "self": form, "args": args})
+    call("UnregisterForKey", EVENT_FORMS[0], [256])
+    call("RegisterForKey", EVENT_FORMS[2], [0x21])
+    call("UnregisterForCameraState", EVENT_FORMS[1], [])
+    call("UnregisterForFurnitureEvent", EVENT_FORMS[1], [{"type": "Var", "value": {"form": PLAYER}}])
+
+
 def scenario_saveload(host, out):
     profile = f"user-mods-{host}"
     saves = os.path.join(my_games(profile), "Saves")
@@ -132,6 +162,7 @@ def scenario_saveload(host, out):
         s.console("coc QASmoke")
         s.wait_menu("HUDMenu")
         time.sleep(8)
+        register_events(s)
         s.console("save compat1")
         time.sleep(10)
     finally:
@@ -141,6 +172,7 @@ def scenario_saveload(host, out):
         load_from_main_menu(s, "compat1")
         s.press("WorkshopMode", 47)
         time.sleep(4)
+        change_events(s)
         s.console("save compat2")
         time.sleep(10)
     finally:

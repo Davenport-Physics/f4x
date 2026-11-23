@@ -253,6 +253,10 @@ pub mod regs {
     pub const KEYS: [u8; 4] = *b"KEYR";
     pub const CONTROLS: [u8; 4] = *b"CTLR";
     pub const EXTERNAL_EVENTS: [u8; 4] = *b"EXEV";
+    /// Camera-state registrations: one chunk holding a registrant list.
+    pub const CAMERA: [u8; 4] = *b"CAMR";
+    /// Furniture registrations: one chunk (see [`write_furniture`]).
+    pub const FURNITURE: [u8; 4] = *b"FRNR";
     pub const ENTRY: [u8; 4] = *b"REGS";
     pub const END: [u8; 4] = *b"REGE";
 
@@ -347,6 +351,95 @@ pub mod regs {
             out.push(Callback { handle, script, callback });
         }
         Some((name, out))
+    }
+
+    /// A list of registrants: `u32` count, then per registrant a `u64` handle and a
+    /// `u16`-prefixed script name.
+    #[must_use]
+    pub fn write_registrants(registrants: &[Registrant]) -> Vec<u8> {
+        let mut out = (registrants.len() as u32).to_le_bytes().to_vec();
+        for r in registrants {
+            out.extend_from_slice(&r.handle.to_le_bytes());
+            put_str(&mut out, &r.script);
+        }
+        out
+    }
+
+    /// The registrant list at `at` (see [`write_registrants`]) and the offset after it.
+    #[must_use]
+    pub fn parse_registrants(data: &[u8], mut at: usize) -> Option<(Vec<Registrant>, usize)> {
+        let count = u32::from_le_bytes(data.get(at..at + 4)?.try_into().ok()?) as usize;
+        at += 4;
+        let mut out = Vec::with_capacity(count.min(1024));
+        for _ in 0..count {
+            let handle = u64::from_le_bytes(data.get(at..at + 8)?.try_into().ok()?);
+            let len = u16::from_le_bytes(data.get(at + 8..at + 10)?.try_into().ok()?) as usize;
+            let script = String::from_utf8_lossy(data.get(at + 10..at + 10 + len)?).into_owned();
+            at += 10 + len;
+            out.push(Registrant { handle, script });
+        }
+        Some((out, at))
+    }
+
+    /// A key `REGS` entry (`KEYR` section): the `u32` key code, then the registrants
+    /// ([`write_registrants`]).
+    #[must_use]
+    pub fn write_key(key: u32, registrants: &[Registrant]) -> Vec<u8> {
+        let mut out = key.to_le_bytes().to_vec();
+        out.extend_from_slice(&write_registrants(registrants));
+        out
+    }
+
+    #[must_use]
+    pub fn parse_key(data: &[u8]) -> Option<(u32, Vec<Registrant>)> {
+        let key = u32::from_le_bytes(data.get(..4)?.try_into().ok()?);
+        let (list, _) = parse_registrants(data, 4)?;
+        Some((key, list))
+    }
+
+    /// The `FRNR` chunk: a `u32` count, then per registrant a `u64` handle, a
+    /// `u16`-prefixed script name and a `u32` that F4SE 0.6.23 always writes as 0
+    /// (black-box: whatever filter was passed to `RegisterForFurnitureEvent`). Read back
+    /// as a count of `u32`s to skip.
+    #[must_use]
+    pub fn write_furniture(registrants: &[Registrant]) -> Vec<u8> {
+        let mut out = (registrants.len() as u32).to_le_bytes().to_vec();
+        for r in registrants {
+            out.extend_from_slice(&r.handle.to_le_bytes());
+            put_str(&mut out, &r.script);
+            out.extend_from_slice(&0u32.to_le_bytes());
+        }
+        out
+    }
+
+    #[must_use]
+    pub fn parse_furniture(data: &[u8]) -> Option<Vec<Registrant>> {
+        let count = u32::from_le_bytes(data.get(..4)?.try_into().ok()?) as usize;
+        let mut at = 4;
+        let mut out = Vec::with_capacity(count.min(1024));
+        for _ in 0..count {
+            let handle = u64::from_le_bytes(data.get(at..at + 8)?.try_into().ok()?);
+            let len = u16::from_le_bytes(data.get(at + 8..at + 10)?.try_into().ok()?) as usize;
+            let script = String::from_utf8_lossy(data.get(at + 10..at + 10 + len)?).into_owned();
+            at += 10 + len;
+            let extra = u32::from_le_bytes(data.get(at..at + 4)?.try_into().ok()?) as usize;
+            at += 4 + 4 * extra.min(1 << 16);
+            out.push(Registrant { handle, script });
+        }
+        Some(out)
+    }
+
+    /// The data of the first chunk of kind `kind`.
+    #[must_use]
+    pub fn chunk(chunks: &[Chunk], kind: [u8; 4]) -> Option<&[u8]> {
+        chunks.iter().find(|c| c.kind == tag(&kind)).map(|c| c.data.as_slice())
+    }
+
+    /// Replace the data of the first chunk of kind `kind` (kept in place).
+    pub fn replace_chunk(chunks: &mut [Chunk], kind: [u8; 4], data: Vec<u8>) {
+        if let Some(c) = chunks.iter_mut().find(|c| c.kind == tag(&kind)) {
+            c.data = data;
+        }
     }
 
     fn bounds(chunks: &[Chunk], header: [u8; 4]) -> Option<(usize, usize)> {
@@ -445,6 +538,100 @@ mod tests {
         let entry = regs::Callback { handle: 0x0000_FFFF_0001_ED86, script: "mq101questscript".into(), callback: "F4xProbeCallbackA".into() };
         assert_eq!(regs::write_callbacks("f4xEvtA", std::slice::from_ref(&entry)), f4se);
         assert_eq!(regs::parse_callbacks(f4se).unwrap(), ("f4xEvtA".into(), vec![entry]));
+    }
+
+    /// F4SE 0.6.23's host block after `RegisterForKey` and `RegisterForCameraState` calls
+    /// (black-box, `events-f4se` profile, 2026-11-22).
+    const KEYS_CAMERA: &[u8] = include_bytes!("../tests/fixtures/f4se-0.6.23-keys-camera.f4se");
+
+    fn reg(handle: u64, script: &str) -> regs::Registrant {
+        regs::Registrant { handle, script: script.into() }
+    }
+
+    #[test]
+    fn key_registrations_match_f4se() {
+        // RegisterForKey(0x21) on TimeScale (GlobalVariable) and MQ101: registrants by handle.
+        let f4se: &[u8] = b"\x21\x00\x00\x00\x02\x00\x00\x00\x3a\x00\x00\x00\xff\xff\x00\x00\x0e\x00GlobalVariable\x86\xed\x01\x00\xff\xff\x00\x00\x10\x00mq101questscript";
+        let list = vec![reg(0x0000_FFFF_0000_003A, "GlobalVariable"), reg(0x0000_FFFF_0001_ED86, "mq101questscript")];
+        assert_eq!(regs::write_key(0x21, &list), f4se);
+        assert_eq!(regs::parse_key(f4se).unwrap(), (0x21, list));
+
+        // The whole section: one REGS per key, in key order (as u32: -1 last).
+        let save = CoSave::parse(KEYS_CAMERA).unwrap();
+        let host = &save.plugin(HOST_UID).unwrap().chunks;
+        let keys: Vec<u32> = regs::section(host, regs::KEYS).iter().map(|c| regs::parse_key(&c.data).unwrap().0).collect();
+        assert_eq!(keys, [0x21, 0x30, 0x39, 0x100, 0x101, 0x114, 0x12C, 0xFFFF_FFFF]);
+        let (_, k48) = regs::parse_key(&regs::section(host, regs::KEYS)[1].data).unwrap();
+        let handles: Vec<u64> = k48.iter().map(|r| r.handle).collect();
+        assert_eq!(handles, [0x0000_FFFF_0000_0014, 0x0000_FFFF_0000_0039, 0x0000_FFFF_0000_003A, 0x0000_FFFF_0002_29E5]);
+        assert_eq!(k48[0].script, "ObjectReference");
+        for c in regs::section(host, regs::KEYS) {
+            let (key, list) = regs::parse_key(&c.data).unwrap();
+            assert_eq!(regs::write_key(key, &list), c.data);
+        }
+    }
+
+    #[test]
+    fn camera_registrations_match_f4se() {
+        let save = CoSave::parse(KEYS_CAMERA).unwrap();
+        let host = &save.plugin(HOST_UID).unwrap().chunks;
+        let data = regs::chunk(host, regs::CAMERA).unwrap();
+        let (list, end) = regs::parse_registrants(data, 0).unwrap();
+        assert_eq!(end, data.len());
+        assert_eq!(
+            list,
+            [
+                reg(0x0000_FFFF_0000_0014, "ObjectReference"),
+                reg(0x0000_FFFF_0000_0039, "GlobalVariable"),
+                reg(0x0000_FFFF_0001_ED86, "mq101questscript"),
+                reg(0x0000_FFFF_0002_29E5, "ScriptObject"),
+            ]
+        );
+        assert_eq!(regs::write_registrants(&list), data);
+        // Nothing registered: a zero count.
+        assert_eq!(regs::write_registrants(&[]), [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn rebuilt_host_block_matches_f4se() {
+        // Replacing every registration table with what it already holds changes nothing.
+        let save = CoSave::parse(KEYS_CAMERA).unwrap();
+        let host = save.plugin(HOST_UID).unwrap().chunks.clone();
+        let keys: Vec<Vec<u8>> = regs::section(&host, regs::KEYS)
+            .iter()
+            .map(|c| {
+                let (k, l) = regs::parse_key(&c.data).unwrap();
+                regs::write_key(k, &l)
+            })
+            .collect();
+        let (camera, _) = regs::parse_registrants(regs::chunk(&host, regs::CAMERA).unwrap(), 0).unwrap();
+        let mut rebuilt = empty_host_chunks(&plgn::parse(&host[0].data).unwrap());
+        regs::replace_section(&mut rebuilt, regs::KEYS, keys);
+        regs::replace_chunk(&mut rebuilt, regs::CAMERA, regs::write_registrants(&camera));
+        assert_eq!(rebuilt, host);
+    }
+
+    #[test]
+    fn furniture_registrations_match_f4se() {
+        // RegisterForFurnitureEvent on six forms, with forms, a FormList and an array as
+        // filters (black-box, `events-f4se` profile, 2026-11-22): registrants by handle,
+        // each followed by a zero `u32`.
+        const FURNITURE: &[u8] = include_bytes!("../tests/fixtures/f4se-0.6.23-furniture.f4se");
+        let save = CoSave::parse(FURNITURE).unwrap();
+        let host = &save.plugin(HOST_UID).unwrap().chunks;
+        let data = regs::chunk(host, regs::FURNITURE).unwrap();
+        let list = regs::parse_furniture(data).unwrap();
+        let handles: Vec<u64> = list.iter().map(|r| r.handle & 0xFFFF_FFFF).collect();
+        assert_eq!(handles, [0x35, 0x36, 0x38, 0x39, 0x3A, 0x1ED86]);
+        assert_eq!(list[0], reg(0x0000_FFFF_0000_0035, "ScriptObject"));
+        assert_eq!(list[5], reg(0x0000_FFFF_0001_ED86, "mq101questscript"));
+        assert_eq!(regs::write_furniture(&list), data);
+        assert_eq!(regs::write_furniture(&[]), [0, 0, 0, 0]);
+        let mut rebuilt = empty_host_chunks(&plgn::parse(&host[0].data).unwrap());
+        let (camera, _) = regs::parse_registrants(regs::chunk(host, regs::CAMERA).unwrap(), 0).unwrap();
+        regs::replace_chunk(&mut rebuilt, regs::CAMERA, regs::write_registrants(&camera));
+        regs::replace_chunk(&mut rebuilt, regs::FURNITURE, regs::write_furniture(&list));
+        assert_eq!(&rebuilt, host);
     }
 
     #[test]

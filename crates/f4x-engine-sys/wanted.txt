@@ -40,3 +40,47 @@ gfx_object_invoke             655847   CommonLibF4/include/RE/Scaleform/GFx/GFx_
 gfx_object_push_back          1330475  CommonLibF4/include/RE/Scaleform/GFx/GFx_Player.h:355     RE::Scaleform::GFx::Value::ObjectInterface::PushBack(void*, const Value&) -> bool
 control_map_singleton         global:325206  CommonLibF4/include/RE/Bethesda/ControlMap.h:58     RE::ControlMap** singleton
 all_forms                     global:422985  CommonLibF4/include/RE/Bethesda/TESForms.h:652     RE::BSTHashMap<u32, TESForm*>** every form by id (TESForm::GetFormByID)
+memory_manager_allocate       652767   CommonLibF4/include/RE/Bethesda/MemoryManager.h:206       RE::MemoryManager::Allocate(size, alignment, alignmentRequired) -> void*
+localized_string_dl_get_description 523613  CommonLibF4/include/RE/Bethesda/FormComponents.h:1090  RE::BGSLocalizedStringDL::GetDescription(BSStringT<char>& out, const TESForm*)
+actor_reset_3d                302888   CommonLibF4/include/RE/Bethesda/Actor.h:750                RE::Actor::Reset3D(bool reloadAll, u32 additionalFlags, bool queueReset, u32 excludeFlags)
+memory_manager_deallocate     1582181  CommonLibF4/include/RE/Bethesda/MemoryManager.h:214       RE::MemoryManager::Deallocate(void*, bool alignmentRequired)
+ui_singleton                  global:548587  CommonLibF4/include/RE/Bethesda/UI.h:70            RE::UI** singleton
+refr_handle_get_smart_pointer 967277   CommonLibF4/include/RE/Bethesda/BSPointerHandle.h:168     RE::BSPointerHandleManagerInterface<TESObjectREFR>::GetSmartPointer(const ObjectRefHandle&, NiPointer<TESObjectREFR>&) -> bool
+extra_text_display_get_name    1523343  CommonLibF4/include/RE/Bethesda/BSExtraData.h:490         RE::ExtraTextDisplayData::GetDisplayName(TESBoundObject* base) -> const BSFixedStringCS&
+console_pick_ref              global:170742  CommonLibF4/include/RE/Bethesda/IMenu.h:455        RE::Console::GetPickRef() ObjectRefHandle global (the console selected reference)
+ui_menu_map_lock              global:578487  CommonLibF4/include/RE/Bethesda/UI.h:64            RE::BSReadWriteLock guarding UI::menuMap (the lock object)
+omod_get_loose_mod            1359613  origin/community:CommonLibF4/include/RE/Bethesda/BGSMod.h:183  RE::BGSMod::Attachment::Mod::GetLooseMod() -> TESObjectMISC*
+condition_is_true             1275731  CommonLibF4/include/RE/Bethesda/TESCondition.h:89         RE::TESCondition::IsTrue(TESObjectREFR* actionRef, TESObjectREFR* targetRef) -> bool
+refr_get_weight_in_container   1377567  CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:508      RE::TESObjectREFR::GetWeightInContainer() -> float
+ui_register_menu              1519575  CommonLibF4/include/RE/Bethesda/UI.h:105                 RE::UI::RegisterMenu(const char*, Create_t*, StaticUpdate_t*)
+input_device_manager_singleton global:1284221  CommonLibF4/include/RE/Bethesda/BSInputDeviceManager.h:58  RE::BSInputDeviceManager** singleton
+rw_lock_lock_read             1573164  CommonLibF4/include/RE/Bethesda/BSLock.h:54               RE::BSReadWriteLock::lock_read()
+handle_policy_get_inventory_obj 66597   CommonLibF4/include/RE/Bethesda/GameScript.h:203          RE::GameScript::HandlePolicy::GetInventoryObjFromHandle(u64, TESObjectREFR*& container, u16& uniqueID, TESObjectREFR*& ref)
+extra_list_get_by_type        rva:0x436a0  re:refs-re-dis-0x9aac0(call-at-0x9aae0,GetByType-under-read-lock)  ExtraDataList::GetByType(u8 type) -> BSExtraData* (takes the list read lock at +0x20)
+ui_message_queue_singleton    global:82123  CommonLibF4/include/RE/Bethesda/UIMessageQueue.h:17  RE::UIMessageQueue** singleton
+all_forms_by_editor_id        global:642758  CommonLibF4/include/RE/Bethesda/TESForms.h:662     RE::BSTHashMap<BSFixedString, TESForm*>** every form by editor ID (TESForm::GetFormByEditorID)
+npc_alternate_head_parts      global:1306546  CommonLibF4/include/RE/Bethesda/TESBoundAnimObjects.h:349  RE::TESNPC::GetAlternateHeadPartListMap() BSTHashMap<const TESNPC*, BSTArray<BGSHeadPart*>> (the map starts 8 bytes before this address)
+extra_list_set_material_swap  rva:0x9aac0  re:refs-re-xref-ExtraMaterialSwap-vtbl-0x2c528e8  ExtraDataList::SetMaterialSwap(BGSMaterialSwap*): creates ExtraMaterialSwap(type 0xB9) or removes it when null
+ui_message_queue_add_message  1182019  CommonLibF4/include/RE/Bethesda/UIMessageQueue.h:24     RE::UIMessageQueue::AddMessage(const BSFixedString&, UI_MESSAGE_TYPE)
+favorites_is_component_favorite 352046  origin/community:CommonLibF4/include/RE/Bethesda/FavoritesManager.h:52  RE::FavoritesManager::IsComponentFavorite(const TESBoundObject*) -> bool
+favorites_toggle_component    rva:0x12704b0 re:refs-re-xref-0x1270710-from-0xb22a67(pipboy-tag)  FavoritesManager::ToggleComponentFavorite(const TESBoundObject*): insert (value 1) or erase in favoritedComponents, notify ComponentFavoriteEvent
+bs_read_write_lock_lock_read  1573164  CommonLibF4/include/RE/Bethesda/BSLock.h:57              RE::BSReadWriteLock::lock_read()
+form_lookup_by_id             rva:0x152c90 re:refs-re-xref-all_forms-0x58d36c8(lock-0x58d4130)  TESForm::GetFormByID(u32) -> TESForm* (hashed lookup under the all-forms lock)
+scaleform_manager_singleton   global:106578  CommonLibF4/include/RE/Bethesda/BSScaleformManager.h:69  RE::BSScaleformManager** singleton
+ni_get_extra_data             rva:0x1b97a10 re:refs-re-dis-0x200080(call-at-0x200141-with-CPA-0x6542bc0)  NiObjectNET::GetExtraData(const BSFixedString&) -> NiExtraData*
+spline_connect                59311    origin/community:CommonLibF4/include/RE/Bethesda/SplineUtils.h:18  RE::SplineUtils::ConnectSpline(TESObjectREFR* end1, i32 linkType1, TESObjectREFR* end2, i32 linkType2, TESObjectREFR* wire)
+data_handler_create_ref_at_location 500304 origin/community:CommonLibF4/include/RE/Bethesda/TESDataHandler.h:89  RE::TESDataHandler::CreateReferenceAtLocation(NEW_REFR_DATA&) -> ObjectRefHandle
+workshop_scrap_reference      636327   CommonLibF4/include/RE/Bethesda/Workshop.h:125            RE::Workshop::ScrapReference(const ContextData&, ObjectRefHandle smart ptr&, BSTArray<BSTTuple<TESBoundObject*, u32>>* rewards)
+favorites_manager_singleton   global:198281  origin/community:CommonLibF4/include/RE/Bethesda/FavoritesManager.h:45  RE::FavoritesManager** singleton (the object lives in static storage, so the RTTI global scan misses it)
+refr_get_linked_ref           897287   origin/community:CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:762  RE::TESObjectREFR::GetLinkedRef(BGSKeyword*) -> TESObjectREFR*
+refr_set_linked_ref           192840   origin/community:CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:832  RE::TESObjectREFR::SetLinkedRef(TESObjectREFR* target, BGSKeyword*)
+workshop_transmit_power       rva:0x201b10 re:refs-re-xref-0x201b10(after-ConnectSpline-at-0x20d52f/0x20d53a)  (TESObjectREFR*, Workshop::ExtraData*): when the ref radiates power (powerRadation AV > 0) connect it to the objects in range on its grid, then update it as a receiver
+workshop_grid_add_item        rva:0x1f6890 re:refs-re-dis-0x20d504(placement-finalize)  (Workshop::ExtraData*, TESObjectREFR*): add a placed item to the workshop power grids
+workshop_grid_connect         rva:0x1f6e20 re:refs-re-dis-0x20d524(placement-finalize)  (Workshop::ExtraData*, TESObjectREFR* end1, TESObjectREFR* end2, TESObjectREFR* wire): join the endpoints grids through the wire
+spline_update_geometry        rva:0x200b50 re:refs-re-dis-0x20d2f8(placement-finalize)  (Workshop::ContextData* or null, wire, end2, i32 link2, end1, i32 link1) -> bool: position the wire between the endpoints connect points
+workshop_update_item          rva:0x204610 re:refs-re-dis-0x20d549(placement-finalize)  (TESObjectREFR*): refresh the workshop (linked via the item keyword) power and ratings for an item
+player_camera_singleton       global:1171980  CommonLibF4/include/RE/Bethesda/TESCamera.h:178     RE::PlayerCamera** singleton
+omod_get_data                 33658    origin/community:CommonLibF4/include/RE/Bethesda/BGSMod.h:176  RE::BGSMod::Attachment::Mod::GetData(Mod::Data&) const
+default_water                 global:289864  CommonLibF4/src/RE/Bethesda/TESForms.cpp:15       RE::TESWaterForm** the default water (TESObjectCELL/TESWorldSpace::GetWaterType fallback)
+save_delete_entry             rva:0xcda9c0  bb:DeleteGame-stack+re:mainmenu-DeleteSave-case-0x13  deletes one save-list entry: (entry); calls save_delete_files at +0x1a, then removes the entry from the list
+save_delete_files             rva:0xcecf50  bb:DeleteGame-stack+re:call-at-0xcda9da  deletes a save file: (saveList, const char* name, u32 id, 0); uses DeleteFileA

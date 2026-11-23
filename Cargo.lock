@@ -270,6 +270,9 @@ version = "0.0.1"
 [[package]]
 name = "f4x-pex"
 version = "0.0.1"
+dependencies = [
+ "serde_json",
+]
 
 [[package]]
 name = "f4x-pextool"
@@ -312,6 +315,7 @@ dependencies = [
  "f4x-pe",
  "f4x-proto",
  "log",
+ "serde_json",
  "windows-sys",
 ]
 

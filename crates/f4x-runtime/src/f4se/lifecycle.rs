@@ -16,7 +16,7 @@ use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
 use f4x_abi::f4se::message;
 use f4x_cosave::{CoSave, HOST_UID, PluginBlock, plgn};
-use f4x_engine_sys::og_1_10_163_addresses::{DATA_READY_CALLER, LOAD_GAME_WORKER, NEW_GAME_STARTER, SAVE_GAME_WORKER};
+use f4x_engine_sys::og_1_10_163_addresses::{DATA_READY_CALLER, LOAD_GAME_WORKER, NEW_GAME_STARTER, SAVE_DELETE_FILES, SAVE_GAME_WORKER};
 
 /// Offset of the data-ready `call` inside `data_ready_caller` (1.10.163: 0xd3f268 -
 /// 0xd3eff0; black-box stack + our disassembly). Verified to be `E8` before use.
@@ -30,6 +30,7 @@ use super::interfaces::dispatch_from_host;
 use super::{serialization, trampoline};
 
 static SAVE_WORKER: AtomicUsize = AtomicUsize::new(0);
+static DELETE_FILES: AtomicUsize = AtomicUsize::new(0);
 static LOAD_WORKER: AtomicUsize = AtomicUsize::new(0);
 static DATA_READY: AtomicUsize = AtomicUsize::new(0);
 static QUEST_START: AtomicUsize = AtomicUsize::new(0);
@@ -55,6 +56,40 @@ pub fn install() {
     log::info!(target: "f4x::f4se", "save/load lifecycle hooked ({saves} save call sites, {loads} load call sites)");
     install_data_ready();
     install_new_game();
+    install_delete_game();
+}
+
+/// `DeleteGame` (data: the save name without extension, not NUL-terminated in the
+/// length), sent whenever the game deletes a save's files, then the save's co-save is
+/// removed. Black-box (F4SE 0.6.23, 2026-11-22): F4SE patches the entry of the game's
+/// save-file delete (`save_delete_files`), so every caller is covered (menu deletes and
+/// the save code's own deletes); deleting from the main menu sent `DeleteGame("f4xdel")`
+/// and removed both `f4xdel.fos` and `f4xdel.f4se`. f4x redirects every call site.
+fn install_delete_game() {
+    let Some(target) = f4x_engine::address::resolve(&SAVE_DELETE_FILES) else {
+        log::warn!(target: "f4x::f4se", "save-file delete not found in this build; no DeleteGame");
+        return;
+    };
+    DELETE_FILES.store(target, Relaxed);
+    let sites = redirect_calls(target, delete_hook as Worker as usize);
+    log::info!(target: "f4x::f4se", "DeleteGame hooked ({sites} call sites)");
+}
+
+unsafe extern "C" fn delete_hook(list: usize, name: usize, id: usize, flag: usize) -> usize {
+    let save = save_name(name);
+    if let Some(save) = &save {
+        dispatch_from_host(message::DELETE_GAME, name as *mut c_void, save.len() as u32);
+        if let Some(dir) = saves_dir() {
+            let path = dir.join(format!("{save}.f4se"));
+            match std::fs::remove_file(&path) {
+                Ok(()) => log::info!(target: "f4x::f4se", "deleted co-save {}", path.display()),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => log::warn!(target: "f4x::f4se", "could not delete co-save {}: {e}", path.display()),
+            }
+        }
+    }
+    // SAFETY: the engine's own save-file delete, with its arguments.
+    unsafe { std::mem::transmute::<usize, Worker>(DELETE_FILES.load(Relaxed))(list, name, id, flag) }
 }
 
 /// `NewGame` (data: the starting `TESQuest*`, 8 bytes), sent on the main thread once the
@@ -215,6 +250,7 @@ fn write_cosave(save: &str) {
     };
     f4x_cosave::regs::replace_section(&mut host_chunks, f4x_cosave::regs::CONTROLS, super::natives::control_entries());
     f4x_cosave::regs::replace_section(&mut host_chunks, f4x_cosave::regs::EXTERNAL_EVENTS, super::natives::external_entries());
+    super::papyrus_natives::events::save(&mut host_chunks);
     cosave.plugins.push(PluginBlock { uid: HOST_UID, chunks: host_chunks });
     for (handle, registration) in serialization::registrations() {
         let (Some(uid), Some(save_callback)) = (registration.uid, registration.save) else { continue };
@@ -265,6 +301,7 @@ fn run_load_callbacks(cosave: Option<&CoSave>) {
     if let Some(host) = &host {
         super::natives::load_controls(&host.chunks);
         super::natives::load_external(&host.chunks);
+        super::papyrus_natives::events::load(&host.chunks);
     }
     if let Ok(mut slot) = HOST_BLOCK.lock() {
         *slot = host;

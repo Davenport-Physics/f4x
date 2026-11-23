@@ -87,14 +87,17 @@ f4x quit --session "$S"
 
 **Papyrus** (for tests and when asked to drive scripts; goes through the VM):
 - `papyrus.call {function: "Script.Function", self?: "form id", args?: [...], timeout_s?}`.
-  - Arguments: bool, int, float, string, null, `{"form": "id"}`.
-  - Object results come back as handle, script and form.
+  - Arguments: bool, int, float (or `{"float": x}`), string, null, `{"form": "id"}`.
+  - Any other type: `{"type": "Int[]", "value": [...]}`, `{"type": "script#struct", "value": {"struct": {...}}}`, `{"type": "Var", "value": {"var": v}}`.
+  - Results use the same shapes: forms as `{"form", "type"}`, other objects as `{"handle", "script"}`, floats as `{"float": x}`.
+- `engine.forms.all {type, limit}`: forms from the global form map, placed references included.
+- F4SE natives live in `crates/f4x-runtime/src/f4se/papyrus_natives/` (one file per family) and are bound by name with types from `crates/f4x-pex/data/f4se-0.6.23-signatures.json`. Check them against real F4SE with `tools/f4se_natives_check.py` (see its docstring).
 - Scripts only run in-game. At the main menu, calls are accepted but never finish (timeout).
 
 **Scaleform** (a menu's movie; runs inside that menu's next `AdvanceMovie`):
 - `ui.get {menu, path, fields?, depth?}`: the value at an ActionScript path, e.g. `root.f4se`.
 - `ui.has {menu, path, names}`: which of `names` are members, with types. Use it to enumerate black-box.
-- `ui.invoke {menu, path, method, args?, fields?}`.
+- `ui.invoke {menu, path, method, args?, fields?}`. Numbers are passed as AS3 Numbers; use `{"int": n}` or `{"uint": n}` for code-object functions that check the type (e.g. MainMenu `BGSCodeObj.DeleteSave`).
 - Dates come back with `time_ms`.
 
 **Differential compatibility:** `cargo xtask compat [--only surface,saveload,mcm,natives]`.

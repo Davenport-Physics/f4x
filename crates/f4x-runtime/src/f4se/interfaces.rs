@@ -242,6 +242,8 @@ pub(super) fn run_papyrus_registrations() {
         log::warn!(target: "f4x::f4se", "no Papyrus VM seen; plugin native registrations skipped");
         return;
     };
+    let types = super::papyrus_natives::register_form_scripts(f4x_engine::papyrus::Vm(vm as *mut _));
+    log::info!(target: "f4x::papyrus", "form script types: {}", types.join(", "));
     super::natives::bind_all(vm);
     let callbacks: Vec<(PluginHandle, usize)> = PAPYRUS_CALLBACKS.lock().map(|c| c.clone()).unwrap_or_default();
     for (handle, callback) in callbacks {

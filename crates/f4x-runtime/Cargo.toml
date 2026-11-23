@@ -10,6 +10,7 @@ name = "f4x_runtime"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+serde_json = "1"
 f4x-abi = { path = "../f4x-abi" }
 f4x-agent = { path = "../f4x-agent" }
 f4x-engine = { path = "../f4x-engine" }

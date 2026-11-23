@@ -80,7 +80,8 @@ fn get_encounter_zone(call: &mut NativeCall) -> Result<(), String> {
 static CONTROLS: Mutex<Vec<(String, Vec<Registrant>)>> = Mutex::new(Vec::new());
 static ANY_CONTROLS: AtomicBool = AtomicBool::new(false);
 
-fn registrant(call: &NativeCall) -> Result<Registrant, String> {
+/// The script object a native was called on, as a registrant (handle + script name).
+pub(crate) fn registrant(call: &NativeCall) -> Result<Registrant, String> {
     let object = call.self_object().ok_or("no script object")?;
     let handle = papyrus::object_handle(object).ok_or("no handle")?;
     let script = papyrus::object_script_name(object).ok_or("no script name")?;
@@ -164,6 +165,7 @@ pub(crate) fn revert() {
         e.clear();
     }
     ANY_CONTROLS.store(false, Relaxed);
+    super::papyrus_natives::events::revert();
 }
 
 /// Restore control registrations from a co-save's host block. Handles carry a form id
@@ -301,6 +303,7 @@ fn clone_arg(a: &Arg) -> Arg {
         Arg::Int(i) => Arg::Int(*i),
         Arg::Float(f) => Arg::Float(*f),
         Arg::String(s) => Arg::String(s.clone()),
+        Arg::Typed(t, v) => Arg::Typed(t.clone(), v.clone()),
     }
 }
 
@@ -344,6 +347,7 @@ const BUTTON_EVENT: i32 = 0; // INPUT_EVENT_TYPE::kButton
 /// controls.
 pub(crate) fn install_input_hook() {
     f4x_agent::input::add_observer(scan_input);
+    super::papyrus_natives::events::install();
 }
 
 fn scan_input(head: *const u8) {
@@ -456,5 +460,19 @@ pub(crate) fn bind_all(vm: usize) {
             Err(error) => log::info!(target: "f4x::papyrus", "{} not bound: {error}", papyrus::describe(spec)),
         }
     }
-    log::info!(target: "f4x::papyrus", "bound {} F4SE native(s): {}", bound.len(), bound.join(", "));
+    let (mut ok, mut failed) = (0, Vec::new());
+    for (script, name, handler) in super::papyrus_natives::all() {
+        let Some((params, ret, is_static)) = super::papyrus_natives::signature(script, name) else {
+            failed.push(format!("{script}.{name}: not in the signature inventory"));
+            continue;
+        };
+        match papyrus::bind_named(vm, script, name, &params, &ret, is_static, handler) {
+            Ok(()) => ok += 1,
+            Err(error) => failed.push(format!("{script}.{name}: {error}")),
+        }
+    }
+    log::info!(target: "f4x::papyrus", "bound {} F4SE native(s): {}; {ok} more by signature", bound.len(), bound.join(", "));
+    for f in failed {
+        log::info!(target: "f4x::papyrus", "not bound: {f}");
+    }
 }

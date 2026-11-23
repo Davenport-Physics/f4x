@@ -250,7 +250,7 @@ impl Variable {
     }
 }
 
-fn object_dec_ref(object: *mut ScriptObject) {
+pub(crate) fn object_dec_ref(object: *mut ScriptObject) {
     if let Some(f) = resolve(&addr::SCRIPT_OBJECT_DEC_REF) {
         // SAFETY: Object::DecRef(this) -> u32 on a live object we hold a reference to.
         unsafe { transmute::<usize, unsafe extern "C" fn(*mut ScriptObject) -> u32>(f)(object) };
@@ -259,9 +259,13 @@ fn object_dec_ref(object: *mut ScriptObject) {
 
 /// The VM handle of a script object (`Object::GetHandle`).
 #[must_use]
+#[allow(clippy::not_unsafe_ptr_arg_deref)] // checked for readability first
 pub fn object_handle(object: *mut ScriptObject) -> Option<u64> {
+    if object.is_null() || !crate::mem::readable(object as usize, 0x28) {
+        return None;
+    }
     let f = resolve(&addr::SCRIPT_OBJECT_GET_HANDLE)?;
-    // SAFETY: Object::GetHandle(this) -> usize.
+    // SAFETY: a readable BSScript::Object; Object::GetHandle(this) -> usize.
     Some(unsafe { transmute::<usize, unsafe extern "C" fn(*mut ScriptObject) -> u64>(f)(object) })
 }
 
@@ -282,7 +286,7 @@ pub fn object_script_name(object: *mut ScriptObject) -> Option<String> {
 ///
 /// # Safety
 /// `this` must be a live polymorphic object with at least `slot + 1` slots.
-unsafe fn vcall<F: Copy>(this: *mut c_void, slot: usize) -> F {
+pub(crate) unsafe fn vcall<F: Copy>(this: *mut c_void, slot: usize) -> F {
     // SAFETY: caller contract.
     unsafe {
         let vtbl: *const usize = *(this as *const *const usize);
@@ -292,8 +296,11 @@ unsafe fn vcall<F: Copy>(this: *mut c_void, slot: usize) -> F {
 
 // ---------------------------------------------------------------- the VM
 
-mod slot {
+pub(crate) mod slot {
     pub const GET_SCRIPT_OBJECT_TYPE_BY_NAME: usize = 0x08;
+    pub const GET_SCRIPT_STRUCT_TYPE: usize = 0x13;
+    pub const CREATE_STRUCT: usize = 0x18;
+    pub const CREATE_ARRAY: usize = 0x19;
     pub const CREATE_OBJECT: usize = 0x17;
     pub const BIND_NATIVE_METHOD: usize = 0x1B;
     pub const FIND_BOUND_OBJECT: usize = 0x1F;
@@ -308,6 +315,7 @@ mod slot {
     pub const GET_HANDLE_TYPE: usize = 0x02;
     // IVirtualMachine (more)
     pub const GET_SCRIPT_OBJECT_TYPE_BY_ID: usize = 0x09;
+    pub const REGISTER_OBJECT_TYPE: usize = 0x07;
     pub const DISPATCH_STATIC_CALL: usize = 0x2C;
     pub const DISPATCH_METHOD_CALL_ON_OBJECT: usize = 0x2D;
 }
@@ -346,7 +354,11 @@ impl Vm {
 
     /// The handle for a game object of VM type `type_id` (for forms, the form type).
     #[must_use]
+    #[allow(clippy::not_unsafe_ptr_arg_deref)] // checked for readability first
     pub fn handle_for(self, type_id: u32, object: *const c_void) -> Option<u64> {
+        if object.is_null() || !crate::mem::readable(object as usize, 0x20) {
+            return None;
+        }
         let policy = self.handle_policy();
         // SAFETY: IObjectHandlePolicy::EmptyHandle / GetHandleForObject(type, const void*).
         unsafe {
@@ -414,6 +426,15 @@ impl Vm {
         unsafe { vcall::<unsafe extern "C" fn(*mut c_void, *mut c_void) -> bool>(self.0, slot::BIND_NATIVE_METHOD)(self.0, function) }
     }
 
+    /// Map a VM type id (for forms, the form type) to a script name
+    /// (`IVirtualMachine::RegisterObjectType`, CommonLibF4 `BSScript.h:688`, slot 0x07).
+    pub fn register_object_type(self, type_id: u32, script: &str) -> bool {
+        let Ok(name) = CString::new(script) else { return false };
+        type F = unsafe extern "C" fn(*mut c_void, u32, *const c_char) -> bool;
+        // SAFETY: RegisterObjectType(u32 typeID, const char* objectTypeName).
+        unsafe { vcall::<F>(self.0, slot::REGISTER_OBJECT_TYPE)(self.0, type_id, name.as_ptr()) }
+    }
+
     /// The script type name the VM uses for a VM type id (for forms, the form type),
     /// e.g. `Location` for `LCTN`.
     #[must_use]
@@ -446,8 +467,8 @@ impl Vm {
     /// Call `function` on a script object; the result arrives on a VM thread.
     pub fn call_method(self, object: *mut ScriptObject, function: &str, args: Vec<Arg>) -> Option<Pending> {
         let function = FixedString::new(function)?;
-        let functor = ArgsFunctor::new(args);
-        let (callback, pending) = ResultCallback::new();
+        let functor = ArgsFunctor::new(self, args);
+        let (callback, pending) = ResultCallback::new(self);
         type F = unsafe extern "C" fn(*mut c_void, *const *mut ScriptObject, *const FixedString, *const ArgsFunctor, *const *mut c_void) -> bool;
         // SAFETY: DispatchMethodCall(const BSTSmartPointer<Object>&, const BSFixedString&,
         // const BSTThreadScrapFunction<...>&, const BSTSmartPointer<IStackCallbackFunctor>&).
@@ -478,7 +499,7 @@ impl Vm {
 
     fn call_method_no_result(self, object: *mut ScriptObject, function: &str, args: Vec<Arg>) -> bool {
         let Some(function) = FixedString::new(function) else { return false };
-        let functor = ArgsFunctor::new(args);
+        let functor = ArgsFunctor::new(self, args);
         let callback: *mut c_void = null_mut();
         type F = unsafe extern "C" fn(*mut c_void, *const *mut ScriptObject, *const FixedString, *const ArgsFunctor, *const *mut c_void) -> bool;
         // SAFETY: DispatchMethodCall(const BSTSmartPointer<Object>&, name, args, callback).
@@ -490,8 +511,8 @@ impl Vm {
         // The VM refuses static calls into script types it has not loaded yet.
         let _ = self.object_type(script);
         let (script, function) = (FixedString::new(script)?, FixedString::new(function)?);
-        let functor = ArgsFunctor::new(args);
-        let (callback, pending) = ResultCallback::new();
+        let functor = ArgsFunctor::new(self, args);
+        let (callback, pending) = ResultCallback::new(self);
         type F = unsafe extern "C" fn(*mut c_void, *const FixedString, *const FixedString, *const ArgsFunctor, *const *mut c_void) -> bool;
         // SAFETY: DispatchStaticCall(const BSFixedString&, const BSFixedString&, args, callback).
         let ok = unsafe { vcall::<F>(self.0, slot::DISPATCH_STATIC_CALL)(self.0, &script, &function, &*functor, &callback) };
@@ -503,7 +524,7 @@ impl Vm {
     /// VM accepted it.
     pub fn dispatch_method_call(self, handle: u64, script: &str, function: &str, args: Vec<Arg>) -> bool {
         let (Some(script), Some(function)) = (FixedString::new(script), FixedString::new(function)) else { return false };
-        let functor = ArgsFunctor::new(args);
+        let functor = ArgsFunctor::new(self, args);
         let callback: *mut c_void = null_mut();
         type F = unsafe extern "C" fn(*mut c_void, u64, *const FixedString, *const FixedString, *const ArgsFunctor, *const *mut c_void) -> bool;
         // SAFETY: DispatchMethodCall(handle, const BSFixedString& obj, const BSFixedString& fn,
@@ -514,28 +535,17 @@ impl Vm {
 
 // ---------------------------------------------------------------- call results
 
-/// A value returned by a script function.
-#[derive(Clone, Debug, PartialEq)]
-pub enum Returned {
-    None,
-    Bool(bool),
-    Int(i32),
-    Float(f32),
-    String(String),
-    /// A script object: its handle and script name (and the game object, if any).
-    Object { handle: u64, script: String },
-    /// Arrays, structs and variants, by raw type.
-    Other(u32),
-}
+/// What a queued call produced: its return value, or why it did not run.
+pub type CallResult = Result<crate::papyrus_value::PValue, String>;
 
 /// The result of a queued call, delivered by the VM.
 #[derive(Clone)]
-pub struct Pending(Arc<std::sync::Mutex<Option<Returned>>>);
+pub struct Pending(Arc<std::sync::Mutex<Option<CallResult>>>);
 
 impl Pending {
     /// The result, once the call has finished.
     #[must_use]
-    pub fn get(&self) -> Option<Returned> {
+    pub fn get(&self) -> Option<CallResult> {
         self.0.lock().ok().and_then(|r| r.clone())
     }
 }
@@ -547,12 +557,13 @@ struct ResultCallback {
     vtbl: *const usize,
     refcount: u32,
     _pad: u32,
-    result: *const std::sync::Mutex<Option<Returned>>,
+    result: *const std::sync::Mutex<Option<CallResult>>,
+    vm: Vm,
 }
 
 impl ResultCallback {
     /// A callback the VM may keep: it is never freed (one small object per call).
-    fn new() -> (*mut c_void, Pending) {
+    fn new(vm: Vm) -> (*mut c_void, Pending) {
         static VTABLE: OnceLock<[usize; 7]> = OnceLock::new();
         let vtbl = VTABLE.get_or_init(|| {
             [
@@ -566,7 +577,8 @@ impl ResultCallback {
             ]
         });
         let slot = Arc::new(std::sync::Mutex::new(None));
-        let callback = Box::leak(Box::new(ResultCallback { vtbl: vtbl.as_ptr(), refcount: 1, _pad: 0, result: Arc::into_raw(slot.clone()) }));
+        let callback =
+            Box::leak(Box::new(ResultCallback { vtbl: vtbl.as_ptr(), refcount: 1, _pad: 0, result: Arc::into_raw(slot.clone()), vm }));
         ((callback as *mut ResultCallback).cast(), Pending(slot))
     }
 }
@@ -581,30 +593,19 @@ unsafe extern "C" fn cb_false(_this: *mut ResultCallback) -> bool {
 unsafe extern "C" fn cb_canceled(this: *mut ResultCallback) {
     // SAFETY: our live callback.
     if let Ok(mut r) = unsafe { &*(*this).result }.lock() {
-        r.get_or_insert(Returned::Other(u32::MAX));
+        r.get_or_insert(Err("call canceled".into()));
     }
 }
 /// `operator()(Variable)`: the by-value `Variable` arrives as a pointer to the caller's
 /// temporary. It is read, not released (a leaked reference at worst).
 unsafe extern "C" fn cb_call(this: *mut ResultCallback, value: *const Variable) {
     let _ = std::panic::catch_unwind(|| {
-        // SAFETY: the VM's result variable.
-        let v = unsafe { &*value };
-        let returned = match v.raw_type() {
-            raw::NONE => Returned::None,
-            raw::BOOL => Returned::Bool(v.as_bool()),
-            raw::INT => Returned::Int(v.as_int()),
-            raw::FLOAT => Returned::Float(v.as_float()),
-            raw::STRING => Returned::String(v.as_string()),
-            raw::OBJECT => match v.as_object() {
-                None => Returned::None,
-                Some(o) => Returned::Object { handle: object_handle(o).unwrap_or(0), script: object_script_name(o).unwrap_or_default() },
-            },
-            other => Returned::Other(other),
-        };
-        // SAFETY: our live callback.
+        // SAFETY: the VM's result variable and our live callback.
+        let (v, vm) = unsafe { (&*value, (*this).vm) };
+        let returned = crate::papyrus_value::read(vm, v);
+        // SAFETY: as above.
         if let Ok(mut r) = unsafe { &*(*this).result }.lock() {
-            *r = Some(returned);
+            *r = Some(Ok(returned));
         }
     });
 }
@@ -621,12 +622,19 @@ pub enum Arg {
     String(String),
     /// A script object; one reference is handed over.
     Object(*mut ScriptObject),
+    /// Any value, written as the named type (`Int[]`, `instancedata#owner`, `Form`, ...).
+    Typed(String, crate::papyrus_value::PValue),
 }
 
 // SAFETY: objects are reference counted by the engine.
 unsafe impl Send for Arg {}
 // SAFETY: as above.
 unsafe impl Sync for Arg {}
+
+struct ArgsData {
+    vm: Vm,
+    args: Vec<Arg>,
+}
 
 /// `BSScrapArray<Variable>`: scrap-heap allocator (heap, data, capacity) then size.
 #[repr(C)]
@@ -674,16 +682,16 @@ struct ArgsFunctor {
 #[repr(C)]
 struct ArgsProxy {
     vtbl: *const [usize; 7],
-    args: *const Vec<Arg>, // Arc<Vec<Arg>>::into_raw
+    args: *const ArgsData, // Arc<ArgsData>::into_raw
     _unused: usize,
 }
 
 impl ArgsFunctor {
-    fn new(args: Vec<Arg>) -> Box<ArgsFunctor> {
+    fn new(vm: Vm, args: Vec<Arg>) -> Box<ArgsFunctor> {
         let mut functor = Box::new(ArgsFunctor { storage: [0; 3], proxy: null_mut() });
         let proxy = functor.storage.as_mut_ptr().cast::<ArgsProxy>();
         // SAFETY: the storage is 0x18 bytes, exactly an ArgsProxy.
-        unsafe { proxy.write(ArgsProxy { vtbl: args_vtable(), args: Arc::into_raw(Arc::new(args)), _unused: 0 }) };
+        unsafe { proxy.write(ArgsProxy { vtbl: args_vtable(), args: Arc::into_raw(Arc::new(ArgsData { vm, args })), _unused: 0 }) };
         functor.proxy = proxy;
         functor
     }
@@ -747,7 +755,8 @@ unsafe extern "C" fn proxy_get(this: *mut ArgsProxy) -> *const c_void {
 unsafe extern "C" fn proxy_call(this: *mut ArgsProxy, array: *mut ScrapArray) -> bool {
     std::panic::catch_unwind(|| {
         // SAFETY: live proxy and the VM's array.
-        let (args, array) = unsafe { (&*(*this).args, &mut *array) };
+        let (data, array) = unsafe { (&*(*this).args, &mut *array) };
+        let (vm, args) = (data.vm, &data.args);
         let n = args.len() as u32;
         if n == 0 {
             return true;
@@ -776,6 +785,12 @@ unsafe extern "C" fn proxy_call(this: *mut ArgsProxy, array: *mut ScrapArray) ->
                     }
                     var.set_object(*o);
                 }
+                Arg::Typed(t, v) => {
+                    let Some(kind) = crate::papyrus_value::type_info(vm, t) else { return false };
+                    if crate::papyrus_value::write(vm, var, kind, v).is_err() {
+                        return false;
+                    }
+                }
             }
         }
         array.size = n;
@@ -796,6 +811,8 @@ pub enum Type {
     String,
     /// A script object type (e.g. `EncounterZone`).
     Object(&'static str),
+    /// Any type by its script name: `Int[]`, `instancedata#owner`, `Var`, `Form`.
+    Named(&'static str),
 }
 
 /// The Rust side of a native.
@@ -820,10 +837,11 @@ pub struct NativeCall {
     self_var: *mut Variable,
     args: Vec<*mut Variable>,
     ret: *mut Variable,
+    ret_kind: usize,
 }
 
 impl NativeCall {
-    fn arg(&self, i: usize) -> Option<&Variable> {
+    pub fn arg(&self, i: usize) -> Option<&Variable> {
         // SAFETY: frame variables are live for the call.
         self.args.get(i).and_then(|&p| (!p.is_null()).then(|| unsafe { &*p }))
     }
@@ -867,6 +885,27 @@ impl NativeCall {
         self.vm.form_of(self.arg(i)?, form_type)
     }
 
+    /// Argument `i` as a value of any type.
+    #[must_use]
+    pub fn value(&self, i: usize) -> crate::papyrus_value::PValue {
+        self.arg(i).map_or(crate::papyrus_value::PValue::None, |v| crate::papyrus_value::read(self.vm, v))
+    }
+
+    /// `self` as a value (a form for form-backed scripts).
+    #[must_use]
+    pub fn self_value(&self) -> crate::papyrus_value::PValue {
+        // SAFETY: live for the call.
+        unsafe { self.self_var.as_ref() }.map_or(crate::papyrus_value::PValue::None, |v| crate::papyrus_value::read(self.vm, v))
+    }
+
+    /// Return any value, written as the declared return type.
+    pub fn ret_value(&mut self, value: &crate::papyrus_value::PValue) -> Result<(), String> {
+        let (vm, kind) = (self.vm, self.ret_kind);
+        let ret = self.ret();
+        ret.reset();
+        crate::papyrus_value::write(vm, ret, kind, value)
+    }
+
     fn ret(&mut self) -> &mut Variable {
         // SAFETY: the VM's return slot, live for the call.
         unsafe { &mut *self.ret }
@@ -890,10 +929,23 @@ impl NativeCall {
 
     /// Return a form as an object of the declared return script type (None if null).
     pub fn ret_form(&mut self, form: Option<*mut u8>, form_type: FormType) {
-        let Type::Object(script) = self.spec.ret else {
+        let script = match self.spec.ret {
+            Type::Object(script) => script,
+            // Bound by signature: the declared return type, or the form's own script.
+            Type::Named(_) => match form {
+                Some(f) => {
+                    let _ = form_type;
+                    let _ = self.ret_value(&crate::papyrus_value::PValue::Form(f));
+                    return;
+                }
+                None => "",
+            },
+            _ => "",
+        };
+        if script.is_empty() {
             self.ret().set_none();
             return;
-        };
+        }
         let object = form.and_then(|f| self.vm.object_for_form(f, form_type, script));
         match object {
             Some(object) => self.ret().set_object(object),
@@ -952,6 +1004,7 @@ fn type_info(vm: Vm, t: Type) -> Result<usize, String> {
         Type::Float => raw::FLOAT as usize,
         Type::String => raw::STRING as usize,
         Type::Object(script) => vm.object_type(script).ok_or_else(|| format!("no script type {script}"))?,
+        Type::Named(name) => crate::papyrus_value::type_info(vm, name).ok_or_else(|| format!("no type {name}"))?,
     })
 }
 
@@ -988,6 +1041,24 @@ fn native_vtable() -> Option<*const usize> {
         })
         .as_ref()
         .map(|b| b.as_ptr())
+}
+
+/// Bind a native whose signature is given by type names (as in the F4SE signature
+/// inventory). Strings are leaked: natives live for the process.
+pub fn bind_named(vm: Vm, script: &str, name: &str, params: &[(String, String)], ret: &str, is_static: bool, handler: Handler) -> Result<(), String> {
+    fn leak(s: &str) -> &'static str {
+        Box::leak(s.to_owned().into_boxed_str())
+    }
+    let params: Vec<(&'static str, Type)> = params.iter().map(|(t, n)| (leak(n), Type::Named(leak(t)))).collect();
+    let spec = Box::leak(Box::new(NativeSpec {
+        script: leak(script),
+        name: leak(name),
+        params: Box::leak(params.into_boxed_slice()),
+        ret: Type::Named(leak(if ret.is_empty() { "None" } else { ret })),
+        is_static,
+        handler,
+    }));
+    bind(vm, spec)
 }
 
 /// Bind a Rust native into the VM. The function object lives for the process.
@@ -1154,7 +1225,9 @@ unsafe extern "C" fn nf_marshall_and_dispatch(
                 .map(|i| if i < frame_size { transmute::<usize, GetFrameVariable>(get_var)(stack, frame, i, page) } else { null_mut() })
                 .collect()
         };
-        let mut call = NativeCall { vm: Vm(vm), stack_id, spec, self_var, args, ret };
+        // SAFETY: live function object.
+        let ret_kind = unsafe { (*this).ret_type };
+        let mut call = NativeCall { vm: Vm(vm), stack_id, spec, self_var, args, ret, ret_kind };
         if let Err(error) = (spec.handler)(&mut call) {
             log::warn!(target: "f4x::papyrus", "{}.{}: {error}", spec.script, spec.name);
         }

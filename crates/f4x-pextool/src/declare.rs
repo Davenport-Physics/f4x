@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use f4x_pex::f4x_natives::{DECLARATIONS, verify};
+use f4x_pex::f4x_natives::{inventory, verify};
 
 pub fn run(args: &[&str]) -> Result<ExitCode, String> {
     let value = |flag: &str| args.iter().position(|a| *a == flag).and_then(|i| args.get(i + 1)).map(PathBuf::from);
@@ -12,7 +12,8 @@ pub fn run(args: &[&str]) -> Result<ExitCode, String> {
         for p in &problems {
             println!("MISMATCH {p}");
         }
-        println!("{} declaration(s) checked against {}: {} mismatch(es)", DECLARATIONS.len(), dir.display(), problems.len());
+        let count: usize = inventory().iter().map(|s| s.functions.len()).sum();
+        println!("{count} function declaration(s) checked against {}: {} mismatch(es)", dir.display(), problems.len());
         return Ok(if problems.is_empty() { ExitCode::SUCCESS } else { ExitCode::FAILURE });
     }
     let game = value("--game").ok_or("--game <Fallout 4 dir> is required")?;

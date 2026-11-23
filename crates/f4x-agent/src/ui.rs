@@ -156,6 +156,9 @@ pub fn register() {
                     Json::Bool(b) => Value::bool(*b),
                     Json::Number(n) => Value::number(n.as_f64().unwrap_or(0.0)),
                     Json::String(_) => Value::borrowed_str(s),
+                    // Typed numbers, for code-object functions that check the GFx type.
+                    Json::Object(o) if o.contains_key("int") => Value::int(o["int"].as_i64().unwrap_or(0) as i32),
+                    Json::Object(o) if o.contains_key("uint") => Value::uint(o["uint"].as_u64().unwrap_or(0) as u32),
                     _ => Value::undefined(),
                 })
                 .collect();

@@ -73,6 +73,13 @@ pub fn register() {
         )?
     });
     server::register("papyrus.call", |_, p| papyrus_call(&p));
+    server::register("engine.forms.all", |_, p| {
+        // Every form of a type from the global form map (placed references included).
+        let signature = p.get("type").and_then(Value::as_str).unwrap_or("").to_owned();
+        let limit = p.get("limit").and_then(Value::as_u64).unwrap_or(50) as usize;
+        let ty = FormType::from_signature(&signature).ok_or_else(|| RpcError::new(code::INVALID_PARAMS, "params.type: a record signature"))?;
+        on_main(move || Ok(json!(f4x_engine::data::all_forms_of_type(ty, 200_000).into_iter().take(limit).map(form_json).collect::<Vec<_>>())), TIMEOUT)?
+    });
     server::register("papyrus.intern", |_, p| {
         // The string pool entry for each string (interning it if new): pool order is
         // what F4SE's registration maps sort by.
@@ -211,7 +218,7 @@ pub fn register() {
 /// Arguments: booleans, integers, floats, strings, null (None), `{"form": "id"}`.
 /// For testing and for driving scripts on request: it goes through the Papyrus VM.
 fn papyrus_call(p: &Value) -> Result<Value, RpcError> {
-    use f4x_engine::papyrus::{Arg, Returned, Vm};
+    use f4x_engine::papyrus::{Arg, Vm};
     let function = p
         .get("function")
         .and_then(Value::as_str)
@@ -252,6 +259,11 @@ fn papyrus_call(p: &Value) -> Result<Value, RpcError> {
                     Value::Number(n) if n.is_i64() => Arg::Int(n.as_i64().unwrap_or(0) as i32),
                     Value::Number(n) => Arg::Float(n.as_f64().unwrap_or(0.0) as f32),
                     Value::String(s) => Arg::String(s.clone()),
+                    Value::Object(o) if o.contains_key("float") => Arg::Float(o["float"].as_f64().unwrap_or(0.0) as f32),
+                    Value::Object(o) if o.contains_key("type") => {
+                        let t = o["type"].as_str().unwrap_or_default().to_owned();
+                        Arg::Typed(t, json_to_pvalue(handler, o.get("value").unwrap_or(&Value::Null))?)
+                    }
                     Value::Object(o) => {
                         let id = o.get("form").and_then(Value::as_str).and_then(FormId::parse).ok_or_else(|| {
                             RpcError::new(code::INVALID_PARAMS, format!("args[{i}]: {{\"form\": \"id\"}}"))
@@ -281,18 +293,68 @@ fn papyrus_call(p: &Value) -> Result<Value, RpcError> {
         std::thread::sleep(Duration::from_millis(5));
     };
     let value = match returned {
-        Returned::None => Value::Null,
-        Returned::Bool(b) => json!(b),
-        Returned::Int(i) => json!(i),
-        Returned::Float(f) => json!(f),
-        Returned::String(s) => json!(s),
-        Returned::Object { handle, script } => {
-            let id = FormId(handle as u32);
-            let form = on_main(move || Ok::<_, RpcError>(data_handler()?.lookup(id).map(form_json)), TIMEOUT)??;
-            json!({"handle": format!("{handle:#x}"), "script": script, "form": form})
-        }
-        Returned::Other(u32::MAX) => return Err(engine_error(format!("{function}: call canceled"))),
-        Returned::Other(raw) => json!({"raw_type": raw}),
+        Ok(v) => on_main(move || Ok::<_, RpcError>(pvalue_to_json(&v)), TIMEOUT)??,
+        Err(e) => return Err(engine_error(format!("{function}: {e}"))),
     };
     Ok(json!({"result": value}))
+}
+
+/// A Papyrus value as JSON: forms as `{"form": id, "type": sig}`, other script objects as
+/// `{"handle", "script"}`, structs as `{"struct": {field: value}}`, `Var` as `{"var": v}`.
+pub fn pvalue_to_json(v: &f4x_engine::papyrus_value::PValue) -> Value {
+    use f4x_engine::papyrus_value::PValue;
+    match v {
+        PValue::None => Value::Null,
+        PValue::Bool(b) => json!(b),
+        PValue::Int(i) => json!(i),
+        PValue::Float(f) => json!({"float": f}),
+        PValue::String(s) => json!(s),
+        PValue::Form(f) => match Form::checked(*f) {
+            Some(form) => json!({"form": form.id().to_string(), "type": form.form_type().signature()}),
+            None => json!({"form": null}),
+        },
+        PValue::Object { handle, script } => json!({"handle": format!("{handle:#x}"), "script": script}),
+        PValue::Array(items) => json!(items.iter().map(pvalue_to_json).collect::<Vec<_>>()),
+        PValue::Struct(fields) => {
+            json!({"struct": fields.iter().map(|(k, v)| (k.clone(), pvalue_to_json(v))).collect::<serde_json::Map<_, _>>()})
+        }
+        PValue::Var(inner) => json!({"var": pvalue_to_json(inner)}),
+    }
+}
+
+/// JSON to a Papyrus value (inverse of [`pvalue_to_json`]): numbers with a fraction or
+/// `{"float": x}` are floats, `{"form": id}` forms, `{"struct": {...}}` structs, arrays
+/// arrays, `{"var": v}` variants.
+fn json_to_pvalue(handler: DataHandler, v: &Value) -> Result<f4x_engine::papyrus_value::PValue, RpcError> {
+    use f4x_engine::papyrus_value::PValue;
+    Ok(match v {
+        Value::Null => PValue::None,
+        Value::Bool(b) => PValue::Bool(*b),
+        Value::Number(n) if n.is_i64() => PValue::Int(n.as_i64().unwrap_or(0) as i32),
+        Value::Number(n) => PValue::Float(n.as_f64().unwrap_or(0.0) as f32),
+        Value::String(s) => PValue::String(s.clone()),
+        Value::Array(items) => PValue::Array(items.iter().map(|i| json_to_pvalue(handler, i)).collect::<Result<_, _>>()?),
+        Value::Object(o) => {
+            if let Some(f) = o.get("float").and_then(Value::as_f64) {
+                PValue::Float(f as f32)
+            } else if let Some(id) = o.get("form") {
+                if id.is_null() {
+                    PValue::None
+                } else {
+                    let id = id.as_str().and_then(FormId::parse).ok_or_else(|| RpcError::new(code::INVALID_PARAMS, "form: hex id"))?;
+                    let form = handler
+                        .lookup(id)
+                        .or_else(|| f4x_engine::data::form_by_id(id))
+                        .ok_or_else(|| engine_error(format!("no form {id}")))?;
+                    PValue::Form(form.as_ptr())
+                }
+            } else if let Some(fields) = o.get("struct").and_then(Value::as_object) {
+                PValue::Struct(fields.iter().map(|(k, v)| Ok((k.clone(), json_to_pvalue(handler, v)?))).collect::<Result<_, RpcError>>()?)
+            } else if let Some(inner) = o.get("var") {
+                PValue::Var(Box::new(json_to_pvalue(handler, inner)?))
+            } else {
+                return Err(RpcError::new(code::INVALID_PARAMS, "object values: {form}, {float}, {struct}, {var}"));
+            }
+        }
+    })
 }

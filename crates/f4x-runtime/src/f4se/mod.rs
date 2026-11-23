@@ -15,6 +15,7 @@
 mod interfaces;
 mod lifecycle;
 mod natives;
+mod papyrus_natives;
 mod scaleform;
 mod serialization;
 mod trampoline;
@@ -49,6 +50,12 @@ pub(crate) struct Plugin {
 unsafe impl Send for Plugin {}
 
 pub(crate) static PLUGINS: Mutex<Vec<Plugin>> = Mutex::new(Vec::new());
+
+/// The version a loaded plugin declared, by its `PluginInfo` name (case-insensitive).
+pub(crate) fn plugin_version(name: &str) -> Option<u32> {
+    let plugins = PLUGINS.lock().ok()?;
+    plugins.iter().find(|p| p.name.to_string_lossy().eq_ignore_ascii_case(name)).map(|p| p.version)
+}
 /// The plugin whose `Query`/`Load` is running (`u32::MAX`: none).
 pub(crate) static CURRENT: AtomicU32 = AtomicU32::new(u32::MAX);
 static DATA_READY_SENT: AtomicBool = AtomicBool::new(false);

@@ -179,3 +179,41 @@ pub fn form_by_id(id: crate::FormId) -> Option<Form> {
     }
     None
 }
+
+/// Every form of a type in the global form map, placed references included (up to
+/// `limit`, in map order). Main thread; for tools.
+#[must_use]
+pub fn all_forms_of_type(form_type: crate::form_type::FormType, limit: usize) -> Vec<Form> {
+    use f4x_engine_sys::og_1_10_163_addresses::ALL_FORMS;
+    let mut out = Vec::new();
+    let Some(global) = crate::address::resolve(&ALL_FORMS) else { return out };
+    // SAFETY: as in `form_by_id`.
+    unsafe {
+        let map: *const u8 = read(global as *const u8, 0);
+        if map.is_null() {
+            return out;
+        }
+        let capacity: u32 = read(map, 0x0C);
+        let entries: *const u8 = read(map, 0x28);
+        if entries.is_null() || !crate::mem::readable(entries as usize, capacity as usize * 24) {
+            return out;
+        }
+        for i in 0..capacity as usize {
+            let entry = entries.add(i * 24);
+            if read::<usize>(entry, 16) == 0 {
+                continue;
+            }
+            if let Some(form) = Form::checked(read::<*mut u8>(entry, 8))
+                && form.form_type() == form_type
+                && !form.is_deleted()
+            {
+                out.push(form);
+                if out.len() >= limit {
+                    break;
+                }
+            }
+        }
+    }
+    out.sort_by_key(|f| f.id().0);
+    out
+}

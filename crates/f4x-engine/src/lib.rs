@@ -34,11 +34,17 @@ pub mod game;
 #[cfg(windows)]
 pub mod mem;
 #[cfg(windows)]
+pub mod objref;
+#[cfg(windows)]
 pub mod papyrus;
+#[cfg(windows)]
+pub mod papyrus_value;
 #[cfg(windows)]
 pub mod refr;
 #[cfg(windows)]
 pub mod scaleform;
+#[cfg(windows)]
+pub mod ui;
 
 #[cfg(windows)]
 pub use data::{DataHandler, File};

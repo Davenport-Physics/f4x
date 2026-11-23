@@ -103,3 +103,135 @@ pub const CONTROL_MAP_SINGLETON: Address = Address { name: "control_map_singleto
 /// RE::BSTHashMap<u32, TESForm*>** every form by id (TESForm::GetFormByID) (global; CommonLibF4 `REL::ID(422985)`, CommonLibF4/include/RE/Bethesda/TESForms.h:652)
 pub const ALL_FORMS: Address = Address { name: "all_forms", rva: 0x58d36c8, signature: &[0x8b, 0x2d, 0x94, 0x51, 0x7c, 0x05, 0x45, 0x33, 0xed, 0x4c, 0x89, 0x2d, 0x12, 0xb3, 0x8c, 0x05], mask: &[1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0], global: Some(GlobalRef { site_rva: 0x10e52e, disp_offset: 2, insn_len: 6 }) };
 
+/// RE::MemoryManager::Allocate(size, alignment, alignmentRequired) -> void* (CommonLibF4 `REL::ID(652767)`, CommonLibF4/include/RE/Bethesda/MemoryManager.h:206)
+pub const MEMORY_MANAGER_ALLOCATE: Address = Address { name: "memory_manager_allocate", rva: 0x1b0efd0, signature: &[0x48, 0x89, 0x5c, 0x24, 0x10, 0x48, 0x89, 0x6c, 0x24, 0x18, 0x48, 0x89, 0x74, 0x24, 0x20, 0x57, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41, 0x57, 0x48, 0x83, 0xec, 0x40, 0x65, 0x48, 0x8b, 0x04, 0x25, 0x58, 0x00, 0x00, 0x00, 0x4c, 0x8b, 0x61, 0x28], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// RE::BGSLocalizedStringDL::GetDescription(BSStringT<char>& out, const TESForm*) (CommonLibF4 `REL::ID(523613)`, CommonLibF4/include/RE/Bethesda/FormComponents.h:1090)
+pub const LOCALIZED_STRING_DL_GET_DESCRIPTION: Address = Address { name: "localized_string_dl_get_description", rva: 0x14faf0, signature: &[0x48, 0x89, 0x5c, 0x24, 0x08, 0x57, 0x48, 0x83, 0xec, 0x30, 0x48, 0x8b, 0x05, 0x7f, 0xf5, 0x77, 0x05, 0x48, 0x8b, 0xfa, 0x48, 0x8b, 0xd9, 0x80, 0xb8, 0x10, 0x10, 0x00, 0x00, 0x00], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// RE::Actor::Reset3D(bool reloadAll, u32 additionalFlags, bool queueReset, u32 excludeFlags) (CommonLibF4 `REL::ID(302888)`, CommonLibF4/include/RE/Bethesda/Actor.h:750)
+pub const ACTOR_RESET_3D: Address = Address { name: "actor_reset_3d", rva: 0xd8a1f0, signature: &[0x48, 0x89, 0x5c, 0x24, 0x08, 0x48, 0x89, 0x6c, 0x24, 0x10, 0x48, 0x89, 0x74, 0x24, 0x18, 0x57, 0x48, 0x83, 0xec, 0x30, 0x48, 0x8b, 0xf1, 0x48, 0x8b, 0x89, 0x00, 0x03, 0x00, 0x00], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// RE::MemoryManager::Deallocate(void*, bool alignmentRequired) (CommonLibF4 `REL::ID(1582181)`, CommonLibF4/include/RE/Bethesda/MemoryManager.h:214)
+pub const MEMORY_MANAGER_DEALLOCATE: Address = Address { name: "memory_manager_deallocate", rva: 0x1b0f2e0, signature: &[0x48, 0x85, 0xd2, 0x0f, 0x84, 0x0a, 0x01, 0x00, 0x00, 0x48, 0x89, 0x5c, 0x24, 0x08, 0x48, 0x89, 0x54, 0x24, 0x10, 0x57, 0x48, 0x83, 0xec, 0x20, 0x80, 0x39, 0x00], mask: &[1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// RE::UI** singleton (global; CommonLibF4 `REL::ID(548587)`, CommonLibF4/include/RE/Bethesda/UI.h:70)
+pub const UI_SINGLETON: Address = Address { name: "ui_singleton", rva: 0x58d0898, signature: &[0x8b, 0x05, 0xcf, 0xc7, 0x7e, 0x05, 0x83, 0xb8, 0xe0, 0x01, 0x00, 0x00, 0x00, 0x77, 0x77, 0x4c, 0x8b, 0x75, 0x20], mask: &[1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1], global: Some(GlobalRef { site_rva: 0xe40c3, disp_offset: 2, insn_len: 6 }) };
+
+/// RE::BSPointerHandleManagerInterface<TESObjectREFR>::GetSmartPointer(const ObjectRefHandle&, NiPointer<TESObjectREFR>&) -> bool (via a call site; CommonLibF4 `REL::ID(967277)`, CommonLibF4/include/RE/Bethesda/BSPointerHandle.h:168)
+pub const REFR_HANDLE_GET_SMART_POINTER: Address = Address { name: "refr_handle_get_smart_pointer", rva: 0xac90, signature: &[0xe8, 0x3d, 0x21, 0x00, 0x00, 0x48, 0x8b, 0x7c, 0x24, 0x48, 0x48, 0x85, 0xff, 0x74, 0x5d, 0x48, 0x8b, 0x0d, 0xac, 0x44, 0x8c, 0x03, 0x48, 0x89, 0x6c, 0x24, 0x50], mask: &[1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1], global: Some(GlobalRef { site_rva: 0x8b4e, disp_offset: 1, insn_len: 5 }) };
+
+/// RE::ExtraTextDisplayData::GetDisplayName(TESBoundObject* base) -> const BSFixedStringCS& (CommonLibF4 `REL::ID(1523343)`, CommonLibF4/include/RE/Bethesda/BSExtraData.h:490)
+pub const EXTRA_TEXT_DISPLAY_GET_NAME: Address = Address { name: "extra_text_display_get_name", rva: 0xc0a00, signature: &[0x48, 0x89, 0x5c, 0x24, 0x08, 0x48, 0x89, 0x74, 0x24, 0x10, 0x57, 0x48, 0x83, 0xec, 0x30, 0x48, 0x8d, 0x79, 0x18, 0x48, 0x8b, 0xd9], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// RE::Console::GetPickRef() ObjectRefHandle global (the console selected reference) (global; CommonLibF4 `REL::ID(170742)`, CommonLibF4/include/RE/Bethesda/IMenu.h:455)
+pub const CONSOLE_PICK_REF: Address = Address { name: "console_pick_ref", rva: 0x5adb4a8, signature: &[0x8b, 0x05, 0xbf, 0xe5, 0x5b, 0x05, 0x4d, 0x8d, 0x4a, 0x04, 0x0f, 0x1f, 0x00], mask: &[1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1], global: Some(GlobalRef { site_rva: 0x51cee3, disp_offset: 2, insn_len: 6 }) };
+
+/// RE::BSReadWriteLock guarding UI::menuMap (the lock object) (global; CommonLibF4 `REL::ID(578487)`, CommonLibF4/include/RE/Bethesda/UI.h:64)
+pub const UI_MENU_MAP_LOCK: Address = Address { name: "ui_menu_map_lock", rva: 0x65774b8, signature: &[0x8d, 0x0d, 0x4c, 0x56, 0x53, 0x04, 0xe8, 0x3f, 0xeb, 0xac, 0xff, 0x48, 0x8b, 0x96, 0xd0, 0x01, 0x00, 0x00], mask: &[1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1], global: Some(GlobalRef { site_rva: 0x2041e66, disp_offset: 2, insn_len: 6 }) };
+
+/// RE::BGSMod::Attachment::Mod::GetLooseMod() -> TESObjectMISC* (via a call site; CommonLibF4 `REL::ID(1359613)`, origin/community:CommonLibF4/include/RE/Bethesda/BGSMod.h:183)
+pub const OMOD_GET_LOOSE_MOD: Address = Address { name: "omod_get_loose_mod", rva: 0x2f1dd0, signature: &[0xe8, 0x0d, 0xf5, 0xff, 0xff, 0x48, 0x8b, 0xf8, 0x48, 0x85, 0xc0, 0x74, 0x6e, 0x89, 0x44, 0x24, 0x40], mask: &[1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1], global: Some(GlobalRef { site_rva: 0x2f28be, disp_offset: 1, insn_len: 5 }) };
+
+/// RE::TESCondition::IsTrue(TESObjectREFR* actionRef, TESObjectREFR* targetRef) -> bool (CommonLibF4 `REL::ID(1275731)`, CommonLibF4/include/RE/Bethesda/TESCondition.h:89)
+pub const CONDITION_IS_TRUE: Address = Address { name: "condition_is_true", rva: 0x72af80, signature: &[0x4c, 0x8b, 0xdc, 0x48, 0x81, 0xec, 0x98, 0x00, 0x00, 0x00, 0x49, 0x89, 0x53, 0x88], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// RE::TESObjectREFR::GetWeightInContainer() -> float (CommonLibF4 `REL::ID(1377567)`, CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:508)
+pub const REFR_GET_WEIGHT_IN_CONTAINER: Address = Address { name: "refr_get_weight_in_container", rva: 0x400470, signature: &[0x40, 0x57, 0x48, 0x83, 0xec, 0x60, 0x48, 0x8b, 0xf9, 0x48, 0x8b, 0x89, 0xf8, 0x00, 0x00, 0x00], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// RE::UI::RegisterMenu(const char*, Create_t*, StaticUpdate_t*) (CommonLibF4 `REL::ID(1519575)`, CommonLibF4/include/RE/Bethesda/UI.h:105)
+pub const UI_REGISTER_MENU: Address = Address { name: "ui_register_menu", rva: 0x2043cf0, signature: &[0x40, 0x53, 0x56, 0x57, 0x41, 0x56, 0x41, 0x57, 0x48, 0x83, 0xec, 0x50, 0x44, 0x8b, 0x15, 0xb1, 0x0a, 0x6f, 0x04], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0], global: None };
+
+/// RE::BSInputDeviceManager** singleton (global; CommonLibF4 `REL::ID(1284221)`, CommonLibF4/include/RE/Bethesda/BSInputDeviceManager.h:58)
+pub const INPUT_DEVICE_MANAGER_SINGLETON: Address = Address { name: "input_device_manager_singleton", rva: 0x5a5f668, signature: &[0x8b, 0x0d, 0xa6, 0x18, 0x09, 0x05, 0x41, 0xb0, 0x01, 0x41, 0x8b, 0xd5], mask: &[1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1], global: Some(GlobalRef { site_rva: 0x9cddbc, disp_offset: 2, insn_len: 6 }) };
+
+/// RE::BSReadWriteLock::lock_read() (via a call site; CommonLibF4 `REL::ID(1573164)`, CommonLibF4/include/RE/Bethesda/BSLock.h:54)
+pub const RW_LOCK_LOCK_READ: Address = Address { name: "rw_lock_lock_read", rva: 0x1b10930, signature: &[0xe8, 0x09, 0x66, 0xaf, 0x01, 0x41, 0x8b, 0x16, 0x48, 0x8d, 0x4c, 0x24, 0x30], mask: &[1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1], global: Some(GlobalRef { site_rva: 0x1a322, disp_offset: 1, insn_len: 5 }) };
+
+/// RE::GameScript::HandlePolicy::GetInventoryObjFromHandle(u64, TESObjectREFR*& container, u16& uniqueID, TESObjectREFR*& ref) (CommonLibF4 `REL::ID(66597)`, CommonLibF4/include/RE/Bethesda/GameScript.h:203)
+pub const HANDLE_POLICY_GET_INVENTORY_OBJ: Address = Address { name: "handle_policy_get_inventory_obj", rva: 0x12e3960, signature: &[0x48, 0x89, 0x5c, 0x24, 0x10, 0x48, 0x89, 0x6c, 0x24, 0x18, 0x48, 0x89, 0x74, 0x24, 0x20, 0x57, 0x41, 0x56, 0x41, 0x57, 0x48, 0x83, 0xec, 0x30, 0x4c, 0x8b, 0x74, 0x24, 0x70], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// ExtraDataList::GetByType(u8 type) -> BSExtraData* (takes the list read lock at +0x20) (re:refs-re-dis-0x9aac0(call-at-0x9aae0,GetByType-under-read-lock))
+pub const EXTRA_LIST_GET_BY_TYPE: Address = Address { name: "extra_list_get_by_type", rva: 0x436a0, signature: &[0x48, 0x89, 0x5c, 0x24, 0x08, 0x48, 0x89, 0x74, 0x24, 0x10, 0x57, 0x48, 0x83, 0xec, 0x20, 0x48, 0x8d, 0x59, 0x20, 0x48, 0x8b, 0xf9, 0x0f, 0xb6, 0xf2, 0x48, 0x8b, 0xcb, 0xe8, 0x6f, 0xd2, 0xac, 0x01, 0x48, 0x8d, 0x4f, 0x08, 0x40, 0x0f, 0xb6, 0xd6, 0xe8, 0xb2, 0xcf, 0x03, 0x00, 0x48, 0x8b, 0xf8], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1], global: None };
+
+/// RE::UIMessageQueue** singleton (global; CommonLibF4 `REL::ID(82123)`, CommonLibF4/include/RE/Bethesda/UIMessageQueue.h:17)
+pub const UI_MESSAGE_QUEUE_SINGLETON: Address = Address { name: "ui_message_queue_singleton", rva: 0x58d0ac8, signature: &[0x8b, 0x3d, 0x50, 0x58, 0x7d, 0x05, 0xe8, 0x53, 0x04, 0xf5, 0x01, 0x41, 0xb8, 0x01, 0x00, 0x00, 0x00, 0x48, 0x8b, 0xcf], mask: &[1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: Some(GlobalRef { site_rva: 0xfb272, disp_offset: 2, insn_len: 6 }) };
+
+/// RE::BSTHashMap<BSFixedString, TESForm*>** every form by editor ID (TESForm::GetFormByEditorID) (global; CommonLibF4 `REL::ID(642758)`, CommonLibF4/include/RE/Bethesda/TESForms.h:662)
+pub const ALL_FORMS_BY_EDITOR_ID: Address = Address { name: "all_forms_by_editor_id", rva: 0x58d36d0, signature: &[0x8b, 0x0d, 0x70, 0x3c, 0x7c, 0x05, 0x48, 0x8d, 0x15, 0xd1, 0x79, 0xb4, 0x02, 0x4c, 0x8b, 0xc3, 0xe8, 0x51, 0xcd, 0x01, 0x00, 0x48, 0x8d, 0x0d, 0xc2, 0x46, 0x7c, 0x05], mask: &[1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0], global: Some(GlobalRef { site_rva: 0x10fa5a, disp_offset: 2, insn_len: 6 }) };
+
+/// RE::TESNPC::GetAlternateHeadPartListMap() BSTHashMap<const TESNPC*, BSTArray<BGSHeadPart*>> (the map starts 8 bytes before this address) (global; CommonLibF4 `REL::ID(1306546)`, CommonLibF4/include/RE/Bethesda/TESBoundAnimObjects.h:349)
+pub const NPC_ALTERNATE_HEAD_PARTS: Address = Address { name: "npc_alternate_head_parts", rva: 0x3715308, signature: &[0x8d, 0x0d, 0x43, 0x4e, 0x15, 0x03, 0x44, 0x8b, 0xc7, 0x48, 0x89, 0x44, 0x24, 0x20, 0xe8, 0x0e, 0x9a, 0x00, 0x00, 0x84, 0xc0, 0x75, 0x62, 0x66, 0x66, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00], mask: &[1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: Some(GlobalRef { site_rva: 0x5c04bf, disp_offset: 2, insn_len: 6 }) };
+
+/// ExtraDataList::SetMaterialSwap(BGSMaterialSwap*): creates ExtraMaterialSwap(type 0xB9) or removes it when null (re:refs-re-xref-ExtraMaterialSwap-vtbl-0x2c528e8)
+pub const EXTRA_LIST_SET_MATERIAL_SWAP: Address = Address { name: "extra_list_set_material_swap", rva: 0x9aac0, signature: &[0x48, 0x89, 0x74, 0x24, 0x10, 0x57, 0x48, 0x83, 0xec, 0x20, 0x48, 0x8b, 0xf2, 0x48, 0x85, 0xd2, 0x48, 0x8b, 0xf9, 0xb2, 0xb9], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// RE::UIMessageQueue::AddMessage(const BSFixedString&, UI_MESSAGE_TYPE) (CommonLibF4 `REL::ID(1182019)`, CommonLibF4/include/RE/Bethesda/UIMessageQueue.h:24)
+pub const UI_MESSAGE_QUEUE_ADD_MESSAGE: Address = Address { name: "ui_message_queue_add_message", rva: 0x204cb90, signature: &[0x48, 0x89, 0x5c, 0x24, 0x08, 0x48, 0x89, 0x6c, 0x24, 0x10, 0x48, 0x89, 0x74, 0x24, 0x18, 0x48, 0x89, 0x7c, 0x24, 0x20, 0x41, 0x54, 0x41, 0x56, 0x41, 0x57, 0x48, 0x83, 0xec, 0x20, 0x44, 0x8b, 0x0d, 0xff, 0x7b, 0x6e, 0x04, 0x65, 0x48, 0x8b, 0x04, 0x25, 0x58, 0x00, 0x00, 0x00, 0x48, 0x8b, 0xe9, 0x4a, 0x8b, 0x34, 0xc8], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// RE::FavoritesManager::IsComponentFavorite(const TESBoundObject*) -> bool (CommonLibF4 `REL::ID(352046)`, origin/community:CommonLibF4/include/RE/Bethesda/FavoritesManager.h:52)
+pub const FAVORITES_IS_COMPONENT_FAVORITE: Address = Address { name: "favorites_is_component_favorite", rva: 0x1270710, signature: &[0x48, 0x89, 0x5c, 0x24, 0x10, 0x57, 0x48, 0x83, 0xec, 0x20, 0x48, 0x8b, 0xd9, 0x48, 0x8d, 0x4c, 0x24, 0x30, 0x45, 0x33, 0xc0, 0x48, 0x8b, 0xfa, 0xe8, 0x03, 0x01, 0x8a, 0x00, 0x4c, 0x8b, 0x83, 0xa8, 0x01, 0x00, 0x00], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// FavoritesManager::ToggleComponentFavorite(const TESBoundObject*): insert (value 1) or erase in favoritedComponents, notify ComponentFavoriteEvent (re:refs-re-xref-0x1270710-from-0xb22a67(pipboy-tag))
+pub const FAVORITES_TOGGLE_COMPONENT: Address = Address { name: "favorites_toggle_component", rva: 0x12704b0, signature: &[0x48, 0x89, 0x54, 0x24, 0x10, 0x53, 0x55, 0x56, 0x57, 0x41, 0x56, 0x48, 0x83, 0xec, 0x40, 0x4c, 0x8b, 0xf1, 0x48, 0x8d, 0x99, 0x88, 0x01, 0x00, 0x00], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// RE::BSReadWriteLock::lock_read() (via a call site; CommonLibF4 `REL::ID(1573164)`, CommonLibF4/include/RE/Bethesda/BSLock.h:57)
+pub const BS_READ_WRITE_LOCK_LOCK_READ: Address = Address { name: "bs_read_write_lock_lock_read", rva: 0x1b10930, signature: &[0xe8, 0x09, 0x66, 0xaf, 0x01, 0x41, 0x8b, 0x16, 0x48, 0x8d, 0x4c, 0x24, 0x30], mask: &[1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1], global: Some(GlobalRef { site_rva: 0x1a322, disp_offset: 1, insn_len: 5 }) };
+
+/// TESForm::GetFormByID(u32) -> TESForm* (hashed lookup under the all-forms lock) (re:refs-re-xref-all_forms-0x58d36c8(lock-0x58d4130))
+pub const FORM_LOOKUP_BY_ID: Address = Address { name: "form_lookup_by_id", rva: 0x152c90, signature: &[0x48, 0x89, 0x5c, 0x24, 0x08, 0x48, 0x89, 0x74, 0x24, 0x18, 0x57, 0x48, 0x83, 0xec, 0x20, 0x8b, 0xf9], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// RE::BSScaleformManager** singleton (global; CommonLibF4 `REL::ID(106578)`, CommonLibF4/include/RE/Bethesda/BSScaleformManager.h:69)
+pub const SCALEFORM_MANAGER_SINGLETON: Address = Address { name: "scaleform_manager_singleton", rva: 0x58de410, signature: &[0x8b, 0x0d, 0x60, 0x09, 0x70, 0x05, 0x48, 0x8b, 0x49, 0x18, 0xe8, 0xb7, 0xff, 0xe6, 0x01, 0x48, 0x8b, 0x44, 0x24, 0x78], mask: &[1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1], global: Some(GlobalRef { site_rva: 0x1ddaaa, disp_offset: 2, insn_len: 6 }) };
+
+/// NiObjectNET::GetExtraData(const BSFixedString&) -> NiExtraData* (re:refs-re-dis-0x200080(call-at-0x200141-with-CPA-0x6542bc0))
+pub const NI_GET_EXTRA_DATA: Address = Address { name: "ni_get_extra_data", rva: 0x1b97a10, signature: &[0x48, 0x89, 0x5c, 0x24, 0x08, 0x57, 0x48, 0x83, 0xec, 0x20, 0x48, 0x8b, 0xf9, 0x48, 0x8b, 0xca, 0x48, 0x8b, 0xda, 0xe8, 0x48, 0xa7, 0xfa, 0xff, 0x85, 0xc0, 0x74, 0x1b, 0x48, 0x8b, 0x4f, 0x20], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1], global: None };
+
+/// RE::SplineUtils::ConnectSpline(TESObjectREFR* end1, i32 linkType1, TESObjectREFR* end2, i32 linkType2, TESObjectREFR* wire) (CommonLibF4 `REL::ID(59311)`, origin/community:CommonLibF4/include/RE/Bethesda/SplineUtils.h:18)
+pub const SPLINE_CONNECT: Address = Address { name: "spline_connect", rva: 0x200e50, signature: &[0x48, 0x89, 0x5c, 0x24, 0x08, 0x48, 0x89, 0x74, 0x24, 0x10, 0x48, 0x89, 0x7c, 0x24, 0x18, 0x4c, 0x89, 0x74, 0x24, 0x20, 0x41, 0x57, 0x48, 0x83, 0xec, 0x20, 0x48, 0x8b, 0x7c, 0x24, 0x50, 0x4c, 0x8b, 0xf9], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// RE::TESDataHandler::CreateReferenceAtLocation(NEW_REFR_DATA&) -> ObjectRefHandle (CommonLibF4 `REL::ID(500304)`, origin/community:CommonLibF4/include/RE/Bethesda/TESDataHandler.h:89)
+pub const DATA_HANDLER_CREATE_REF_AT_LOCATION: Address = Address { name: "data_handler_create_ref_at_location", rva: 0x1140b0, signature: &[0x48, 0x89, 0x5c, 0x24, 0x08, 0x48, 0x89, 0x54, 0x24, 0x10, 0x55, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41, 0x57, 0x48, 0x81, 0xec, 0xb0, 0x00, 0x00, 0x00], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// RE::Workshop::ScrapReference(const ContextData&, ObjectRefHandle smart ptr&, BSTArray<BSTTuple<TESBoundObject*, u32>>* rewards) (CommonLibF4 `REL::ID(636327)`, CommonLibF4/include/RE/Bethesda/Workshop.h:125)
+pub const WORKSHOP_SCRAP_REFERENCE: Address = Address { name: "workshop_scrap_reference", rva: 0x2084c0, signature: &[0x48, 0x8b, 0xc4, 0x4c, 0x89, 0x40, 0x18, 0x48, 0x89, 0x48, 0x08, 0x55, 0x57, 0x41, 0x55, 0x48, 0x8d, 0x68, 0xa1], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// RE::FavoritesManager** singleton (the object lives in static storage, so the RTTI global scan misses it) (global; CommonLibF4 `REL::ID(198281)`, origin/community:CommonLibF4/include/RE/Bethesda/FavoritesManager.h:45)
+pub const FAVORITES_MANAGER_SINGLETON: Address = Address { name: "favorites_manager_singleton", rva: 0x5a5fc90, signature: &[0x8b, 0x0d, 0x5e, 0x54, 0x06, 0x05, 0x4c, 0x8d, 0x43, 0x38, 0x48, 0x8d, 0x54, 0x24, 0x30], mask: &[1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: Some(GlobalRef { site_rva: 0x9fa82c, disp_offset: 2, insn_len: 6 }) };
+
+/// RE::TESObjectREFR::GetLinkedRef(BGSKeyword*) -> TESObjectREFR* (CommonLibF4 `REL::ID(897287)`, origin/community:CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:762)
+pub const REFR_GET_LINKED_REF: Address = Address { name: "refr_get_linked_ref", rva: 0x481000, signature: &[0x48, 0x8b, 0x89, 0x00, 0x01, 0x00, 0x00, 0x41, 0xb0, 0x01, 0xe9, 0x71, 0xcc, 0xc0, 0xff, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// RE::TESObjectREFR::SetLinkedRef(TESObjectREFR* target, BGSKeyword*) (CommonLibF4 `REL::ID(192840)`, origin/community:CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:832)
+pub const REFR_SET_LINKED_REF: Address = Address { name: "refr_set_linked_ref", rva: 0x481020, signature: &[0x48, 0x89, 0x5c, 0x24, 0x18, 0x55, 0x56, 0x57, 0x48, 0x83, 0xec, 0x20, 0x49, 0x8b, 0xe8], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// (TESObjectREFR*, Workshop::ExtraData*): when the ref radiates power (powerRadation AV > 0) connect it to the objects in range on its grid, then update it as a receiver (re:refs-re-xref-0x201b10(after-ConnectSpline-at-0x20d52f/0x20d53a))
+pub const WORKSHOP_TRANSMIT_POWER: Address = Address { name: "workshop_transmit_power", rva: 0x201b10, signature: &[0x40, 0x55, 0x53, 0x56, 0x41, 0x55, 0x41, 0x57, 0x48, 0x8d, 0x6c, 0x24, 0xc9], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// (Workshop::ExtraData*, TESObjectREFR*): add a placed item to the workshop power grids (re:refs-re-dis-0x20d504(placement-finalize))
+pub const WORKSHOP_GRID_ADD_ITEM: Address = Address { name: "workshop_grid_add_item", rva: 0x1f6890, signature: &[0x48, 0x89, 0x5c, 0x24, 0x18, 0x57, 0x48, 0x83, 0xec, 0x50, 0x48, 0x8b, 0xda], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// (Workshop::ExtraData*, TESObjectREFR* end1, TESObjectREFR* end2, TESObjectREFR* wire): join the endpoints grids through the wire (re:refs-re-dis-0x20d524(placement-finalize))
+pub const WORKSHOP_GRID_CONNECT: Address = Address { name: "workshop_grid_connect", rva: 0x1f6e20, signature: &[0x48, 0x89, 0x5c, 0x24, 0x18, 0x4c, 0x89, 0x4c, 0x24, 0x20, 0x48, 0x89, 0x54, 0x24, 0x10, 0x55, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41, 0x57, 0x48, 0x8d, 0x6c, 0x24, 0xd9], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// (Workshop::ContextData* or null, wire, end2, i32 link2, end1, i32 link1) -> bool: position the wire between the endpoints connect points (re:refs-re-dis-0x20d2f8(placement-finalize))
+pub const SPLINE_UPDATE_GEOMETRY: Address = Address { name: "spline_update_geometry", rva: 0x200b50, signature: &[0x48, 0x89, 0x5c, 0x24, 0x10, 0x48, 0x89, 0x74, 0x24, 0x18, 0x48, 0x89, 0x7c, 0x24, 0x20, 0x55, 0x48, 0x8b, 0xec, 0x48, 0x81, 0xec, 0x80, 0x00, 0x00, 0x00, 0x49, 0x8b, 0xf0], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// (TESObjectREFR*): refresh the workshop (linked via the item keyword) power and ratings for an item (re:refs-re-dis-0x20d549(placement-finalize))
+pub const WORKSHOP_UPDATE_ITEM: Address = Address { name: "workshop_update_item", rva: 0x204610, signature: &[0x40, 0x55, 0x56, 0x48, 0x8d, 0x6c, 0x24, 0xd8, 0x48, 0x81, 0xec, 0x28, 0x01, 0x00, 0x00, 0x48, 0x8b, 0x15, 0xc2, 0xb7, 0x6d, 0x05], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0], global: None };
+
+/// RE::PlayerCamera** singleton (global; CommonLibF4 `REL::ID(1171980)`, CommonLibF4/include/RE/Bethesda/TESCamera.h:178)
+pub const PLAYER_CAMERA_SINGLETON: Address = Address { name: "player_camera_singleton", rva: 0x58ceb28, signature: &[0x8b, 0x0d, 0x30, 0x32, 0x8b, 0x05, 0xba, 0x0c, 0x00, 0x00, 0x00, 0xe8, 0xee, 0x2e, 0x23, 0x01, 0x84, 0xc0, 0x75, 0x05, 0x48, 0x83, 0xc4, 0x28], mask: &[1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1], global: Some(GlobalRef { site_rva: 0x1b8f2, disp_offset: 2, insn_len: 6 }) };
+
+/// RE::BGSMod::Attachment::Mod::GetData(Mod::Data&) const (CommonLibF4 `REL::ID(33658)`, origin/community:CommonLibF4/include/RE/Bethesda/BGSMod.h:176)
+pub const OMOD_GET_DATA: Address = Address { name: "omod_get_data", rva: 0x4e770, signature: &[0x40, 0x53, 0x48, 0x83, 0xec, 0x20, 0x0f, 0xb6, 0x81, 0xc6, 0x00, 0x00, 0x00], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// RE::TESWaterForm** the default water (TESObjectCELL/TESWorldSpace::GetWaterType fallback) (global; CommonLibF4 `REL::ID(289864)`, CommonLibF4/src/RE/Bethesda/TESForms.cpp:15)
+pub const DEFAULT_WATER: Address = Address { name: "default_water", rva: 0x59d9690, signature: &[0x89, 0x35, 0xd1, 0xa5, 0x8c, 0x05, 0x48, 0x89, 0x35, 0x82, 0xbb, 0x8c, 0x05, 0x48, 0x89, 0x35, 0xa3, 0x7e, 0x8c, 0x05, 0x48, 0x89, 0x35, 0xa4, 0x7e, 0x8c, 0x05, 0x48, 0x89, 0x35, 0xa5, 0x7e, 0x8c, 0x05, 0x48, 0x89, 0x35, 0xa6, 0x7e, 0x8c, 0x05, 0x48, 0x89, 0x35, 0xa7, 0x7e, 0x8c, 0x05, 0x48, 0x89, 0x35, 0xd0, 0x7e, 0x8c, 0x05, 0xe8, 0xfb, 0xc0, 0xf5, 0xff], mask: &[1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0], global: Some(GlobalRef { site_rva: 0x10f0b9, disp_offset: 2, insn_len: 6 }) };
+
+/// deletes one save-list entry: (entry); calls save_delete_files at +0x1a, then removes the entry from the list (bb:DeleteGame-stack+re:mainmenu-DeleteSave-case-0x13)
+pub const SAVE_DELETE_ENTRY: Address = Address { name: "save_delete_entry", rva: 0xcda9c0, signature: &[0x40, 0x53, 0x48, 0x83, 0xec, 0x20, 0x44, 0x8b, 0x41, 0x60, 0x48, 0x8b, 0x11], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+
+/// deletes a save file: (saveList, const char* name, u32 id, 0); uses DeleteFileA (bb:DeleteGame-stack+re:call-at-0xcda9da)
+pub const SAVE_DELETE_FILES: Address = Address { name: "save_delete_files", rva: 0xcecf50, signature: &[0x48, 0x89, 0x5c, 0x24, 0x08, 0x48, 0x89, 0x6c, 0x24, 0x10, 0x48, 0x89, 0x74, 0x24, 0x18, 0x57, 0x48, 0x81, 0xec, 0x50, 0x03, 0x00, 0x00], mask: &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], global: None };
+

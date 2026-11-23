@@ -30,7 +30,10 @@ def short(r):
     if isinstance(r, dict) and "result" in r:
         v = r["result"]
         if isinstance(v, dict) and "form" in v:
-            return (v.get("form") or {}).get("id") or v.get("handle")
+            # papyrus.call returns forms as {"form": "<id>", "type": sig}.
+            return v["form"] if isinstance(v["form"], str) else (v.get("form") or {}).get("id")
+        if isinstance(v, dict) and "handle" in v:
+            return v["handle"]
         return v
     return r
 for loc in locations:

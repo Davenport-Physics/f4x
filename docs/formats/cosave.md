@@ -34,10 +34,9 @@ chunk:   u32 type  u32 version  u32 length  data[length]
 - `coc` from the main menu sends neither load messages nor `NewGame`.
 
 Still to learn:
-- light (ESL) entries in `PLGN`;
-- the non-empty registration tables;
-- `DeleteGame`;
-- `NewGame`.
+- the `OBMG`, `DFMG`, `FUNQ` and `WLST` tables (always empty in every save observed so far).
+
+(Light entries, the registration tables and `NewGame` are described below.)
 
 ## Light plugins in `PLGN` (black-box, user-mods profile, 2026-11-21)
 
@@ -94,3 +93,49 @@ Known difference, f4x vs F4SE:
 - Valid callbacks behave the same.
 
 Everything else matches between hosts in `tools/extev_check.py`.
+
+## Key, camera and furniture registrations: `KEYR`, `CAMR`, `FRNR` (black-box, F4SE 0.6.23, 2026-11-22)
+
+Learned by registering quests and globals under F4SE, then saving and diffing co-saves
+(`events-f4se` profile). Under the same script actions, f4x's co-saves are byte-identical,
+and both hosts load and re-save each other's unchanged. Real F4SE files are in
+`crates/f4x-cosave/tests/fixtures/f4se-0.6.23-{keys-camera,furniture}.f4se`.
+
+- **`KEYR` section** (`RegisterForKey`): one `REGS` v1 per key, then `REGE`.
+  - Each entry: `u32` key code, `u32` count, then per registrant a `u64` handle and a
+    `u16`-prefixed script name.
+  - Keys are in numeric order; registrants are ordered by handle.
+  - Any `Int` is stored, including -1 and 300. Unregistering the last registrant removes
+    the key's entry.
+- **`CAMR` chunk** (`RegisterForCameraState`): `u32` count, then per registrant a `u64`
+  handle and a `u16`-prefixed script name.
+- **`FRNR` chunk** (`RegisterForFurnitureEvent`): `u32` count, then per registrant a `u64`
+  handle, a `u16`-prefixed script name and a `u32` that is always 0.
+  - The filter is not stored. Events go to every registrant, whatever the filter.
+  - `UnregisterForFurnitureEvent` removes nothing, so the registrant stays.
+
+Event behaviour (the same under both hosts):
+- **Key codes:**
+  - keyboard: the DirectInput scan code;
+  - mouse: 256 + button;
+  - gamepad: 266 + the button's index in Up, Down, Left, Right, Start, Back, LS, RS, LB, RB, A, B, X, Y, LT, RT.
+- **Key events:** they fire while menus are open. In `OnKeyUp(code, time)`, `time` is the release's held duration in seconds.
+- **Camera:** states are CommonLibF4 `CameraStates` values, e.g. `tfc` gives (0, 3) then (3, 0), and idle vanity gives (0, 1). Nothing is sent on registering or on load.
+
+## `DeleteGame` (black-box, F4SE 0.6.23, 2026-11-22)
+
+Triggered by deleting a save from the main menu (`BGSCodeObj.DeleteSave(int index)`
+after `PopulateLoadList`), with the `f4x_probe` plugin recording messages:
+- the message is kind 6, and its data is the save name without extension (`"f4xdel"`,
+  `data_len` 6, not counting a NUL);
+- it is sent on the main thread from inside the game's save-file delete, `save_delete_files`
+  (`Fallout4.exe+0xcecf50`). The game return address on the stack is `+0xcda9df`, after
+  the call at `+0xcda9da`;
+- F4SE patches that function's entry, as f4x's patch map shows, so all five of its
+  callers send it, not only the menu's;
+- both `<save>.fos` and `<save>.f4se` are gone afterwards.
+
+f4x redirects the five call sites, sends `DeleteGame`, deletes the co-save, then calls
+the game's function. Under f4x the probe sees the same message, data and game return
+address.
+

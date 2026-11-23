@@ -12,10 +12,14 @@ tested under Proton on Linux (GOG version via Heroic); native Windows is unteste
 - **Runs F4SE mods.** It loads F4SE plugin DLLs through the same plugin API: messaging,
   Papyrus, Scaleform, serialization, tasks and trampolines. Co-saves (`.f4se`) are written
   in F4SE's format, so saves move freely between the two.
-- **Implements F4SE's script and UI surface used by mods.** This covers `root.f4se` in every
-  menu (MCM works), external events, control events, and F4SE Papyrus functions. Of F4SE's
-  ~224 Papyrus functions, 9 are implemented so far (plus the 2 control events): the ones
-  the tested mods use.
+- **Implements F4SE's script and UI surface.** This covers:
+  - `root.f4se` in every menu (MCM works);
+  - 222 of F4SE's 224 Papyrus natives, plus its 5 scripted functions;
+  - every F4SE event: control, key, camera, furniture, external events;
+  - custom menus (`UI.RegisterCustomMenu`).
+
+  For a game without F4SE's own script files, f4x generates the declarations F4SE adds
+  (functions, structs, 168 of 172 constants) from the user's vanilla scripts.
 - **Adds:**
   - console commands with typed arguments;
   - crash reports (`Documents/My Games/Fallout4/f4x/`), symbolized by the `f4x` CLI;
@@ -38,10 +42,16 @@ Settlements, Start Me Up and others. The checks compare:
 - Papyrus errors;
 - screenshots.
 
-Not yet implemented:
-- most F4SE Papyrus functions;
-- F4SE's object interface (plugin interface 6);
-- the `DeleteGame` message;
+Every F4SE native is also compared call by call against real F4SE:
+`tools/f4se_natives_check.py` calls each one with arguments generated from its declared
+types, under both hosts, and diffs the results.
+
+Not implemented:
+- `ObjectReference.Scrap` and `ApplyMaterialSwap`: their effects couldn't be observed
+  cleanly;
+- 4 `InstanceData` flag constants that have no clean source;
+- F4SE's object interface (plugin interface 6). Its objects are defined only in F4SE's
+  source, so plugins get "not available";
 - next-gen game versions.
 
 ## Install

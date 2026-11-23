@@ -1,0 +1,130 @@
+{
+  "kSlotMask30": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 0 = biped object 0 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 30 = 30 + 0 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 1
+  },
+  "kSlotMask31": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 1 = biped object 1 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 31 = 30 + 1 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 2
+  },
+  "kSlotMask32": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 2 = biped object 2 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 32 = 30 + 2 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 4
+  },
+  "kSlotMask33": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 3 = biped object 3 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 33 = 30 + 3 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 8
+  },
+  "kSlotMask34": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 4 = biped object 4 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 34 = 30 + 4 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 16
+  },
+  "kSlotMask35": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 5 = biped object 5 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 35 = 30 + 5 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 32
+  },
+  "kSlotMask36": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 6 = biped object 6 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 36 = 30 + 6 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 64
+  },
+  "kSlotMask37": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 7 = biped object 7 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 37 = 30 + 7 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 128
+  },
+  "kSlotMask38": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 8 = biped object 8 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 38 = 30 + 8 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 256
+  },
+  "kSlotMask39": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 9 = biped object 9 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 39 = 30 + 9 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 512
+  },
+  "kSlotMask40": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 10 = biped object 10 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 40 = 30 + 10 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 1024
+  },
+  "kSlotMask41": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 11 = biped object 11 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 41 = 30 + 11 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 2048
+  },
+  "kSlotMask42": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 12 = biped object 12 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 42 = 30 + 12 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 4096
+  },
+  "kSlotMask43": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 13 = biped object 13 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 43 = 30 + 13 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 8192
+  },
+  "kSlotMask44": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 14 = biped object 14 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 44 = 30 + 14 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 16384
+  },
+  "kSlotMask45": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 15 = biped object 15 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 45 = 30 + 15 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 32768
+  },
+  "kSlotMask46": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 16 = biped object 16 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 46 = 30 + 16 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 65536
+  },
+  "kSlotMask47": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 17 = biped object 17 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 47 = 30 + 17 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 131072
+  },
+  "kSlotMask48": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 18 = biped object 18 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 48 = 30 + 18 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 262144
+  },
+  "kSlotMask49": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 19 = biped object 19 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 49 = 30 + 19 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 524288
+  },
+  "kSlotMask50": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 20 = biped object 20 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 50 = 30 + 20 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 1048576
+  },
+  "kSlotMask51": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 21 = biped object 21 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 51 = 30 + 21 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 2097152
+  },
+  "kSlotMask52": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 22 = biped object 22 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 52 = 30 + 22 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 4194304
+  },
+  "kSlotMask53": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 23 = biped object 23 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 53 = 30 + 23 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 8388608
+  },
+  "kSlotMask54": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 24 = biped object 24 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 54 = 30 + 24 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 16777216
+  },
+  "kSlotMask55": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 25 = biped object 25 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 55 = 30 + 25 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 33554432
+  },
+  "kSlotMask56": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 26 = biped object 26 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 56 = 30 + 26 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 67108864
+  },
+  "kSlotMask57": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 27 = biped object 27 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 57 = 30 + 27 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 134217728
+  },
+  "kSlotMask58": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 28 = biped object 28 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 58 = 30 + 28 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 268435456
+  },
+  "kSlotMask59": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 29 = biped object 29 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 59 = 30 + 29 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 536870912
+  },
+  "kSlotMask60": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 30 = biped object 30 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 60 = 30 + 30 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": 1073741824
+  },
+  "kSlotMask61": {
+    "source": "CommonLibF4/include/RE/Bethesda/FormComponents.h:684 BIPED_MODEL::bipedObjectSlots (u32; BGSBipedObjectForm::bipedModelData, :698) bit 31 = biped object 31 of BIPED_OBJECT::kEditorCount (CommonLibF4/include/RE/Bethesda/TESObjectREFRs.h:279); Papyrus slot 61 = 30 + 31 (F4SEStub/runtime/src/Papyrus/Form.h:76-77 GetMaskForSlot: 1 << (slot - 30))",
+    "value": -2147483648
+  }
+}
