@@ -5,32 +5,91 @@ use std::sync::atomic::Ordering::Relaxed;
 use std::sync::{Mutex, OnceLock};
 
 use f4x_abi::f4se::{
-    F4seInterface, Message, MessageCallback, MessagingInterface, PapyrusInterface, PapyrusRegisterCallback,
-    PluginHandle, ScaleformInterface, TaskDelegate, TaskInterface, TrampolineInterface,
-    interface_id, message,
+    F4seInterface, F4seInterfaceNg, Message, MessageCallback, MessagingInterface, PapyrusInterface,
+    PapyrusRegisterCallback, PluginHandle, ScaleformInterface, TaskDelegate, TaskInterface, TaskInterfaceNg,
+    TrampolineInterface, interface_id, message,
 };
 use f4x_abi::version::PackedVersion;
 
 use super::trampoline::{self, Pool};
 use super::{CURRENT, PLUGINS};
 
-/// What we report as the F4SE version (0.6.23, as plugins expect on old-gen).
-pub(crate) const F4SE_VERSION: PackedVersion = PackedVersion::new(0, 6, 23, 0);
-const RELEASE_INDEX: u32 = 25;
+/// What we report as the F4SE version: 0.6.23 on old-gen; on next-gen 0.7.9, the F4SE for
+/// Steam 1.11.240 (f4se.silverlock.org; black-box: it reports `0x00070090`).
+pub(crate) const F4SE_VERSION: PackedVersion =
+    f4x_engine::pick!(PackedVersion::new(0, 6, 23, 0), PackedVersion::new(0, 7, 9, 0));
+/// Black-box: 25 under F4SE 0.6.23, 33 under F4SE 0.7.9.
+pub(crate) const RELEASE_INDEX: u32 = f4x_engine::pick!(25, 33);
 const HOST_SENDER: &CStr = c"F4SE";
 
+/// The runtime version reported to plugins: 1.10.163 on old-gen; on next-gen the running
+/// exe's file version (F4SE 0.7.9 reports `0x010B0F00`, 1.11.240.0, on the Steam exe).
+pub(crate) fn runtime_version() -> PackedVersion {
+    if !f4x_engine::NG {
+        return f4x_abi::version::runtime::V1_10_163;
+    }
+    static RUNTIME: OnceLock<PackedVersion> = OnceLock::new();
+    *RUNTIME.get_or_init(|| exe_version().unwrap_or(f4x_abi::version::runtime::V1_11_240))
+}
+
+/// The game exe's fixed file version, packed.
+fn exe_version() -> Option<PackedVersion> {
+    use windows_sys::Win32::Storage::FileSystem::{GetFileVersionInfoSizeW, GetFileVersionInfoW, VS_FIXEDFILEINFO, VerQueryValueW};
+    let mut path = [0u16; 1024];
+    // SAFETY: valid buffer; null = the game exe.
+    let len = unsafe {
+        windows_sys::Win32::System::LibraryLoader::GetModuleFileNameW(std::ptr::null_mut(), path.as_mut_ptr(), path.len() as u32)
+    } as usize;
+    if len == 0 || len >= path.len() {
+        return None;
+    }
+    // SAFETY: NUL-terminated path (the buffer was zeroed past `len`).
+    let size = unsafe { GetFileVersionInfoSizeW(path.as_ptr(), std::ptr::null_mut()) };
+    let mut data = vec![0u8; size as usize];
+    // SAFETY: buffer of `size` bytes.
+    if size == 0 || unsafe { GetFileVersionInfoW(path.as_ptr(), 0, size, data.as_mut_ptr().cast()) } == 0 {
+        return None;
+    }
+    let mut info: *mut std::ffi::c_void = std::ptr::null_mut();
+    let mut info_len = 0u32;
+    // SAFETY: querying the root block of the data just read.
+    if unsafe { VerQueryValueW(data.as_ptr().cast(), windows_sys::w!("\\"), &mut info, &mut info_len) } == 0
+        || info.is_null()
+        || (info_len as usize) < std::mem::size_of::<VS_FIXEDFILEINFO>()
+    {
+        return None;
+    }
+    // SAFETY: VerQueryValueW returned a VS_FIXEDFILEINFO inside `data`.
+    let fixed = unsafe { std::ptr::read_unaligned(info.cast::<VS_FIXEDFILEINFO>()) };
+    let (ms, ls) = (fixed.dwFileVersionMS, fixed.dwFileVersionLS);
+    Some(PackedVersion::new(ms >> 16, ms & 0xFFFF, ls >> 16, ls & 0xFFFF))
+}
+
 pub fn interface() -> &'static F4seInterface {
-    static IFACE: OnceLock<F4seInterface> = OnceLock::new();
-    IFACE.get_or_init(|| F4seInterface {
+    let base = || F4seInterface {
         f4se_version: F4SE_VERSION,
-        runtime_version: f4x_abi::version::runtime::V1_10_163,
+        runtime_version: runtime_version(),
         editor_version: PackedVersion(0),
         is_editor: 0,
         query_interface: Some(query_interface),
         get_plugin_handle: Some(get_plugin_handle),
         get_release_index: Some(get_release_index),
         get_plugin_info: Some(get_plugin_info),
-    })
+    };
+    if f4x_engine::NG {
+        // Next-gen: the table continues with GetSaveFolderName (F4SE 0.7.1+).
+        static IFACE_NG: OnceLock<F4seInterfaceNg> = OnceLock::new();
+        return &IFACE_NG.get_or_init(|| F4seInterfaceNg { base: base(), get_save_folder_name: Some(get_save_folder_name) }).base;
+    }
+    static IFACE: OnceLock<F4seInterface> = OnceLock::new();
+    IFACE.get_or_init(base)
+}
+
+/// The `My Games` folder name: `Fallout4` (black-box: what F4SE 0.7.9 returns on the
+/// Steam exe; our reading of 1.11.240: the function that builds `Documents\My Games\%s\`
+/// formats a static pointer to "Fallout4", which nothing writes).
+unsafe extern "C" fn get_save_folder_name() -> *const c_char {
+    c"Fallout4".as_ptr()
 }
 
 fn plugin_name(handle: PluginHandle) -> String {
@@ -47,6 +106,7 @@ unsafe extern "C" fn query_interface(id: u32) -> *mut c_void {
         interface_id::SCALEFORM => &SCALEFORM as *const _ as *const c_void,
         interface_id::PAPYRUS => &PAPYRUS as *const _ as *const c_void,
         interface_id::SERIALIZATION => &super::serialization::INTERFACE as *const _ as *const c_void,
+        interface_id::TASK if f4x_engine::NG => &TASK_NG as *const _ as *const c_void,
         interface_id::TASK => &TASK as *const _ as *const c_void,
         interface_id::TRAMPOLINE => &TRAMPOLINE as *const _ as *const c_void,
         other => {
@@ -65,8 +125,13 @@ unsafe extern "C" fn get_release_index() -> u32 {
     RELEASE_INDEX
 }
 
+/// Next-gen: `GetPluginInfo` answers once every plugin has loaded (black-box, F4SE 0.7.9:
+/// null during Preload and Load, even for plugins loaded earlier; from PostLoad on, any
+/// loaded plugin by name, case-insensitively).
+pub(super) static PLUGIN_INFO_READY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(!f4x_engine::NG);
+
 unsafe extern "C" fn get_plugin_info(name: *const c_char) -> *const c_void {
-    if name.is_null() {
+    if name.is_null() || !PLUGIN_INFO_READY.load(Relaxed) {
         return std::ptr::null();
     }
     // SAFETY: caller passes a NUL-terminated name.
@@ -183,7 +248,19 @@ unsafe extern "C" fn scaleform_register(name: *const c_char, callback: *mut c_vo
     // SAFETY: NUL-terminated name.
     let name = unsafe { CStr::from_ptr(name) }.to_string_lossy().into_owned();
     log::info!(target: "f4x::f4se", "Scaleform registration {name:?}");
-    SCALEFORM_CALLBACKS.lock().map(|mut c| c.push((name, callback as usize))).is_ok()
+    SCALEFORM_CALLBACKS
+        .lock()
+        .map(|mut c| {
+            // Next-gen: a name already taken is refused (black-box, F4SE 0.7.9: false, and
+            // only the first registrant's callback runs).
+            if f4x_engine::NG && c.iter().any(|(n, _)| *n == name) {
+                log::warn!(target: "f4x::f4se", "Scaleform registration {name:?} refused: the name is taken");
+                return false;
+            }
+            c.push((name, callback as usize));
+            true
+        })
+        .unwrap_or(false)
 }
 
 // ---- Papyrus ----
@@ -260,6 +337,45 @@ pub(super) fn run_papyrus_registrations() {
 
 static TASK: TaskInterface =
     TaskInterface { interface_version: TaskInterface::VERSION, add_task: Some(add_task), add_ui_task: Some(add_task) };
+
+/// Next-gen: the same, plus `AddTaskPermanent` (version still 2, black-box F4SE 0.7.9).
+static TASK_NG: TaskInterfaceNg = TaskInterfaceNg {
+    interface_version: TaskInterface::VERSION,
+    add_task: Some(add_task),
+    add_ui_task: Some(add_task),
+    add_task_permanent: Some(add_task_permanent),
+};
+
+/// Permanent tasks, run on every main-loop iteration and never destroyed (black-box, F4SE
+/// 0.7.9: a permanent task ran on the main thread every frame from the first frame on, in
+/// the same frame as the one-shot tasks, and its destructor was never called).
+static PERMANENT_TASKS: Mutex<Vec<usize>> = Mutex::new(Vec::new());
+
+unsafe extern "C" fn add_task_permanent(task: *mut TaskDelegate) {
+    if task.is_null() {
+        return;
+    }
+    let first = PERMANENT_TASKS
+        .lock()
+        .map(|mut tasks| {
+            tasks.push(task as usize);
+            tasks.len() == 1
+        })
+        .unwrap_or(false);
+    if first {
+        f4x_agent::pump::add_ticker(run_permanent_tasks);
+    }
+}
+
+fn run_permanent_tasks() {
+    // Copy first: a task may add another.
+    let tasks: Vec<usize> = PERMANENT_TASKS.lock().map(|t| t.clone()).unwrap_or_default();
+    for task in tasks {
+        let task = task as *mut TaskDelegate;
+        // SAFETY: a live ITaskDelegate the plugin handed over for good.
+        let _ = std::panic::catch_unwind(|| unsafe { ((*(*task).vtable).run)(task) });
+    }
+}
 
 struct SendTask(*mut TaskDelegate);
 // SAFETY: the delegate is handed over to the main thread and used only there.

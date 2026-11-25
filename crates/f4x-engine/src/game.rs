@@ -215,3 +215,25 @@ impl Game {
         out
     }
 }
+
+/// The generation of the running exe: a known build by PE timestamp, else by its C
+/// runtime (next-gen links the UCRT).
+pub fn running_generation() -> crate::Generation {
+    let game = game();
+    // SAFETY: reading the mapped PE header of the game image.
+    let stamp = unsafe {
+        let base = game.base as *const u8;
+        let nt = base.add(base.add(0x3C).cast::<i32>().read_unaligned() as usize);
+        nt.add(8).cast::<u32>().read_unaligned()
+    };
+    if let Some(build) = crate::BUILDS.iter().find(|b| b.timestamp == stamp) {
+        return build.generation;
+    }
+    let ucrt = unsafe { GetModuleHandleW(windows_sys::w!("api-ms-win-crt-runtime-l1-1-0.dll")) };
+    if ucrt.is_null() { crate::Generation::Og } else { crate::Generation::Ng }
+}
+
+/// Whether this build of f4x was made for the running exe's generation.
+pub fn generation_matches() -> bool {
+    (running_generation() == crate::Generation::Ng) == crate::NG
+}

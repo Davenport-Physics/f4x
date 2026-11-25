@@ -12,5 +12,9 @@ log = { version = "0.4", features = ["std"] }
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_System_LibraryLoader"] }
 
+[features]
+# Next-gen: also export `F4SEPlugin_Version`, so real F4SE 0.7.x loads the plugin.
+ng = []
+
 [lints]
 workspace = true

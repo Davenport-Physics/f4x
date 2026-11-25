@@ -45,7 +45,7 @@ use std::ffi::c_void;
 use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
 use f4x_engine::scaleform::{Call, Function, Movie, Value, kind};
-use f4x_engine_sys::og_1_10_163_addresses::SCALEFORM_MANAGER_LOAD_MOVIE;
+use f4x_engine_sys::addresses::SCALEFORM_MANAGER_LOAD_MOVIE;
 
 use super::interfaces::SCALEFORM_CALLBACKS;
 
@@ -53,8 +53,11 @@ mod images;
 mod papyrus_calls;
 mod tint;
 
-/// Offset of the call that F4SE's injection follows (black-box return address - 5).
-const LOAD_MOVIE_CALL_OFFSET: usize = 0x188;
+/// Offset of the call that F4SE's injection follows (black-box return address - 5): the
+/// movie view's `AddRef` right after `MovieDef::CreateInstance` (`call [rax+0xC0]`).
+/// NG 1.11.240: the same call at +0x226 (our disassembly: 0x1b1b3f6 in 0x1b1b1d0, to the
+/// AddRef 0x1b19130 that matches 1.10.163's 0x210ebf0).
+const LOAD_MOVIE_CALL_OFFSET: usize = f4x_engine::pick!(0x188, 0x226);
 
 static AFTER_CREATE: AtomicUsize = AtomicUsize::new(0);
 static INJECTED: AtomicUsize = AtomicUsize::new(0);

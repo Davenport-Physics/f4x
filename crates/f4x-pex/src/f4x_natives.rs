@@ -28,8 +28,12 @@ use crate::{
     StructMember, StructOrder, UserFlag, Value,
 };
 
-/// The inventory, as shipped in the crate.
+/// The inventory, as shipped in the crate: F4SE 0.6.23 on 1.10.163.
 pub const INVENTORY: &str = include_str!("../data/f4se-0.6.23-signatures.json");
+
+/// The next-gen inventory: F4SE 0.7.9 on 1.11.240 (a superset of 0.6.23's functions:
+/// adds `Form.GetEditorID` and the gamepad-button registrations and events).
+pub const INVENTORY_NG: &str = include_str!("../data/f4se-0.7.9-signatures.json");
 
 /// One function F4SE adds to a script.
 #[derive(Clone, Debug)]
@@ -68,9 +72,14 @@ fn strs(v: &Json) -> Vec<(String, String)> {
         .unwrap_or_default()
 }
 
-/// Every script F4SE adds to or changes.
+/// Every script F4SE adds to or changes (1.10.163).
 pub fn inventory() -> Vec<ScriptDecl> {
-    let doc: Json = serde_json::from_str(INVENTORY).unwrap_or_default();
+    inventory_for(false)
+}
+
+/// Every script F4SE adds to or changes, for 1.10.163 or next-gen (`ng`).
+pub fn inventory_for(ng: bool) -> Vec<ScriptDecl> {
+    let doc: Json = serde_json::from_str(if ng { INVENTORY_NG } else { INVENTORY }).unwrap_or_default();
     let Some(scripts) = doc["scripts"].as_array() else { return Vec::new() };
     scripts
         .iter()
@@ -310,8 +319,13 @@ pub fn create(decl: &ScriptDecl, template: &Pex, constants: &Constants) -> Resul
 /// Compare the declarations with F4SE's scripts in `dir`: every function's return type,
 /// parameter types and global flag. Returns mismatches.
 pub fn verify(dir: &Path) -> Result<Vec<String>, String> {
+    verify_for(dir, false)
+}
+
+/// [`verify`] against the 1.10.163 or the next-gen (`ng`) inventory.
+pub fn verify_for(dir: &Path, ng: bool) -> Result<Vec<String>, String> {
     let mut problems = Vec::new();
-    for decl in inventory() {
+    for decl in inventory_for(ng) {
         let path = dir.join(format!("{}.pex", decl.script));
         let bytes = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
         let pex = Pex::parse(&bytes).map_err(|e| format!("{}: {e}", path.display()))?;

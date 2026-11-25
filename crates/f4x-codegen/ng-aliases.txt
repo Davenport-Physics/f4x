@@ -1,0 +1,18 @@
+# Old-gen names f4x uses that the next-gen CommonLibF4 fork (libxse/commonlibf4
+# 40a93f69) renamed or moved. `f4x-codegen tables --flavor ng` emits each as a
+# `pub use` of the next-gen item in ng_1_11_240.rs, after checking that the next-gen
+# item exists and the old name does not.
+#
+#   <old-gen path, as f4x uses it> = <next-gen path it is emitted from>
+#
+# Paths are Rust paths into the generated tables (modules or consts). The fork's
+# top-level `Scaleform::` namespace needs no entries: it is emitted as `RE::Scaleform::`.
+
+# Actor: the u32 at 0x43C is `std::uint32_t flags` in old-gen and
+# `REX::TEnumSet<BOOL_FLAGS, std::uint32_t> boolFlags` in the fork (include/RE/A/Actor.h:666);
+# same offset and width, and BOOL_FLAGS::kProtected is 1 << 19 in both.
+RE::Actor::flags = RE::Actor::boolFlags
+
+# TESObjectARMO: `InstanceData data` (old-gen) is `InstanceData armorData` at 0x250
+# (include/RE/T/TESObjectARMO.h:86).
+RE::TESObjectARMO::data = RE::TESObjectARMO::armorData

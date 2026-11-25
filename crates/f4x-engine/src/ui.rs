@@ -14,6 +14,13 @@
 //! - `UIMessageQueue::AddMessage(name, UI_MESSAGE_TYPE)` queues `kShow` (1) / `kHide`
 //!   (3); the UI handles the queue on its own thread.
 //!
+//! Same on NG 1.11.240 (next-gen fork `UI.h`, `IMenu.h`, `UIMenuEntry.h`, `BSTHashMap.h`,
+//! `BSSpinLock.h`, `UI_MENU_FLAGS.h`, `UI_MESSAGE_TYPE.h`, `UI_DEPTH_PRIORITY.h`,
+//! `UserEvents.h`, `HUDColorTypes.h`, `BSGFxShaderFXTarget.h`; our RE: the exe walks the
+//! menu map with capacity at `UI+0x1B4`, entries at `UI+0x1D0`, stride 0x28, chain at
+//! +0x20, and allocates 0xB0 bytes for each `BSGFxShaderFXTarget`). Only `UI` itself grew
+//! (0x260 bytes: a larger `BSTimer`), which the generated `RE::UI::SIZE` follows.
+//!
 //! Menus are engine objects: read them on the thread the caller is on only through the
 //! guarded helpers here, and touch their movies on the thread that advances them.
 
@@ -24,7 +31,7 @@ use std::mem::transmute;
 use std::sync::atomic::{AtomicI32, AtomicU32, Ordering};
 use std::sync::{Mutex, OnceLock};
 
-use f4x_engine_sys::og_1_10_163_addresses as addr;
+use f4x_engine_sys::addresses as addr;
 
 use crate::address::resolve;
 use crate::layout::RE;
@@ -85,7 +92,7 @@ impl MapReadLock {
 impl Drop for MapReadLock {
     fn drop(&mut self) {
         // SAFETY: the lock word of the lock we hold for reading.
-        let word = unsafe { &*(self.0.add(4) as *const AtomicU32) };
+        let word = unsafe { &*(self.0.add(RE::BSReadWriteLock::_lock) as *const AtomicU32) };
         word.fetch_sub(1, Ordering::AcqRel);
     }
 }
@@ -433,10 +440,13 @@ unsafe fn construct(name: &str, def: &CustomMenu, v: &Vtables) -> *mut u8 {
     if let Some(align) = def.align
         && !movie.0.is_null()
     {
-        // SAFETY: Movie::SetViewAlignment (vtable slot 0x10).
+        // SAFETY: Movie::SetViewAlignment (vtable slot 0x10; same on NG, next-gen fork
+        // `GFx_Movie.h`; both exes' LoadMovie call SetViewScaleMode at slot 0x0E).
         unsafe {
             let vtbl: *const usize = mem::read(movie.0 as *const u8, 0);
-            transmute::<usize, unsafe extern "C" fn(*mut c_void, i32)>(*vtbl.add(0x10))(movie.0, align);
+            transmute::<usize, unsafe extern "C" fn(*mut c_void, i32)>(*vtbl.add(RE::Scaleform::GFx::Movie::vtbl::SetViewAlignment))(
+                movie.0, align,
+            );
         }
     }
     // SAFETY: our menu, created with its movie on this (the UI) thread.

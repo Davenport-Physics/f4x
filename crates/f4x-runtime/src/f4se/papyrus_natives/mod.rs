@@ -19,10 +19,28 @@ pub(crate) mod events;
 /// (script, function, handler).
 pub(crate) type Entry = (&'static str, &'static str, Handler);
 
+/// Natives F4SE added in 0.7.x (next-gen only): on 1.10.163 F4SE 0.6.23 has no such
+/// functions, so they are not bound there.
+pub(crate) const NG_ONLY: &[(&str, &str)] = &[
+    ("Form", "GetEditorID"),
+    ("ScriptObject", "RegisterForGamepadButton"),
+    ("ScriptObject", "UnregisterForGamepadButton"),
+];
+
+/// Whether `script.name` exists in this generation's F4SE.
+pub(crate) fn in_this_generation(script: &str, name: &str) -> bool {
+    f4x_engine::NG || !NG_ONLY.iter().any(|(s, n)| s.eq_ignore_ascii_case(script) && n.eq_ignore_ascii_case(name))
+}
+
 /// The signature inventory, parsed once.
 pub(crate) fn signatures() -> &'static serde_json::Value {
     static DB: std::sync::OnceLock<serde_json::Value> = std::sync::OnceLock::new();
-    DB.get_or_init(|| serde_json::from_str(include_str!("../../../../f4x-pex/data/f4se-0.6.23-signatures.json")).unwrap_or_default())
+    // F4SE 0.6.23's inventory on 1.10.163, 0.7.9's on next-gen.
+    #[cfg(not(feature = "ng"))]
+    const TEXT: &str = include_str!("../../../../f4x-pex/data/f4se-0.6.23-signatures.json");
+    #[cfg(feature = "ng")]
+    const TEXT: &str = include_str!("../../../../f4x-pex/data/f4se-0.7.9-signatures.json");
+    DB.get_or_init(|| serde_json::from_str(TEXT).unwrap_or_default())
 }
 
 /// The declared signature of `script.name`: (params as (type, name), return type, global).

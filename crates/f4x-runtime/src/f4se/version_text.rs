@@ -18,9 +18,18 @@ use windows_sys::Win32::System::Threading::GetCurrentProcess;
 use super::trampoline;
 
 const START_MENU_BASE: &str = ".?AVStartMenuBase@@";
-const PROCESS_MESSAGE_SLOT: usize = 3;
+/// Same on NG 1.11.240: `StartMenuBase`'s slot 3 (0xb01320) is the function that uses
+/// "SetVersionText" (f4x-vtcmp; next-gen fork `IMenu.h`).
+const PROCESS_MESSAGE_SLOT: usize = f4x_engine::layout::RE::IMenu::vtbl::ProcessMessage;
 /// How far into `ProcessMessage` to look for the two `lea`s.
 const SCAN: usize = 0x200;
+/// How far before the `SetVersionText` `lea` the version string's `lea` may be.
+const VERSION_LEA_WINDOW: usize = 0x80;
+
+/// A game version string such as `1.10.163.0`.
+fn is_version(s: &str) -> bool {
+    s.starts_with(|c: char| c.is_ascii_digit()) && s.contains('.') && s.chars().all(|c| c.is_ascii_digit() || c == '.')
+}
 
 /// The string f4x passes: F4SE's format (black-box: the menu shows
 /// `v (F4SE 0.6.23 rel 25) 1.10.163.0.0`, the movie adding `v` and `.<n>`) with f4x's
@@ -64,13 +73,20 @@ pub(super) fn install() {
     }
     // SAFETY: readable game code (checked).
     let code = unsafe { std::slice::from_raw_parts(function as *const u8, SCAN + 7) };
-    // `lea rax, <version>` followed within 8 bytes by `lea r9, "SetVersionText"`.
-    let site = (0..SCAN).find_map(|i| {
-        let (_, version) = lea_target(code, i, function)?;
-        let next =
-            (i + 7..i + 15).find_map(|j| lea_target(code, j, function).filter(|&(reg, _)| reg == 9))?;
-        (c_string_at(next.1, 16).as_deref() == Some("SetVersionText")).then_some((i, version))
-    });
+    // `lea r9, "SetVersionText"`, then the nearest `lea` before it that loads the version
+    // string. 1.10.163: `lea rax, "1.10.163.0"` right before it (0xbbc503); NG 1.11.240:
+    // `lea rax, "1.11.240.0"` 0x3d bytes before it (0xb01370; our disassembly).
+    let site = (0..SCAN)
+        .find(|&j| {
+            lea_target(code, j, function)
+                .is_some_and(|(reg, t)| reg == 9 && c_string_at(t, 16).as_deref() == Some("SetVersionText"))
+        })
+        .and_then(|j| {
+            (j.saturating_sub(VERSION_LEA_WINDOW)..j).rev().find_map(|i| {
+                let (_, version) = lea_target(code, i, function)?;
+                c_string_at(version, 32).is_some_and(|s| is_version(&s)).then_some((i, version))
+            })
+        });
     let Some((offset, version_address)) = site else {
         log::warn!(target: "f4x::f4se", "SetVersionText call not found; no version text");
         return;

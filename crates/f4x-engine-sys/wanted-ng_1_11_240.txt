@@ -1,0 +1,111 @@
+# Fallout 4 1.11.240 (next-gen, Steam): where each entry of `wanted.txt` lives, found by our
+# own analysis (no Address Library). Same names and order as `wanted.txt`. One per line:
+#   name  rva  kind  evidence
+# kind: fn      the function starts at rva (signature at the function; if its bytes are not
+#               unique in .text, `f4x-codegen addresses --ng` falls back to a call site)
+#       call    the function at rva, located through a direct call to it (its own bytes have
+#               identical copies, as in 1.10.163)
+#       global  data at rva, located through a RIP-relative instruction that references it
+#       none    not found / not present in this build; rva is `-` and the recipe is empty
+# evidence: how the OG (1.10.163) entry was matched to this build. `f4x-re compare` stats read
+# "k/m" = of the OG function's m callees/callers/globals that are matched in both builds, k
+# agree. `f4x-codegen addresses --ng --exe <Fallout4.exe>` turns this list into
+# `src/ng_1_11_240_addresses.rs` and `provenance/addresses-ng_1_11_240.jsonl`.
+console_execute_command       0x1036250 fn      strings "ForEachRef[" + GetSelectedRef script text (only user); calls 11/13, callers 2/2, globals 6/7 (UI, ConsoleLog)
+save_load_manager_queue_task  0xbfe9e0  fn      size 0x162/0x166; calls 9/10, callers 5/5, globals 3/4
+scaleform_manager_load_movie  0x1b1b1d0 fn      only user of "BackgroundAlpha" in both builds; NG inlines the movie-path lookup ("Interface/%s.swf", "Interface/Exported/%s.gfx"); callers 25/25, calls 8/10; same (this, menu, movie&, name, objPath, scaleMode, alpha) use
+script_compile_and_run        0x5b2690  fn      OG signature unique in NG; calls 2/2, callers 2/2
+console_log_add_string        0x103c250 fn      ConsoleLog::PrintLine (0x103c0c0: vsnprintf into 0x1030 bytes, appends '\n') calls it with (this, buffer); spinlock, TLS state 0x42, UIMessageQueue + ConsoleData message on first line, then appends to the log BSString (as OG; NG inlines the lock)
+save_game_worker              0xbee0b0  fn      strings 3/3 (save names); calls 26/26, callers 1/1
+load_game_worker              0xbee760  fn      strings 3/3; calls 53/56, globals 11/12
+new_game_starter              0x106fa20 fn      NOT a standalone starter on NG: MainMenu vtable slot 4 (OG 0x12a0e20, which calls the starter 0x12a23e0) inlines it; its quest-start call is at +0x4d2 (0x106fef2: form lookup, type 0x50 check, then the quest start 0x66b440 = OG 0x5d70c0), the call F4SE 0.7.9 redirects (black-box patches). The OG-shaped copy 0x1071be0 has no callers
+data_ready_caller             0xc3ec50  fn      calls 20/23, callers 1/1, globals 16/19 (game-data load finisher on the loader thread)
+script_parse_parameters       0x5b3600  fn      callers 333/333 (console command handlers), calls 5/6, globals 5/5
+console_functions             0x2efa130 global  all 4 matched OG users read it at the same use (SCRIPT_FUNCTION table)
+console_log_singleton         0x30f83b8 global  668 of 669 matched OG users read it
+native_function_base_call     0x21012a0 fn      strings 4/4 (native call error messages); calls 11/12, vtables 1/1
+stack_get_page_for_frame      0x20fad20 fn      same loop: page count at +0x50, pages at +0x20 (inline when [+0x18] sign bit), frame-in-page test; callers 1/1
+stack_get_frame_variable      0x20fad90 call    byte-for-byte the OG shape: resolver call (0x20fc820) then page[+0x20] + offset + 4; follows GetPageForFrame as in OG; ~100 native-argument callers
+script_object_get_handle      0x20e8c40 fn      OG signature unique in NG; same size 0x6f; callers 44/47
+script_object_inc_ref         0x20e9d40 fn      OG signature unique in NG; same size 0x9c; callers 86/95
+script_object_dec_ref         0x20e9df0 fn      OG signature unique in NG; same size 0xa4; callers 114/119
+object_bind_policy_bind       0x20e3a60 fn      same size 0x73 and TLS state 0x16; callers 2/2
+string_pool_get_entry         0x167dd20 fn      (Entry*&, const char*, bool) prologue; callers 6/7, calls 4/6
+string_pool_entry_release     0x167d4a0 fn      callers 1250/1324
+memory_manager_singleton      0x1e02a0  fn      OG signature unique in NG; same size 0x3b; callers 11/12, globals 2/2
+memory_manager_scrap_heap     0x1657250 fn      TLS slot 0x910/0x9c0/0x920 use as OG; callers 87/113, calls 2/2
+scrap_heap_allocate           0x165c240 fn      reached from the ScrapHeap allocator thunk 0x165b9e0 (mov rcx,[rcx]; r8d=8; jmp) as OG 0x1b138a0; same size rounding (8/0x10, 0x3fff.., 0x1000); callers 57/85 (the OG prologue signature also hits an unrelated NG Scaleform function)
+gfx_object_add_ref            0x1ad6b70 fn      identical code (type & 0x8f switch, refcount +0x20 / +0x18)
+gfx_object_release            0x1ad6bb0 fn      identical code, right after ObjectAddRef as in OG; callers 351/355
+gfx_object_has_member         0x1ace1a0 fn      OG signature unique in NG; callers 8/8, calls 7/9
+gfx_object_get_member         0x1ac8ae0 fn      OG signature unique in NG; callers 96/98, calls 9/12
+gfx_object_set_member         0x1ae6f00 fn      OG signature unique in NG; callers 165/166, calls 13/17
+gfx_object_invoke             0x1ad02a0 fn      callers 165/165, calls 12/15
+gfx_object_push_back          0x1add860 fn      OG signature unique in NG; callers 52/53, calls 3/3
+control_map_singleton         0x31f0b88 global  41 of 42 matched OG users read it
+all_forms                     0x30ebec8 global  6 of 7 matched OG users read it; form_lookup_by_id reads it under the all-forms lock
+memory_manager_allocate       0x1657de0 fn      same size 0x24b; callers 1299/1453
+localized_string_dl_get_description 0x30ea10 fn  16 of 16 matched OG callers call it; same (this, BSString&, form) prologue: TESDataHandler flag (+0x1018, OG +0x1010), RTDynamicCast when form is null; NG inlines the description loader
+actor_reset_3d                0xc742f0  fn      same size 0x93; calls 3/3, callers 7/7
+memory_manager_deallocate     0x1658240 fn      OG signature unique in NG; same size; calls 3/3
+ui_singleton                  0x30e8930 global  114 of 118 matched OG users read it
+refr_handle_get_smart_pointer 0x22d060  call    same code as OG: handle table 0x30e5490, index 0x1fffff / age 0x3e00000 / bit 26 checks, (const handle&, NiPointer&) -> bool (setne); 151 of 375 matched OG callers call it (NG also has an (out, handle) -> NiPointer form at 0x21e490)
+extra_text_display_get_name   0x2ac800  fn      same field logic: displayName +0x18 empty test, +0x20/+0x28/+0x30==-2 -> rebuild, returns this+0x18; NG inlines the name builder; callers 3/3
+console_pick_ref              0x3312820 global  all 5 matched OG users read it
+ui_menu_map_lock              0x3dbd370 global  all 8 matched OG users read it; RegisterMenu write-locks it
+omod_get_loose_mod            0x4335c0  call    Mod::InitItemImpl (vtable slot 22 in both builds: OG 0x2f2890, NG 0x4344e0) calls it first, as OG calls 0x2f1dd0; byte-for-byte the OG code (size 0x7a): hash of the Mod, lookup in the loose-mod map (entries 0x2ee0778, capacity 0x2ee075c, sentinel 0x2ee0768; InitItemImpl inserts at 0x2ee0758). Not 0x435430: same shape, but the neighbouring map of per-Mod arrays
+condition_is_true             0x768e20  fn      (this, actionRef, targetRef): builds ConditionCheckParams on the stack and walks the item list (NG inlines OG's IsTrue(params)); 11 of 13 matched OG callers call it
+refr_get_weight_in_container  0x507da0  fn      OG signature unique in NG; calls 5/5, callers 6/6, globals 3/3
+ui_register_menu              0x1a826d0 fn      (UI*, name, create, staticUpdate): TLS state 0x42, write lock on ui_menu_map_lock, insert into the menu map at UI+0x1B0, as OG; ~100 static menu-registration callers
+input_device_manager_singleton 0x3e75cb8 global 36 of 39 matched OG users read it
+rw_lock_lock_read             0x1659400 call    same size 0x70 (GetCurrentThreadId owner test, reader count +4); callers 373/445
+handle_policy_get_inventory_obj 0x109b980 fn    OG signature unique in NG; calls 4/5, callers 1/1
+extra_list_get_by_type        0x2a0350  fn      read lock at +0x20, then the inlined BaseExtraList lookup (presence bits at +0x18, list at +8, type byte +0x12); callers 322/347
+ui_message_queue_singleton    0x30e8b20 global  all 96 matched OG users read it
+all_forms_by_editor_id        0x30ebed0 global  all 6 matched OG users read it
+npc_alternate_head_parts      0x2f09258 global  the alternate head-part map (base 0x2f09250: capacity +0xC, sentinel +0x18, entries +0x28) used as OG 0x3715300 by the NPC head-part lookups (0x661a30, 0x65efa0); base+8 referenced by the map insert in 0x65f050 as OG 0x5c0390 does
+extra_list_set_material_swap  0x291880  fn      only user of the ExtraMaterialSwap vtable in both builds; globals 2/2
+ui_message_queue_add_message  0x1a89630 fn      callers 69/69; same (this, name&, type) use
+favorites_is_component_favorite 0x1048640 fn    same size 0x8c; callers 5/5
+favorites_toggle_component    0x1048460 fn      same favoritedComponents hash lookup (manager+0x188: entries +0x1A8, capacity +0x18C); callers 2/2
+bs_read_write_lock_lock_read  0x1659400 call    = rw_lock_lock_read
+form_lookup_by_id             0x311b80  fn      read lock on the all-forms lock, hash lookup in all_forms (0x30ebec8); callers 169/183
+scaleform_manager_singleton   0x30f5d90 global  37 of 38 matched OG users read it
+ni_get_extra_data             0x16bd5d0 fn      (this, const BSFixedString&): empty-name test, then the extra-data list at +0x20 (NG inlines the binary search); 34 of 40 sampled matched OG callers call it
+spline_connect                0x38dfe0  fn      same size 0xef and code: four power-link adds with 0x200 flag updates, then the linked-ref lookup with the same keyword global; NG inlines it into the placement code, so it has no direct callers
+data_handler_create_ref_at_location 0x2e5110 fn calls 60/64, callers 7/7, globals 12/13
+workshop_scrap_reference      0x393f30  fn      calls 29/37, globals 5/6 (workshop_current_handle)
+favorites_manager_singleton   0x3273b48 global  16 of 18 matched OG users read it
+refr_get_linked_ref           0x5648b0  fn      OG signature unique in NG; same size 0xf; callers 37/39
+refr_set_linked_ref           0x5648d0  fn      right after GetLinkedRef as in OG; same size 0x1af and code (extra list at +0x100, 0x100 change flag, GetHandle); calls 5/6, callers 16/17
+workshop_transmit_power       0x38ecb0  fn      calls 21/22, callers 6/6
+workshop_grid_add_item        0x387090  fn      OG signature unique in NG; same size 0x11e; calls 7/7
+workshop_grid_connect         0x3876d0  fn      calls 13/21, callers 4/4
+spline_update_geometry        0x38db50  fn      OG signature unique in NG; calls 6/6, callers 2/2, globals 4/4
+workshop_update_item          0x38fb40  fn      same prologue (workshop keyword globals, linked-ref lookup); calls 8/11, callers 4/4
+player_camera_singleton       0x30e6e58 global  106 of 110 matched OG users read it
+omod_get_data                 0x2525a0  fn      NOT Mod::GetData: NG inlines Mod::GetData (e.g. at 0x25008c: flags from mod+0xC2..0xC6, then this call with mod+0x88). This is Container::GetData(const Container*, Data*) (same code and 0xffffff/0xfffff masks as OG 0x4e6a0); f4x passes the Mod's container (+0x88) on next-gen
+default_water                 0x31f0410 global  all 4 matched OG users read it
+save_delete_entry             0xbea410  fn      byte-for-byte the OG shape (size 0x33): save_delete_files(list, entry name, entry +0x60, 0) then the list removal tail call
+save_delete_files             0xbf9170  fn      same tail as OG: name compare with the current save (+0x60), "-SAVE-" message, flag at +0x128; NG builds the path in a helper (0xbf8db0) before DeleteFileA
+vm_register_vanilla_natives   0x113ec60 fn      OG signature unique in NG; calls 140/140 RegisterFuncs
+string_pool_get_entry_wide    0x167e2a0 fn      (Entry*&, const wchar_t*, bool) prologue; callers 1/1, calls 3/5
+scaleform_translator_load     0x1c9c610 fn      OG signature unique in NG; same size 0x19f; calls 4/5
+translation_map_insert        0x1da3b70 fn      the thunk (rcx += 8) called by scaleform_translator_load with (translator+0x20, key&, value&) as OG
+ini_setting_collection_singleton 0x344b4b8 global the INISettingCollection getter 0x22d910 allocates 0x128 bytes with the INISettingCollection vtable into it (NG settings use the getter; OG static constructors read the global directly)
+workshop_current_handle       0x30f7698 global  26 of 30 matched OG users read it
+workshop_find_for_ref         0x385720  fn      same prologue: parentCell +0xB8, position +0xD0..0xD8, TES global and float constant; NG inlines the loaded-cell walk; callers 3/3
+refr_get_handle               0x5194c0  call    byte-for-byte the OG code (refcount test, invalid-handle global, CreateHandle); callers 316/344
+player_camera_set_state       0x827dd0  fn      TESCamera::SetState: End() old state (+0x50), swap the state at +0x28 with refcounts; NG no longer calls Begin() (+0x48) here; callers 20/24
+matswap_apply_3d              0x256060  fn      OG signature unique in NG; calls 1/1, callers 4/4
+control_map_parse             0x1671280 fn      OG signature unique in NG; calls 17/18, vtables 2/2
+gfx_object_visit_members      0x1af0ca0 fn      same immediates (0x3fffff, 0x8fbfffff, -0x220) and structure; calls the same release helpers as gfx_object_release; no direct callers (virtual), as OG
+scaleform_external_texture_set 0x1b1de60 fn     same logic; NG calls scaleform_external_texture_release instead of inlining it; callers 7/7
+scaleform_external_texture_release 0x1b1ddf0 fn OG signature unique in NG; same code
+texture_load_by_path          0x17a3a60 fn      strings 2/2 ("textures\\" prefix); calls 14/14, callers 8/8
+shader_fx_target_apply_color  0x1b052a0 fn      OG signature unique in NG; strings 1/1, calls 9/10, callers 3/3
+resource_stream_ctor          0x16b9c40 fn      OG signature unique in NG; same size 0xf2; callers 4/4
+resource_stream_dtor          0x16b9f30 fn      vtables 1/1, calls 4/5, globals 2/2
+vm_update_stacks              0x10f07f0 fn      OG signature unique in NG; calls 2/3, callers 1/1
+shader_fx_target_ctor_value   0x1b03fa0 call    base ctor copies the Value, BSGFxShaderFXTarget vtables at +0 and +0x50, brightness 1.0 at +0x88, 0xB0 bytes, "bUseShadedBackground" test (moved into 0x1b048b0), ApplyColorUpdateEvent registration; callers 24/25
+shader_fx_target_filters_to_hud 0x1b04500 fn    OG signature unique in NG; same size 0x3c; callers 22/24

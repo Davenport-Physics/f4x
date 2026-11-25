@@ -2,8 +2,9 @@
 
 use super::Entry;
 
-/// The version f4x reports to plugins (F4SE 0.6.23, release index 25).
-const VERSION: (i32, i32, i32, i32) = (0, 6, 23, 25);
+/// The version f4x reports (black-box: F4SE 0.6.23 returns 0/6/23/25 on 1.10.163, F4SE
+/// 0.7.9 returns 0/7/9/33 on 1.11.240; `GetScriptVersionRelease` matches the release).
+const VERSION: (i32, i32, i32, i32) = f4x_engine::pick!((0, 6, 23, 25), (0, 7, 9, 33));
 
 pub(crate) const NATIVES: &[Entry] = &[
     ("F4SE", "GetVersion", |c| {

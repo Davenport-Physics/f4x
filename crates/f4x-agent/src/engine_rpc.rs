@@ -150,8 +150,11 @@ pub fn register() {
     server::register("engine.debug.scan_arrays", |_, p| {
         // Diagnostic: for globals pointing at heap objects, count how many have a
         // BSTArray at `offset` whose first element is a form of `type`.
-        let offset = p.get("offset").and_then(Value::as_u64).unwrap_or(0x68 + 0x18 * 0x2B) as usize;
-        let ty = p.get("type").and_then(Value::as_u64).unwrap_or(0x2B) as u8;
+        use f4x_engine::layout::{RE, form_type};
+        // Default: TESDataHandler::formArrays[WEAP] (a BSTArray is 0x18 bytes).
+        let default = RE::TESDataHandler::formArrays + 0x18 * usize::from(form_type::WEAP);
+        let offset = p.get("offset").and_then(Value::as_u64).map_or(default, |o| o as usize);
+        let ty = p.get("type").and_then(Value::as_u64).map_or(form_type::WEAP, |t| t as u8);
         on_main(
             move || {
                 use f4x_engine::mem::{Regions, read};
@@ -175,7 +178,7 @@ pub fn register() {
                         }
                         arrays += 1;
                         let first: usize = unsafe { read(data as *const u8, 0) };
-                        if regions.contains(first, 0x20) && unsafe { read::<u8>(first as *const u8, 0x1A) } == ty && typed.len() < 10 {
+                        if regions.contains(first, RE::TESForm::SIZE) && unsafe { read::<u8>(first as *const u8, RE::TESForm::formType) } == ty && typed.len() < 10 {
                             typed.push(json!({"global_rva": format!("{:#x}", section.rva + 8 * i as u32), "object": format!("{value:#x}"), "size": size}));
                         }
                     }

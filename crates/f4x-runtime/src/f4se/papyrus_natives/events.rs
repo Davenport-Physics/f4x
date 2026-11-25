@@ -19,6 +19,12 @@
 //!   `PlayerControls` already registers (its vtable found by RTTI). Every registrant gets
 //!   every event: F4SE ignores the filter, and its `UnregisterForFurnitureEvent` removes
 //!   nothing;
+//! - gamepad buttons (next-gen only: F4SE 0.7's `RegisterForGamepadButton` →
+//!   `OnGamepadButtonUp`). Black-box, F4SE 0.7.9 on 1.11.240 (`provenance/ng-bootstrap.jsonl`):
+//!   the code is the button's raw XInput mask as the engine reports it (`0x1000` A, `0x8000`
+//!   Y, `9`/`10` the triggers); any int registers; `OnGamepadButtonUp(code, heldDownSecs)`
+//!   is sent on the release; F4SE 0.7.9 never sent `OnGamepadButtonDown` (21 presses, with
+//!   and without held repeats), so neither does f4x. Saved in the `KEYG` section;
 //! - one registration per (handle, script) for each; saved in F4SE's co-save sections
 //!   `KEYR`, `CAMR` and `FRNR` (`f4x_cosave::regs`).
 
@@ -32,7 +38,7 @@ use f4x_engine::layout::RE;
 use f4x_engine::mem;
 use f4x_engine::papyrus::{Arg, NativeCall, Vm};
 use f4x_engine::papyrus_value::PValue;
-use f4x_engine_sys::og_1_10_163_addresses::{PLAYER_CAMERA_SET_STATE, PLAYER_CAMERA_SINGLETON};
+use f4x_engine_sys::addresses::{PLAYER_CAMERA_SET_STATE, PLAYER_CAMERA_SINGLETON};
 
 use super::Entry;
 use crate::f4se::natives::registrant;
@@ -44,6 +50,9 @@ pub(crate) const NATIVES: &[Entry] = &[
     ("ScriptObject", "UnregisterForCameraState", unregister_for_camera_state),
     ("ScriptObject", "RegisterForFurnitureEvent", register_for_furniture_event),
     ("ScriptObject", "UnregisterForFurnitureEvent", unregister_for_furniture_event),
+    // Next-gen only (`papyrus_natives::NG_ONLY`).
+    ("ScriptObject", "RegisterForGamepadButton", register_for_gamepad_button),
+    ("ScriptObject", "UnregisterForGamepadButton", unregister_for_gamepad_button),
 ];
 
 fn vm() -> Option<Vm> {
@@ -114,6 +123,45 @@ fn unregister_for_key(call: &mut NativeCall) -> Result<(), String> {
     Ok(())
 }
 
+/// Gamepad button mask → registered scripts (next-gen).
+static GAMEPAD: Mutex<BTreeMap<u32, Vec<Registrant>>> = Mutex::new(BTreeMap::new());
+static ANY_GAMEPAD: AtomicBool = AtomicBool::new(false);
+
+fn register_for_gamepad_button(call: &mut NativeCall) -> Result<(), String> {
+    let button = call.int(0) as u32;
+    let who = registrant(call)?;
+    let mut buttons = GAMEPAD.lock().map_err(|_| "poisoned")?;
+    let script = who.script.clone();
+    if insert(buttons.entry(button).or_default(), who) {
+        log::info!(target: "f4x::papyrus", "{script} registered for gamepad button {button:#x}");
+    }
+    ANY_GAMEPAD.store(true, Relaxed);
+    Ok(())
+}
+
+fn unregister_for_gamepad_button(call: &mut NativeCall) -> Result<(), String> {
+    let button = call.int(0) as u32;
+    let who = registrant(call)?;
+    let mut buttons = GAMEPAD.lock().map_err(|_| "poisoned")?;
+    if let Some(list) = buttons.get_mut(&button) {
+        list.retain(|r| r != &who);
+        if list.is_empty() {
+            buttons.remove(&button);
+        }
+    }
+    ANY_GAMEPAD.store(!buttons.is_empty(), Relaxed);
+    Ok(())
+}
+
+/// `OnGamepadButtonUp(mask, held)` for a released gamepad button.
+fn gamepad_release(id: u32, held: f32) {
+    let targets = GAMEPAD.lock().ok().and_then(|g| g.get(&id).cloned()).unwrap_or_default();
+    if !targets.is_empty() {
+        let sent = dispatch(&targets, "OnGamepadButtonUp", || vec![Arg::Int(id as i32), Arg::Float(held)]);
+        log::debug!(target: "f4x::papyrus", "gamepad {id:#x} up: {sent} event(s)");
+    }
+}
+
 /// The key code F4SE reports for a button: the scan code (keyboard), 256 + the button
 /// (mouse), 266 + the index of the XInput button mask (gamepad; triggers have their own
 /// codes). `None` for buttons without one.
@@ -136,7 +184,7 @@ const BUTTON_EVENT: i32 = 0; // INPUT_EVENT_TYPE::kButton
 /// Input observer: `OnKeyDown(code)` on a press, `OnKeyUp(code, held seconds)` on a
 /// release, for every registered key in this frame's input list.
 fn scan_input(head: *const u8) {
-    if !ANY_KEYS.load(Relaxed) {
+    if !ANY_KEYS.load(Relaxed) && !ANY_GAMEPAD.load(Relaxed) {
         return;
     }
     let mut event = head;
@@ -158,6 +206,9 @@ fn scan_input(head: *const u8) {
             };
             let pressed = value != 0.0 && held == 0.0;
             let released = value == 0.0 && held != 0.0;
+            if released && device == 2 && ANY_GAMEPAD.load(Relaxed) {
+                gamepad_release(id, held);
+            }
             if (pressed || released)
                 && let Some(code) = key_code(device, id)
             {
@@ -182,9 +233,18 @@ fn key_entries() -> Vec<Vec<u8>> {
     keys.iter().map(|(&key, list)| regs::write_key(key, list)).collect()
 }
 
+fn gamepad_entries() -> Vec<Vec<u8>> {
+    let buttons = GAMEPAD.lock().map(|g| g.clone()).unwrap_or_default();
+    buttons.iter().map(|(&button, list)| regs::write_key(button, list)).collect()
+}
+
 fn load_keys(host: &[Chunk]) -> BTreeMap<u32, Vec<Registrant>> {
+    load_key_section(host, regs::KEYS)
+}
+
+fn load_key_section(host: &[Chunk], header: [u8; 4]) -> BTreeMap<u32, Vec<Registrant>> {
     let mut out: BTreeMap<u32, Vec<Registrant>> = BTreeMap::new();
-    for chunk in regs::section(host, regs::KEYS) {
+    for chunk in regs::section(host, header) {
         let Some((key, list)) = regs::parse_key(&chunk.data) else { continue };
         for r in list.into_iter().filter_map(remap) {
             insert(out.entry(key).or_default(), r);
@@ -332,9 +392,25 @@ fn poll_camera() {
 static FURNITURE: Mutex<Vec<Registrant>> = Mutex::new(Vec::new());
 static REAL_PROCESS_EVENT: AtomicUsize = AtomicUsize::new(0);
 
+/// Whether the `Var filter` argument holds None.
+fn filter_is_none(call: &NativeCall) -> bool {
+    match call.value(0) {
+        PValue::None => true,
+        PValue::Var(inner) => matches!(*inner, PValue::None),
+        _ => false,
+    }
+}
+
+/// 1.10.163 (F4SE 0.6.23): registers whatever the filter (F4SE crashes when it holds None;
+/// f4x registers). Next-gen (F4SE 0.7.9, black-box): only a None filter registers; with a
+/// form, an array of forms (actor or furniture) or another value nothing is registered,
+/// nothing is saved and no events arrive.
 fn register_for_furniture_event(call: &mut NativeCall) -> Result<(), String> {
-    // F4SE crashes when the filter holds None; f4x registers (the filter is unused).
     let who = registrant(call)?;
+    if f4x_engine::NG && !filter_is_none(call) {
+        log::debug!(target: "f4x::papyrus", "{} ({:#x}): RegisterForFurnitureEvent with a filter registers nothing, as F4SE 0.7 does", who.script, who.handle);
+        return Ok(());
+    }
     let mut all = FURNITURE.lock().map_err(|_| "poisoned")?;
     insert(&mut all, who);
     Ok(())
@@ -342,9 +418,15 @@ fn register_for_furniture_event(call: &mut NativeCall) -> Result<(), String> {
 
 /// F4SE 0.6.23 keeps the registration whatever the filter (black-box: forms, the filter
 /// it was registered with, Int, String and Bool values all leave it in place and in the
-/// co-save; None crashes F4SE). f4x matches it, so saves and events stay the same.
+/// co-save; None crashes F4SE). F4SE 0.7.9 removes it when the filter is None and keeps it
+/// otherwise (black-box). f4x matches each, so saves and events stay the same.
 fn unregister_for_furniture_event(call: &mut NativeCall) -> Result<(), String> {
     let who = registrant(call)?;
+    if f4x_engine::NG && filter_is_none(call) {
+        let mut all = FURNITURE.lock().map_err(|_| "poisoned")?;
+        all.retain(|r| r != &who);
+        return Ok(());
+    }
     log::debug!(target: "f4x::papyrus", "{} ({:#x}): UnregisterForFurnitureEvent keeps the registration, as F4SE does", who.script, who.handle);
     Ok(())
 }
@@ -429,6 +511,10 @@ pub(crate) fn revert() {
     if let Ok(mut k) = KEYS.lock() {
         k.clear();
     }
+    if let Ok(mut g) = GAMEPAD.lock() {
+        g.clear();
+    }
+    ANY_GAMEPAD.store(false, Relaxed);
     if let Ok(mut c) = CAMERA.lock() {
         c.clear();
     }
@@ -443,6 +529,11 @@ pub(crate) fn revert() {
 /// Write the `KEYR`, `CAMR` and `FRNR` sections into F4SE's host block.
 pub(crate) fn save(host: &mut Vec<Chunk>) {
     regs::replace_section(host, regs::KEYS, key_entries());
+    if f4x_engine::NG {
+        // F4SE 0.7.9's gamepad table, right after the key table.
+        regs::ensure_section_after(host, regs::GAMEPAD, regs::KEYS);
+        regs::replace_section(host, regs::GAMEPAD, gamepad_entries());
+    }
     let camera = CAMERA.lock().map(|c| c.clone()).unwrap_or_default();
     regs::replace_chunk(host, regs::CAMERA, regs::write_registrants(&camera));
     let furniture = FURNITURE.lock().map(|f| f.clone()).unwrap_or_default();
@@ -455,6 +546,13 @@ pub(crate) fn load(host: &[Chunk]) {
     if let Ok(mut k) = KEYS.lock() {
         ANY_KEYS.store(!keys.is_empty(), Relaxed);
         *k = keys;
+    }
+    if f4x_engine::NG {
+        let buttons = load_key_section(host, regs::GAMEPAD);
+        if let Ok(mut g) = GAMEPAD.lock() {
+            ANY_GAMEPAD.store(!buttons.is_empty(), Relaxed);
+            *g = buttons;
+        }
     }
     let mut camera = Vec::new();
     if let Some((list, _)) = regs::chunk(host, regs::CAMERA).and_then(|d| regs::parse_registrants(d, 0)) {

@@ -24,6 +24,7 @@ static REAL_MENU: AtomicUsize = AtomicUsize::new(0);
 static REAL_PLAYER: AtomicUsize = AtomicUsize::new(0);
 static BUTTON_VTABLE: AtomicUsize = AtomicUsize::new(0);
 
+/// `INPUT_DEVICE` (same on NG 1.11.240: next-gen fork `INPUT_DEVICE.h`).
 pub mod device {
     pub const KEYBOARD: i32 = 0;
     pub const MOUSE: i32 = 1;
@@ -89,11 +90,22 @@ const POOL: usize = 64;
 /// next frame, up `hold_frames` frames later. `id_code` is the key (DirectInput scan code
 /// for the keyboard, e.g. 0x1C Enter).
 pub fn press(user_event: &str, id_code: u32, device: i32, hold_frames: u32) -> u64 {
+    press_with(user_event, id_code, device, hold_frames, false)
+}
+
+/// [`press`], optionally with a held event on every frame in between (`repeat`: value 1,
+/// `heldDownSecs` growing by a 60 fps frame), as a physical button sends while held.
+pub fn press_with(user_event: &str, id_code: u32, device: i32, hold_frames: u32, repeat: bool) -> u64 {
     let start = clock::frames() + 1;
     let hold = hold_frames.max(1);
     if let Ok(mut state) = STATE.lock() {
         let base = Scheduled { frame: start, user_event: user_event.to_owned(), id_code, device, value: 1.0, held: 0.0 };
         state.pending.push(Scheduled { frame: start + u64::from(hold), value: 0.0, held: hold as f32 / 60.0, user_event: base.user_event.clone(), ..base });
+        if repeat {
+            for i in 1..hold {
+                state.pending.push(Scheduled { frame: start + u64::from(i), held: i as f32 / 60.0, user_event: base.user_event.clone(), ..base });
+            }
+        }
         state.pending.push(base);
     }
     start
@@ -248,7 +260,7 @@ unsafe extern "C" fn player_hook(this: *mut u8, head: *const u8) {
     unsafe { std::mem::transmute::<usize, PerformInputProcessing>(REAL_PLAYER.load(Relaxed))(this, head) };
 }
 
-/// RPC: `input.press {event, key?, device?, hold_frames?}`, `input.recent`.
+/// RPC: `input.press {event, key?, device?, hold_frames?, repeat?}`, `input.recent`.
 pub fn register_rpc() {
     use f4x_proto::{RpcError, code};
     crate::server::register("input.press", |_, p| {
@@ -265,10 +277,11 @@ pub fn register_rpc() {
             other => return Err(RpcError::new(code::INVALID_PARAMS, format!("params.device: keyboard|mouse|gamepad, not {other:?}"))),
         };
         let hold = p.get("hold_frames").and_then(Value::as_u64).unwrap_or(2) as u32;
+        let repeat = p.get("repeat").and_then(Value::as_bool).unwrap_or(false);
         if BUTTON_VTABLE.load(Relaxed) == 0 || REAL_MENU.load(Relaxed) == 0 {
             return Err(RpcError::new(code::INTERNAL, "input injection unavailable (hooks not installed)"));
         }
-        let frame = press(&event, key, device, hold);
+        let frame = press_with(&event, key, device, hold, repeat);
         log::info!(target: "f4x::input", "press {event} (key {key:#x}) at frame {frame}");
         Ok(json!({"ok": true, "frame": frame}))
     });

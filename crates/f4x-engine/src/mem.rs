@@ -70,6 +70,7 @@ impl Regions {
 /// Read a `BSFixedString`/`BGSLocalizedString` (a pointer to a string-pool entry).
 /// Layout (CommonLibF4 `BSStringPool::Entry`): flags `u16` at +8 (`1<<14` shallow,
 /// `1<<15` wide), next entry at +0x10 when shallow, text after the 0x18-byte header.
+/// Same on NG 1.11.240 (clf4-ng `BSStringPool.h`:97-106).
 ///
 /// # Safety
 /// `entry` must be null or a live string-pool entry.
@@ -109,7 +110,7 @@ pub unsafe fn c_str(p: *const u8) -> String {
 }
 
 /// A `BSTArray<T>` view (CommonLibF4 `BSTArray`: data `*T` at 0, capacity `u32` at 8,
-/// size `u32` at 0x10).
+/// size `u32` at 0x10; same on NG, clf4-ng `BSTArray.h`:47-48, 574-575).
 #[derive(Clone, Copy)]
 pub struct BSTArray<T: Copy> {
     data: *const T,

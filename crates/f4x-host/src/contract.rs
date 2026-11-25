@@ -21,7 +21,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::env::{GameEnv, wine_path};
-use crate::launch::{Launch, build_windows, new_session};
+use crate::launch::{Launch, new_session};
 use crate::profile::{Host, Profile};
 
 /// The default profile for `--host f4se`.
@@ -132,9 +132,15 @@ pub fn contract_env(plugins: &[PathBuf], test_mode: bool) -> Vec<(String, String
 /// profile and prefix (muted), and create the session directory.
 pub fn prepare(options: &LaunchOptions) -> Result<LaunchSpec, String> {
     let root = &options.workspace;
-    let out = crate::windows_out(root);
     let base = GameEnv::from_env();
     base.check()?;
+    // The binaries built for the profile's game generation (`target/ng` for next-gen).
+    let install = match &options.profile {
+        Some(name) => Profile::load(name).ok().and_then(|p| p.install).unwrap_or_else(|| base.game_dir.clone()),
+        None => base.game_dir.clone(),
+    };
+    let generation = crate::exe_generation(&install)?;
+    let out = crate::windows_out_for(root, generation);
 
     let mut plugins = Vec::new();
     for plugin in &options.plugins {
@@ -150,7 +156,7 @@ pub fn prepare(options: &LaunchOptions) -> Result<LaunchSpec, String> {
             Host::F4x => &["f4x-loader", "f4x-runtime"],
             Host::F4se => &["f4x-agent-f4se"],
         };
-        build_windows(root, packages)?;
+        crate::launch::build_windows_for(root, packages, generation)?;
     }
 
     let (env, program, args, game_dir, profile) = match options.host {
@@ -161,14 +167,15 @@ pub fn prepare(options: &LaunchOptions) -> Result<LaunchSpec, String> {
                     if profile.host != Host::F4x {
                         return Err(format!("profile {name:?} is for host {}, not f4x", profile.host));
                     }
-                    (base.with_prefix(profile.prefix()), profile.game_dir())
+                    (profile.env(&base), profile.game_dir())
                 }
                 None => {
                     let game_dir = base.game_dir.clone();
                     (base, game_dir)
                 }
             };
-            let loader = out.join("f4x_loader.exe");
+            // The loader has no per-generation code; it is built once (1.10.163 target dir).
+            let loader = crate::windows_out(root).join("f4x_loader.exe");
             let runtime = out.join("f4x_runtime.dll");
             for file in [&loader, &runtime] {
                 if !file.is_file() {
@@ -200,7 +207,7 @@ pub fn prepare(options: &LaunchOptions) -> Result<LaunchSpec, String> {
             if !loader.is_file() {
                 return Err(format!("{} is missing; recreate the profile", loader.display()));
             }
-            (base.with_prefix(profile.prefix()), loader, Vec::new(), profile.game_dir(), Some(name))
+            (profile.env(&base), loader, Vec::new(), profile.game_dir(), Some(name))
         }
     };
     env.ensure_prefix()?;

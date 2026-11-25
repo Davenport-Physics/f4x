@@ -6,6 +6,10 @@
 //! 1.10.163: the `ControlMap` constructor at 0x1b27830 passes the text at 0x2e0b7e0 to
 //! its parser, `control_map_parse`; lines are `name<TAB>keyboard<TAB>mouse<TAB>gamepad
 //! <TAB>remappable...<TAB>flags`).
+//!
+//! Same on NG 1.11.240: 33 contexts (next-gen fork `UserEvents.h`, `ControlMap.h`), and
+//! the NG `ControlMap` constructor (0x166e890) clears 0x108 bytes of context pointers at
+//! +0x08 and builds the 0x18-byte `BSTArray`s at +0x110 and +0x128, as 1.10.163 does.
 
 use crate::controls::control_map;
 use crate::layout::RE;

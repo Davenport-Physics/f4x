@@ -14,5 +14,8 @@ crate-type = ["cdylib"]
 f4x-sdk = { path = "../../../crates/f4x-sdk" }
 f4x-engine = { path = "../../../crates/f4x-engine" }
 
+[features]
+ng = ["f4x-engine/ng", "f4x-sdk/ng"]
+
 [lints]
 workspace = true

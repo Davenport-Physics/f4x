@@ -34,5 +34,8 @@ windows-sys = { workspace = true, features = [
     "Win32_UI_Shell",
 ] }
 
+[features]
+ng = ["f4x-engine/ng", "f4x-engine-sys/ng", "f4x-agent/ng"]
+
 [lints]
 workspace = true

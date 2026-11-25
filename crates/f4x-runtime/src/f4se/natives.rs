@@ -472,6 +472,9 @@ pub(crate) fn bind_all(vm: usize) {
     }
     let (mut ok, mut failed) = (0, Vec::new());
     for (script, name, handler) in super::papyrus_natives::all() {
+        if !super::papyrus_natives::in_this_generation(script, name) {
+            continue;
+        }
         let Some((params, ret, is_static)) = super::papyrus_natives::signature(script, name) else {
             failed.push(format!("{script}.{name}: not in the signature inventory"));
             continue;

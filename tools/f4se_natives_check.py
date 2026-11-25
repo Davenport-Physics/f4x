@@ -1,8 +1,11 @@
 """Call every F4SE Papyrus native (from the signature inventory) with arguments chosen from
 the declared types, and record the results. Run once per host, in-game, then compare:
 
-    python3 -I tools/f4se_natives_check.py host <f4se|f4x> <profile> <out.json> [--plan plan.json] [--only Script,...]
+    python3 -I tools/f4se_natives_check.py host <f4se|f4x> <profile> <out.json> [--plan plan.json] [--only Script,...] [--signatures FILE]
     python3 -I tools/f4se_natives_check.py diff <f4se.json> <f4x.json>
+
+`--signatures` picks the inventory (default F4SE 0.6.23's; next-gen:
+crates/f4x-pex/data/f4se-0.7.9-signatures.json).
 
 `host` launches the game itself (headless, muted, in an f4x profile), plans the calls once
 (or reuses `--plan`, e.g. the other host's output, so both hosts make identical calls),
@@ -226,6 +229,8 @@ def main_diff(a_path, b_path):
 
 
 if __name__ == "__main__":
+    if "--signatures" in sys.argv:
+        SIGNATURES = os.path.abspath(sys.argv[sys.argv.index("--signatures") + 1])
     if sys.argv[1] == "host":
         only = None
         if "--only" in sys.argv:

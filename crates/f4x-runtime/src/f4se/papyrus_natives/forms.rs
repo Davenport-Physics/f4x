@@ -21,7 +21,7 @@ use f4x_engine::layout::RE;
 use f4x_engine::mem::{self, read};
 use f4x_engine::papyrus::{self, FixedString, NativeCall};
 use f4x_engine::papyrus_value::PValue;
-use f4x_engine_sys::og_1_10_163_addresses as addr;
+use f4x_engine_sys::addresses as addr;
 
 use super::Entry;
 
@@ -114,7 +114,7 @@ unsafe fn fixed_at(field: *const u8) -> String {
 }
 
 // `BSStringT<char>` (CommonLibF4 `BSStringT.h`: `_data` pointer, then u16 `_size` and
-// u16 `_capacity`; the allocator policy is empty).
+// u16 `_capacity`; the allocator policy is empty). Same on NG (clf4-ng `BSStringT.h`:157).
 const BSSTRING_SIZE: usize = 0x10;
 
 /// The text of a `BSStringT<char>`.
@@ -381,6 +381,14 @@ const FORM: &[Entry] = &[
         c.ret_value(&array_or_none(items))
     }),
     ("Form", "GetName", form_natives_get_name),
+    // F4SE 0.7.0 (whatsnew: "Form.GetEditorID"; signature from 0.7.9's .pex). The form's
+    // `GetFormEditorID` virtual: release builds keep editor IDs for some types only, the
+    // rest give "" (black-box: F4SE 0.7.9 returns "" for MISC forms 0xA and 0xF).
+    ("Form", "GetEditorID", |c| {
+        let id = self_form(c).map(Form::editor_id).unwrap_or_default();
+        c.ret_string(&id);
+        Ok(())
+    }),
     ("Form", "SetName", |c| {
         // No AddChange: the stub's change flag is marked as divergent from F4SE.
         let name = c.string(0);
@@ -449,7 +457,9 @@ const FORM: &[Entry] = &[
 /// at +0x118 (CommonLibF4 `Settings.h:274`, after `SettingCollection`'s vptr,
 /// `settingFile[260]` and `handle` at +0x110). `BSTBTree` (`BSTBTree.h:41-43, 239`): root
 /// node at +0x10; a node holds 4 `BSTTuple<BSFixedString, Setting*>` entries (0x10 each),
-/// then 5 child pointers at +0x40 and `usedEntries` (u32) at +0x68.
+/// then 5 child pointers at +0x40 and `usedEntries` (u32) at +0x68. Same on NG 1.11.240
+/// (clf4-ng `Setting.h`:293-294, 368, `BSTBTree.h`:57-59, 261-265; re: the collection's
+/// vtable functions use +0x110 and +0x128 in both builds).
 const SETTINGS_TREE: usize = 0x118;
 const TREE_ROOT: usize = 0x10;
 const NODE_CHILDREN: usize = 0x40;
@@ -538,10 +548,11 @@ fn camera_state() -> i32 {
     unsafe { read::<u32>(state, RE::TESCameraState::id) as i32 }
 }
 
-/// `CameraStates::k3rdPerson` (CommonLibF4 `TESCamera.h`).
+/// `CameraStates::k3rdPerson` (CommonLibF4 `TESCamera.h`; same on NG, clf4-ng
+/// `CameraStates.h`:18).
 const THIRD_PERSON: usize = 8;
 /// `WEAPON_STATE::kDrawn` (CommonLibF4 `Actor.h`); `ActorState::weaponState` is bits 1..=3
-/// of the u32 at +0x0C.
+/// of the u32 at +0x0C (same on NG: clf4-ng `WEAPON_STATE.h`:10, `ActorState.h`:41).
 const WEAPON_DRAWN: u32 = 3;
 
 /// `ThirdPersonState::ProcessWeaponDrawnChange(player->GetWeaponMagicDrawn())`. Main thread.
@@ -835,7 +846,7 @@ fn form_by_editor_id(editor_id: &str) -> Option<Form> {
     let global = resolve(&addr::ALL_FORMS_BY_EDITOR_ID)?;
     let key = FixedString::new(editor_id)?;
     // SAFETY: the map pointer global and the map's own fields (capacity at +0x0C, entries
-    // at +0x28, 24-byte entries {key, form, next}, in use when `next` is set).
+    // at +0x28, 24-byte entries {key, form, next}, in use when `next` is set; same on NG).
     unsafe {
         let map: *const u8 = read(global as *const u8, 0);
         if map.is_null() || !mem::readable(map as usize, 0x30) {

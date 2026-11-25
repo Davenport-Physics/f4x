@@ -13,5 +13,8 @@ log = "0.4"
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_System_LibraryLoader", "Win32_System_Memory"] }
 
+[features]
+ng = ["f4x-engine-sys/ng"]
+
 [lints]
 workspace = true

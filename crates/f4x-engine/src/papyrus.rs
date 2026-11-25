@@ -6,6 +6,11 @@
 //! `msvc/functional.h`). The overloaded `IVirtualMachine` slots were cross-checked
 //! against clang's MS-ABI vtable dump (`target/clangdump/vtables.txt`).
 //!
+//! Next-gen (1.11.240): every layout and slot here is unchanged (next-gen CommonLibF4
+//! 40a93f69 `BSScript_*.h`, `BSTArray.h`, `BSTHashMap.h`, and our RE of both exes),
+//! except `BSTThreadScrapFunction`, the newer MSVC `std::function` ([`ArgsFunctor`]).
+//! Facts: provenance/ng-constants.jsonl.
+//!
 //! A Rust native is an object laid out like `NF_util::NativeFunctionBase` (0x50 bytes)
 //! with a vtable f4x builds at run time. Its `Call` slot is the engine's own
 //! `NativeFunctionBase::Call`, which sets up the frame and calls back into our
@@ -16,7 +21,7 @@ use std::mem::transmute;
 use std::ptr::null_mut;
 use std::sync::{Arc, OnceLock};
 
-use f4x_engine_sys::og_1_10_163_addresses as addr;
+use f4x_engine_sys::addresses as addr;
 
 use crate::address::resolve;
 use crate::form_type::FormType;
@@ -114,7 +119,7 @@ pub unsafe fn release_entry(slot: *mut *mut u8) {
 
 // ---------------------------------------------------------------- variables
 
-/// `TypeInfo::RawType`.
+/// `TypeInfo::RawType` (same on NG: next-gen CommonLibF4 `BSScript_TypeInfo.h:14`).
 pub mod raw {
     pub const NONE: u32 = 0;
     pub const OBJECT: u32 = 1;
@@ -270,8 +275,8 @@ impl Variable {
         if object.is_null() {
             return;
         }
-        // SAFETY: Object::type (ObjectTypeInfo*) at +0x08.
-        self.kind = unsafe { mem::read::<usize>(object as *const u8, 8) };
+        // SAFETY: Object::type (ObjectTypeInfo*) at +0x08 (same on NG).
+        self.kind = unsafe { mem::read::<usize>(object as *const u8, crate::layout::RE::BSScript::Object::r#type) };
         self.value = object as u64;
     }
 }
@@ -308,9 +313,9 @@ pub fn object_handle(object: *mut ScriptObject) -> Option<u64> {
 /// The script (type) name of a script object (`Object::type->name`).
 #[must_use]
 pub fn object_script_name(object: *mut ScriptObject) -> Option<String> {
-    // SAFETY: Object::type at +0x08; ObjectTypeInfo::name at +0x10.
+    // SAFETY: Object::type at +0x08; ObjectTypeInfo::name at +0x10 (same on NG).
     unsafe {
-        let info: *const u8 = mem::read(object as *const u8, 8);
+        let info: *const u8 = mem::read(object as *const u8, crate::layout::RE::BSScript::Object::r#type);
         if info.is_null() {
             return None;
         }
@@ -332,30 +337,53 @@ pub(crate) unsafe fn vcall<F: Copy>(this: *mut c_void, slot: usize) -> F {
 
 // ---------------------------------------------------------------- the VM
 
+/// `IVirtualMachine` and `IObjectHandlePolicy` slots, from the generated tables (overloads
+/// are numbered in slot order: `_2` is the second slot of that name). The values (in the
+/// comments) are the same on 1.10.163 and 1.11.240: next-gen CommonLibF4 40a93f69
+/// `BSScript_IVirtualMachine.h`/`BSScript_IObjectHandlePolicy.h` and our RE of both exes
+/// (`f4x-vtcmp`: `Internal::VirtualMachine` and `GameScript::HandlePolicy` keep their slot
+/// count and order; provenance/ng-constants.jsonl).
 pub(crate) mod slot {
-    pub const GET_SCRIPT_OBJECT_TYPE_BY_NAME: usize = 0x08;
-    pub const GET_SCRIPT_STRUCT_TYPE: usize = 0x13;
-    pub const CREATE_STRUCT: usize = 0x18;
-    pub const CREATE_ARRAY: usize = 0x19;
-    pub const CREATE_OBJECT: usize = 0x17;
-    pub const BIND_NATIVE_METHOD: usize = 0x1B;
-    pub const IS_WAITING_ON_LATENT: usize = 0x30;
-    pub const RETURN_FROM_LATENT: usize = 0x31;
-    pub const FIND_BOUND_OBJECT: usize = 0x1F;
-    pub const DISPATCH_METHOD_CALL_BY_HANDLE: usize = 0x2E;
-    pub const GET_OBJECT_HANDLE_POLICY: usize = 0x33;
-    pub const GET_OBJECT_BIND_POLICY: usize = 0x35;
+    use crate::layout::RE::BSScript::IObjectHandlePolicy::vtbl as HP;
+    use crate::layout::RE::BSScript::IVirtualMachine::vtbl as VM;
+
+    pub const GET_SCRIPT_OBJECT_TYPE_BY_NAME: usize = VM::GetScriptObjectType; // 0x08
+    pub const GET_SCRIPT_STRUCT_TYPE: usize = VM::GetScriptStructType; // 0x13
+    pub const CREATE_STRUCT: usize = VM::CreateStruct; // 0x18
+    pub const CREATE_ARRAY: usize = VM::CreateArray; // 0x19 (const TypeInfo&, count, out)
+    pub const CREATE_OBJECT: usize = VM::CreateObject_2; // 0x17 (name, out)
+    pub const BIND_NATIVE_METHOD: usize = VM::BindNativeMethod; // 0x1B
+    pub const IS_WAITING_ON_LATENT: usize = VM::IsWaitingOnLatent; // 0x30
+    pub const RETURN_FROM_LATENT: usize = VM::ReturnFromLatent; // 0x31
+    pub const FIND_BOUND_OBJECT: usize = VM::FindBoundObject; // 0x1F
+    pub const DISPATCH_METHOD_CALL_BY_HANDLE: usize = VM::DispatchMethodCall_2; // 0x2E
+    pub const GET_OBJECT_HANDLE_POLICY: usize = VM::GetObjectHandlePolicy; // 0x33 (non-const)
+    pub const GET_OBJECT_BIND_POLICY: usize = VM::GetObjectBindPolicy; // 0x35 (non-const)
     // IObjectHandlePolicy
-    pub const IS_HANDLE_LOADED: usize = 0x03;
-    pub const EMPTY_HANDLE: usize = 0x06;
-    pub const GET_HANDLE_FOR_OBJECT: usize = 0x07;
-    pub const GET_OBJECT_FOR_HANDLE: usize = 0x0C;
-    pub const GET_HANDLE_TYPE: usize = 0x02;
+    pub const IS_HANDLE_LOADED: usize = HP::IsHandleLoaded; // 0x03
+    pub const EMPTY_HANDLE: usize = HP::EmptyHandle; // 0x06
+    pub const GET_HANDLE_FOR_OBJECT: usize = HP::GetHandleForObject; // 0x07
+    pub const GET_OBJECT_FOR_HANDLE: usize = HP::GetObjectForHandle; // 0x0C
+    pub const GET_HANDLE_TYPE: usize = HP::GetHandleType; // 0x02
+    pub const CONVERT_HANDLE_TO_STRING: usize = HP::ConvertHandleToString; // 0x0F
     // IVirtualMachine (more)
-    pub const GET_SCRIPT_OBJECT_TYPE_BY_ID: usize = 0x09;
-    pub const REGISTER_OBJECT_TYPE: usize = 0x07;
-    pub const DISPATCH_STATIC_CALL: usize = 0x2C;
-    pub const DISPATCH_METHOD_CALL_ON_OBJECT: usize = 0x2D;
+    pub const GET_SCRIPT_OBJECT_TYPE_BY_ID: usize = VM::GetScriptObjectType_2; // 0x09
+    pub const REGISTER_OBJECT_TYPE: usize = VM::RegisterObjectType; // 0x07
+    pub const DISPATCH_STATIC_CALL: usize = VM::DispatchStaticCall; // 0x2C
+    pub const DISPATCH_METHOD_CALL_ON_OBJECT: usize = VM::DispatchMethodCall; // 0x2D (object, fn)
+
+    // The overloaded slots are pinned to the values checked in both exes, so a change in
+    // the tables' overload numbering cannot silently pick the other overload.
+    const _: () = assert!(
+        GET_SCRIPT_OBJECT_TYPE_BY_NAME == 0x08
+            && GET_SCRIPT_OBJECT_TYPE_BY_ID == 0x09
+            && CREATE_OBJECT == 0x17
+            && CREATE_ARRAY == 0x19
+            && DISPATCH_METHOD_CALL_ON_OBJECT == 0x2D
+            && DISPATCH_METHOD_CALL_BY_HANDLE == 0x2E
+            && GET_OBJECT_HANDLE_POLICY == 0x33
+            && GET_OBJECT_BIND_POLICY == 0x35
+    );
 }
 
 /// The Papyrus VM (`BSScript::IVirtualMachine*`).
@@ -589,7 +617,8 @@ impl Pending {
 }
 
 /// `BSScript::IStackCallbackFunctor` (CommonLibF4 community branch,
-/// `BSScript/IStackCallbackFunctor.h`): refcount at +8, then our result slot.
+/// `BSScript/IStackCallbackFunctor.h`): refcount at +8, then our result slot. Same on NG
+/// (next-gen CommonLibF4 `BSScript_IStackCallbackFunctor.h`; 7 slots in both exes).
 #[repr(C)]
 struct ResultCallback {
     vtbl: *const usize,
@@ -674,7 +703,9 @@ struct ArgsData {
     args: Vec<Arg>,
 }
 
-/// `BSScrapArray<Variable>`: scrap-heap allocator (heap, data, capacity) then size.
+/// `BSScrapArray<Variable>`: scrap-heap allocator (heap, data, capacity) then size. Same on
+/// NG (next-gen CommonLibF4 `BSTArray.h:216`; 1.11.240's array resize at 0x60e430 reads
+/// data +8, capacity +0x10, size +0x18).
 #[repr(C)]
 struct ScrapArray {
     heap: *mut c_void,
@@ -711,24 +742,39 @@ fn scrap_alloc(array: &mut ScrapArray, bytes: usize) -> Option<*mut Variable> {
 /// `msvc::function<bool(BSScrapArray<Variable>&)>`: 0x18 bytes of inline storage, then
 /// the callable's proxy pointer (CommonLibF4 `msvc/functional.h`). Our proxy fits the
 /// inline storage: vtable + shared argument list.
+///
+/// Next-gen builds use the newer MSVC STL `std::function` (next-gen CommonLibF4 40a93f69
+/// `BSScript_IVirtualMachine.h`: `BSTThreadScrapFunction<F> = std::function<F>`): 0x38
+/// bytes of inline storage, the pointer at +0x38, and a proxy vtable without a virtual
+/// destructor. Our RE of 1.11.240 (the `MenuOpenCloseEvent` script dispatcher, 0x10caa70,
+/// against 1.10.163's 0x1337fb0): the callable at `[rsp+48h]`, its pointer read back from
+/// `[rsp+80h]`; `_Func_impl` vtables have 6 slots there (7 on 1.10.163), `_Delete_this` is
+/// slot 4 in both.
+const FUNCTION_STORAGE_WORDS: usize = crate::pick!(3, 7);
+/// Proxy vtable: copy, move, call, target type, delete-this, [dtor: 1.10.163 only], get.
+const PROXY_SLOTS: usize = crate::pick!(7, 6);
+
 #[repr(C)]
 struct ArgsFunctor {
-    storage: [usize; 3],
+    storage: [usize; FUNCTION_STORAGE_WORDS],
     proxy: *mut ArgsProxy,
 }
 
+const _: () = assert!(std::mem::size_of::<ArgsFunctor>() == crate::pick!(0x20, 0x40));
+const _: () = assert!(std::mem::size_of::<ArgsProxy>() <= FUNCTION_STORAGE_WORDS * 8);
+
 #[repr(C)]
 struct ArgsProxy {
-    vtbl: *const [usize; 7],
+    vtbl: *const [usize; PROXY_SLOTS],
     args: *const ArgsData, // Arc<ArgsData>::into_raw
     _unused: usize,
 }
 
 impl ArgsFunctor {
     fn new(vm: Vm, args: Vec<Arg>) -> Box<ArgsFunctor> {
-        let mut functor = Box::new(ArgsFunctor { storage: [0; 3], proxy: null_mut() });
+        let mut functor = Box::new(ArgsFunctor { storage: [0; FUNCTION_STORAGE_WORDS], proxy: null_mut() });
         let proxy = functor.storage.as_mut_ptr().cast::<ArgsProxy>();
-        // SAFETY: the storage is 0x18 bytes, exactly an ArgsProxy.
+        // SAFETY: the storage holds at least 0x18 bytes, an ArgsProxy.
         unsafe { proxy.write(ArgsProxy { vtbl: args_vtable(), args: Arc::into_raw(Arc::new(ArgsData { vm, args })), _unused: 0 }) };
         functor.proxy = proxy;
         functor
@@ -742,10 +788,10 @@ impl Drop for ArgsFunctor {
     }
 }
 
-fn args_vtable() -> *const [usize; 7] {
-    static VTABLE: OnceLock<[usize; 7]> = OnceLock::new();
+fn args_vtable() -> *const [usize; PROXY_SLOTS] {
+    static VTABLE: OnceLock<[usize; PROXY_SLOTS]> = OnceLock::new();
     VTABLE.get_or_init(|| {
-        [
+        let mut slots = [
             proxy_copy as *const () as usize,
             proxy_copy as *const () as usize, // move: the moved-from proxy is deleted afterwards
             proxy_call as *const () as usize,
@@ -753,12 +799,19 @@ fn args_vtable() -> *const [usize; 7] {
             proxy_delete_this as *const () as usize,
             proxy_dtor as *const () as usize,
             proxy_get as *const () as usize,
-        ]
+        ];
+        if crate::NG {
+            // No virtual destructor: `_Get` follows `_Delete_this`.
+            slots[5] = proxy_get as *const () as usize;
+        }
+        let mut vtable = [0; PROXY_SLOTS];
+        vtable.copy_from_slice(&slots[..PROXY_SLOTS]);
+        vtable
     })
 }
 
 unsafe extern "C" fn proxy_copy(this: *mut ArgsProxy, storage: *mut c_void) -> *mut ArgsProxy {
-    // SAFETY: `this` is a live proxy; the destination storage holds 0x18 bytes.
+    // SAFETY: `this` is a live proxy; the destination storage holds at least 0x18 bytes.
     unsafe {
         Arc::increment_strong_count((*this).args);
         let out = storage.cast::<ArgsProxy>();
@@ -1026,15 +1079,20 @@ struct DescEntry {
     kind: usize,
 }
 
+// Same layout on 1.11.240 (next-gen CommonLibF4 40a93f69 `BSScript_Internal_NativeFunctionBase.h`
+// and `_VDescTable.h`; the engine's `NativeFunctionBase::Call` reads the same fields in both
+// builds). Checked against the generated table of the build.
 const _: () = {
-    assert!(std::mem::offset_of!(NativeFunction, name) == 0x10);
-    assert!(std::mem::offset_of!(NativeFunction, ret_type) == 0x28);
-    assert!(std::mem::offset_of!(NativeFunction, desc_entries) == 0x30);
+    use crate::layout::RE::BSScript::NF_util::NativeFunctionBase as NF;
+    assert!(std::mem::offset_of!(NativeFunction, name) == 0x10 && NF::name == 0x10);
+    assert!(std::mem::offset_of!(NativeFunction, ret_type) == 0x28 && NF::retType == 0x28);
+    assert!(std::mem::offset_of!(NativeFunction, desc_entries) == 0x30 && NF::descTable == 0x30);
     assert!(std::mem::offset_of!(NativeFunction, desc_param_count) == 0x38);
-    assert!(std::mem::offset_of!(NativeFunction, is_static) == 0x40);
-    assert!(std::mem::offset_of!(NativeFunction, user_flags) == 0x44);
-    assert!(std::mem::offset_of!(NativeFunction, doc_string) == 0x48);
-    assert!(std::mem::offset_of!(NativeFunction, spec) == 0x50);
+    assert!(std::mem::offset_of!(NativeFunction, is_static) == 0x40 && NF::isStatic == 0x40);
+    assert!(std::mem::offset_of!(NativeFunction, is_latent) == NF::isLatent);
+    assert!(std::mem::offset_of!(NativeFunction, user_flags) == 0x44 && NF::userFlags == 0x44);
+    assert!(std::mem::offset_of!(NativeFunction, doc_string) == 0x48 && NF::docString == 0x48);
+    assert!(std::mem::offset_of!(NativeFunction, spec) == 0x50 && NF::SIZE == 0x50);
 };
 
 fn type_info(vm: Vm, t: Type) -> Result<usize, String> {
@@ -1264,8 +1322,13 @@ unsafe extern "C" fn nf_marshall_and_dispatch(
         let spec = unsafe { (*this).spec };
         // SAFETY: the VM's return slot.
         unsafe { (*ret).reset() };
-        // SAFETY: StackFrame::parent (Stack*) at +0; StackFrame::size at +0x38.
-        let (stack, frame_size) = unsafe { (mem::read::<*const c_void>(frame.cast(), 0), mem::read::<u32>(frame.cast(), 0x38)) };
+        // SAFETY: StackFrame::parent (Stack*) at +0; StackFrame::size at +0x38 (same on NG).
+        let (stack, frame_size) = unsafe {
+            (
+                mem::read::<*const c_void>(frame.cast(), crate::layout::RE::BSScript::StackFrame::parent),
+                mem::read::<u32>(frame.cast(), crate::layout::RE::BSScript::StackFrame::size),
+            )
+        };
         if stack.is_null() {
             return false;
         }
@@ -1289,7 +1352,7 @@ unsafe extern "C" fn nf_marshall_and_dispatch(
             // function %s did not successfully start" and returns from the latent call at once.
             // `self_var` is the engine's copy on this thread's C stack (gone once we
             // return): the job uses the frame's own `StackFrame::self` (+0x28) instead.
-            let frame_self = frame.cast::<u8>().wrapping_add(0x28).cast_mut().cast::<Variable>();
+            let frame_self = frame.cast::<u8>().wrapping_add(crate::layout::RE::BSScript::StackFrame::self_).cast_mut().cast::<Variable>();
             let job = LatentJob { vm: Vm(vm), stack_id, spec, self_var: frame_self, args, ret_kind, tries: 0 };
             if let Ok(mut queue) = LATENT_QUEUE.lock() {
                 queue.push(job);

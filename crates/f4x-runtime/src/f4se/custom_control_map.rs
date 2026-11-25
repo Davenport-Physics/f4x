@@ -11,7 +11,7 @@
 
 use std::ffi::c_void;
 
-use f4x_engine_sys::og_1_10_163_addresses::CONTROL_MAP_PARSE;
+use f4x_engine_sys::addresses::CONTROL_MAP_PARSE;
 use f4x_pe::Image;
 use windows_sys::Win32::System::Diagnostics::Debug::FlushInstructionCache;
 use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, PAGE_PROTECTION_FLAGS, VirtualProtect};
@@ -25,7 +25,8 @@ use super::trampoline;
 const REQUIRED_COLUMNS: usize = 7;
 
 /// The parser reads lines into a 0x400-byte buffer; a longer line would be split, and its
-/// tail parsed as a line of its own, so such lines are dropped too.
+/// tail parsed as a line of its own, so such lines are dropped too. Same on NG 1.11.240
+/// (its parser, 0x1671280, reads into the same 0x400-byte buffer).
 const MAX_LINE: usize = 0x3FF;
 
 /// Turn every line the game's parser would crash on into a comment, keeping the line

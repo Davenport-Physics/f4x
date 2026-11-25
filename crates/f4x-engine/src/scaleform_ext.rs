@@ -15,13 +15,19 @@
 //!   BookMenu and TerminalMenu load a `.dds` with the texture loader, name the texture after
 //!   the `img://` name, and call `SetTexture`; images are counted, so the same name can be
 //!   registered more than once.
+//!
+//! These layouts (`ObjVisitor`'s slots, `NiTexture::name` +0x10, `NiRefObject` refcount
+//! +0x08 and `DeleteThis` slot 1, `BSScaleformExternalTexture` 0x18 bytes) are the same on
+//! NG 1.11.240 (next-gen fork `GFx_Value.h`, `NiTexture.h`, `NiRefObject.h`,
+//! `BSScaleformExternalTexture.h`; generated NG tables).
 
 use std::ffi::{CStr, CString, c_char, c_void};
 use std::mem::transmute;
 
-use f4x_engine_sys::og_1_10_163_addresses as addr;
+use f4x_engine_sys::addresses as addr;
 
 use crate::address::resolve;
+use crate::layout::RE;
 use crate::mem;
 use crate::papyrus::FixedString;
 use crate::scaleform::Value;
@@ -104,7 +110,7 @@ impl Texture {
     #[must_use]
     pub fn name(&self) -> Option<String> {
         // SAFETY: a live NiTexture; a BSFixedString field.
-        unsafe { mem::fixed_string(mem::read(self.0, 0x10)) }
+        unsafe { mem::fixed_string(mem::read(self.0, RE::NiTexture::name)) }
     }
 
     /// Rename the texture (as BookMenu does before registering it for `img://`).
@@ -112,7 +118,7 @@ impl Texture {
         let Some(new) = FixedString::new(name) else { return false };
         // SAFETY: the BSFixedString at +0x10: swap in our reference, release the old one.
         unsafe {
-            let slot = self.0.add(0x10).cast::<*mut u8>();
+            let slot = self.0.add(RE::NiTexture::name).cast::<*mut u8>();
             let old = slot.read();
             slot.write(new.into_raw());
             if !old.is_null() {
@@ -127,10 +133,10 @@ impl Drop for Texture {
     fn drop(&mut self) {
         // SAFETY: our reference; the last one deletes the texture (vtable slot 1).
         unsafe {
-            let count = &*(self.0.add(8) as *const std::sync::atomic::AtomicU32);
+            let count = &*(self.0.add(RE::NiRefObject::refCount) as *const std::sync::atomic::AtomicU32);
             if count.fetch_sub(1, std::sync::atomic::Ordering::AcqRel) == 1 {
                 let vtbl: *const usize = mem::read(self.0, 0);
-                transmute::<usize, unsafe extern "C" fn(*mut u8)>(*vtbl.add(1))(self.0);
+                transmute::<usize, unsafe extern "C" fn(*mut u8)>(*vtbl.add(RE::NiRefObject::vtbl::DeleteThis))(self.0);
             }
         }
     }
@@ -157,6 +163,13 @@ pub fn load_texture(path: &str) -> Option<Texture> {
 /// A `BSScaleformExternalTexture` of ours: while it holds a texture, `img://<the
 /// texture's name>` finds it.
 pub struct ExternalTexture(Box<[usize; 3]>);
+
+// Texture in word 0, path (`BSFixedString`) in word 2.
+const _: () = assert!(
+    RE::BSScaleformExternalTexture::SIZE == 0x18
+        && RE::BSScaleformExternalTexture::gamebryoTexture == 0
+        && RE::BSScaleformExternalTexture::texturePath == 0x10
+);
 
 // SAFETY: engine data we own; used from one thread at a time (callers lock).
 unsafe impl Send for ExternalTexture {}
@@ -226,8 +239,8 @@ pub fn bound_object_exists(vm: crate::papyrus::Vm, handle: u64, script: &str) ->
 /// 0x0F; CommonLibF4 `BSScript.h`), e.g. ` (00000014)` for the player (name, then the form ID).
 #[must_use]
 pub fn handle_string(vm: crate::papyrus::Vm, handle: u64) -> Option<String> {
-    const GET_OBJECT_HANDLE_POLICY: usize = 0x33;
-    const CONVERT_HANDLE_TO_STRING: usize = 0x0F;
+    // 0x33 and 0x0F on 1.10.163 and 1.11.240 (the generated tables; see `papyrus::slot`).
+    use crate::papyrus::slot::{CONVERT_HANDLE_TO_STRING, GET_OBJECT_HANDLE_POLICY};
     // SAFETY: IVirtualMachine::GetObjectHandlePolicy() and the policy's
     // ConvertHandleToString(handle, BSFixedString&) on the live VM.
     unsafe {

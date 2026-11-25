@@ -33,3 +33,17 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## CommonLibF4 next-gen fork (libxse/commonlibf4)
+
+f4x's next-gen (1.11.x) layout tables (`crates/f4x-engine-sys/src/ng_1_11_240.rs`) are
+generated from the headers of libxse/commonlibf4 (https://github.com/libxse/commonlibf4),
+the next-gen fork of CommonLibF4, at commit 40a93f6917267f30d3551334ccd280402941c3c2
+(2026-07-26), its last commit under the MIT license (same license text as above,
+Copyright (c) 2019 ryan-rsm-mckenzie). Later commits are GPL-3 and are not used. Facts
+from it are tagged `clf4` with `"repo":"libxse/commonlibf4","commit":"40a93f69"` in
+`provenance/`.
+
+The fork's `lib/commonlib-shared` submodule (REL/REX) is GPL and is not used: f4x's own
+MIT shims in `crates/f4x-codegen/shim-ng/` stand in for it when the headers are parsed
+on the host. Nothing from either ships in f4x.

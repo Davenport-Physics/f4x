@@ -17,7 +17,7 @@ use std::mem::transmute;
 use std::ptr::{NonNull, null_mut};
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use f4x_engine_sys::og_1_10_163_addresses as addr;
+use f4x_engine_sys::addresses as addr;
 
 use crate::address::resolve;
 use crate::form::Form;
@@ -28,7 +28,8 @@ use crate::papyrus::{ScriptObject, Vm, object_handle, slot, vcall};
 use crate::refr::Reference;
 
 /// `EXTRA_DATA_TYPE` values (CommonLibF4 `BSExtraData.h`, enumerator positions; the
-/// material swap value is also the constant the engine's own setter writes).
+/// material swap value is also the constant the engine's own setter writes). Same on NG
+/// 1.11.240 (clf4-ng `EXTRA_DATA_TYPE.h`; re: SetMaterialSwap 0x291880 writes 0xB9).
 pub mod extra {
     pub const OBJECT_INSTANCE: u8 = 0x35;
     pub const TEXT_DISPLAY_DATA: u8 = 0x99;
@@ -164,7 +165,7 @@ impl ReadGuard {
 impl Drop for ReadGuard {
     fn drop(&mut self) {
         // SAFETY: the lock word of a live BSReadWriteLock (4-aligned, at +4).
-        unsafe { AtomicU32::from_ptr(self.0.add(4).cast::<u32>()) }.fetch_sub(1, Ordering::SeqCst);
+        unsafe { AtomicU32::from_ptr(self.0.add(RE::BSReadWriteLock::_lock).cast::<u32>()) }.fetch_sub(1, Ordering::SeqCst);
     }
 }
 
@@ -299,7 +300,7 @@ pub fn with_reference_data<R>(r: RefOrInventory, f: impl FnOnce(Option<Form>, Op
                 let Some(list) = stack_extra(stack) else { continue };
                 let Some(x) = list.get(extra::UNIQUE_ID) else { continue };
                 // SAFETY: an ExtraUniqueID (u16 uniqueID at +0x18).
-                if unsafe { read::<u16>(x, 0x18) } == unique {
+                if unsafe { read::<u16>(x, RE::ExtraUniqueID::uniqueID) } == unique {
                     return Some(f(Form::checked(item.object), Some(list)));
                 }
             }
@@ -323,7 +324,8 @@ pub fn loaded_3d(reference: Reference) -> Option<*mut u8> {
 /// One `BSConnectPoint::Parents` entry (our analysis of `Parents::LoadBinary`: a
 /// `BSTArray` of smart pointers at +0x18; each 0x38-byte point holds a refcount, the
 /// parent node name at +0x08, its own name at +0x10, a rotation `NiQuaternion` (w, x,
-/// y, z) at +0x18, a translation at +0x28 and a scale at +0x34).
+/// y, z) at +0x18, a translation at +0x28 and a scale at +0x34). Same on NG 1.11.240 (re:
+/// `Parents` vtable slot 0x1B = 0x186e570 allocates 0x38 and writes the same fields).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ConnectPoint {
     pub parent: String,
@@ -464,7 +466,7 @@ pub fn scrap(item: Reference, workshop: Reference) -> bool {
         parent_cell: *mut u8,
         world_space: *mut u8,
     }
-    const _: () = assert!(std::mem::size_of::<ContextData>() == 0x30);
+    const _: () = assert!(std::mem::size_of::<ContextData>() == RE::Workshop::ContextData::SIZE);
     let pos = item.position();
     let cell = item.parent_cell();
     let world = cell.map_or(null_mut(), |c| {
@@ -480,7 +482,7 @@ pub fn scrap(item: Reference, workshop: Reference) -> bool {
     // The smart pointer the engine takes (NiPointer<TESObjectREFR>); keep the item alive
     // for the call (NiRefObject count of the BSHandleRefObject base at +0x28).
     // SAFETY: the refcount word of a live reference (4-aligned).
-    let refcount = || unsafe { AtomicU32::from_ptr(p.add(0x28).cast::<u32>()) };
+    let refcount = || unsafe { AtomicU32::from_ptr(p.add(REFR_REFCOUNT).cast::<u32>()) };
     refcount().fetch_add(1, Ordering::SeqCst);
     let smart: *mut u8 = p;
     // SAFETY: the current-workshop handle global (a u32 inside the mapped image).
@@ -492,6 +494,10 @@ pub fn scrap(item: Reference, workshop: Reference) -> bool {
     refcount().fetch_sub(1, Ordering::SeqCst);
     true
 }
+
+/// A reference's `NiRefObject::refCount` (in its `BSHandleRefObject` base; +0x28 on both
+/// generations).
+const REFR_REFCOUNT: usize = RE::TESObjectREFR::bases::BSHandleRefObject + RE::NiRefObject::refCount;
 
 /// Wire connection kinds: the `linkType` of a power link is the kind of connect point
 /// the wire uses on that end (our analysis of the engine's connect-point matcher at
@@ -517,14 +523,15 @@ fn reference_from_handle(handle: u32) -> Option<Reference> {
     if !out.is_null() {
         // SAFETY: NiRefObject refcount of the BSHandleRefObject base (+0x20, count at +8),
         // as the engine releases these pointers (low 10 bits are the count).
-        unsafe { AtomicU32::from_ptr(out.add(0x28).cast::<u32>()) }.fetch_sub(1, Ordering::SeqCst);
+        unsafe { AtomicU32::from_ptr(out.add(REFR_REFCOUNT).cast::<u32>()) }.fetch_sub(1, Ordering::SeqCst);
     }
     r
 }
 
 /// Create a reference to `base` at `at`'s position in its cell or worldspace
 /// (`TESDataHandler::CreateReferenceAtLocation` with a `NEW_REFR_DATA`; CommonLibF4
-/// community `TESDataHandler.h` layout: 0x70 bytes, vtable at 0).
+/// community `TESDataHandler.h` layout: 0x70 bytes, vtable at 0). Same on NG 1.11.240
+/// (clf4-ng `TESDataHandler.h`; re: 0x38e4e0 fills the same fields before 0x2e5110).
 #[must_use]
 pub fn create_reference(base: Form, at: Reference) -> Option<Reference> {
     let f = resolve(&addr::DATA_HANDLER_CREATE_REF_AT_LOCATION)?;
@@ -533,7 +540,8 @@ pub fn create_reference(base: Form, at: Reference) -> Option<Reference> {
     let cell = at.parent_cell()?;
     // SAFETY: a live TESObjectCELL; cellFlags bit 0 = kInterior; the `worldSpace` union
     // member sits at +0xC8, between `spinLock` (+0xC0) and `loadedData` (+0xD0)
-    // (CommonLibF4 `TESForms.h` TESObjectCELL; not in the generated tables).
+    // (CommonLibF4 `TESForms.h` TESObjectCELL; not in the generated tables). Same on NG
+    // (clf4-ng `TESObjectCELL.h`; re: GetWaterType 0x4cb4c0 reads +0xC8).
     let (interior, world) = unsafe {
         let flags: u16 = read(cell.as_ptr(), RE::TESObjectCELL::cellFlags);
         let world: *mut u8 = read(cell.as_ptr(), RE::TESObjectCELL::spinLock + 8);
@@ -626,7 +634,7 @@ pub fn set_favorites(manager: *mut u8, slots: [*mut u8; FAVORITE_SLOTS]) {
 
 /// The keys of `favoritedComponents` (a `BSTHashMap<const TESBoundObject*, u32>`;
 /// CommonLibF4 `BSTScatterTable`: capacity at +0x0C, entries at +0x28, 0x18-byte
-/// entries `{key, value, next}` in use when `next` is set), in table order.
+/// entries `{key, value, next}` in use when `next` is set; same on NG), in table order.
 #[must_use]
 pub fn tagged_components(manager: *mut u8) -> Vec<*mut u8> {
     let map = RE::FavoritesManager::favoritedComponents;

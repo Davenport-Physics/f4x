@@ -163,6 +163,26 @@ unsafe fn hook_peek_message() -> bool {
 
 // ---- Exports ----
 
+/// Next-gen F4SE (0.7.x) loads plugins by this declaration instead of calling
+/// `F4SEPlugin_Query` (built with `ng`; same declaration as the f4x agent plugin).
+#[cfg(feature = "ng")]
+#[unsafe(no_mangle)]
+#[used]
+#[allow(non_upper_case_globals)]
+pub static F4SEPlugin_Version: f4x_abi::f4se::PluginVersionData = {
+    use f4x_abi::f4se::{PluginVersionData, address_independence, structure_independence};
+    use f4x_abi::version::{PackedVersion, runtime};
+    PluginVersionData::declare(
+        "f4x_probe",
+        "f4x",
+        PackedVersion::new(0, 0, 1, 0),
+        address_independence::SIGNATURES,
+        structure_independence::LAYOUT_1_11_137,
+        &[runtime::V1_11_240],
+        PackedVersion(0),
+    )
+};
+
 /// # Safety
 /// Called by the host with a valid interface and info struct.
 #[unsafe(no_mangle)]

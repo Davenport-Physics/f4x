@@ -16,6 +16,68 @@ pub mod og_1_10_163;
 
 pub mod og_1_10_163_addresses;
 
+pub mod ng_1_11_240;
+
+pub mod ng_1_11_240_addresses;
+
+/// Whether this build of f4x targets next-gen Fallout 4 (cargo feature `ng`). Layouts
+/// and addresses differ between the generations, so f4x is built once per generation
+/// (`f4x_loader` picks the runtime matching the exe; see `BUILDS`).
+pub const NG: bool = cfg!(feature = "ng");
+
+/// The layout tables of the generation this build targets.
+#[cfg(not(feature = "ng"))]
+pub use og_1_10_163 as layout;
+#[cfg(feature = "ng")]
+pub use ng_1_11_240 as layout;
+
+/// The address recipes of the generation this build targets (same names in both).
+#[cfg(not(feature = "ng"))]
+pub use og_1_10_163_addresses as addresses;
+#[cfg(feature = "ng")]
+pub use ng_1_11_240_addresses as addresses;
+
+/// `pick!(og, ng)`: a hand-written per-generation value (offset, vtable slot, call-site
+/// offset). Usable in `const` items.
+#[macro_export]
+macro_rules! pick {
+    ($og:expr, $ng:expr $(,)?) => {
+        if $crate::NG { $ng } else { $og }
+    };
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Generation {
+    /// 1.10.163 and earlier (MSVC 2012 runtime).
+    Og,
+    /// 1.10.980 and later ("next-gen", "Anniversary"; UCRT).
+    Ng,
+}
+
+/// A known build of `Fallout4.exe`, identified by its PE timestamp.
+#[derive(Clone, Copy, Debug)]
+pub struct Build {
+    pub version: &'static str,
+    pub timestamp: u32,
+    pub generation: Generation,
+    /// Stores shipping this exact exe (GOG and Steam builds of one version may differ).
+    pub stores: &'static str,
+}
+
+/// The builds f4x has tables for. Steam and GOG 1.10.163 are the same code (the Steam
+/// exe adds Steam's DRM stub); 1.11.240 is the Steam next-gen build (our own reading of
+/// its version resource and headers).
+pub const BUILDS: &[Build] = &[
+    Build { version: "1.10.163.0", timestamp: 0x5ddc_40fa, generation: Generation::Og, stores: "gog, steam" },
+    Build { version: "1.11.240.0", timestamp: 0x6a72_7fcc, generation: Generation::Ng, stores: "steam" },
+];
+
+/// The generation an exe version (`major.minor.build`) belongs to: next-gen starts at
+/// 1.10.980.
+pub fn generation_of(major: u16, minor: u16, build: u16) -> Generation {
+    if (major, minor, build) >= (1, 10, 980) { Generation::Ng } else { Generation::Og }
+}
+
 /// A non-virtual engine function (or a global): its RVA in one build plus a masked byte
 /// signature unique in the exe's `.text` (the recipe that re-finds it in any build).
 ///

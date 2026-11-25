@@ -31,6 +31,24 @@ fn locate(bytes: &[u8], text_rva: u32, rva: u32, address: &Address) -> Option<us
     if let [only] = hits.as_slice() { Some(*only) } else { None }
 }
 
+static REFERENCE_TEXT: std::sync::OnceLock<(u32, Vec<u8>)> = std::sync::OnceLock::new();
+
+/// Record the game's `.text` as it is right now as the unpatched reference, used
+/// instead of the exe on disk. For exes whose code is encrypted on disk (Steam's DRM
+/// stub decrypts it at startup), call this once the stub has run and before anything
+/// patches the code. Later calls are ignored.
+pub fn capture_reference_text() -> bool {
+    let image = crate::game().image();
+    let Some(text) = image.section(".text").cloned() else { return false };
+    let bytes = image.section_bytes(&text).to_vec();
+    REFERENCE_TEXT.set((text.rva, bytes)).is_ok()
+}
+
+/// The unpatched `.text` (`(rva, bytes)`): the captured reference, else the exe on disk.
+pub fn reference_text() -> Option<&'static (u32, Vec<u8>)> {
+    REFERENCE_TEXT.get().or_else(disk_text)
+}
+
 /// The game exe's `.text` as shipped (from disk): other plugins legitimately patch
 /// function entries in memory (e.g. Buffout 4 redirects allocators), which must not
 /// make our recipes fail. Loaded only when a live check fails.
@@ -58,6 +76,10 @@ fn exe_path() -> Option<std::path::PathBuf> {
 /// not found (exactly once) in this build. Checked against live memory first, then
 /// against the exe on disk (the function may have been patched by another plugin).
 pub fn resolve(address: &Address) -> Option<usize> {
+    if address.signature.is_empty() {
+        // No recipe for this build (yet): the feature that needs it stays off.
+        return None;
+    }
     let mut cache = CACHE.lock().ok()?;
     let cache = cache.get_or_insert_with(HashMap::new);
     if let Some(found) = cache.get(address.name) {
@@ -70,7 +92,7 @@ pub fn resolve(address: &Address) -> Option<usize> {
     let wanted_rva = address.global.map_or(address.rva, |g| g.site_rva);
     let (bytes, at, source) = match locate(live, text.rva, wanted_rva, address) {
         Some(at) => (live, at, "memory"),
-        None => match disk_text().and_then(|(rva, disk)| locate(disk, *rva, wanted_rva, address).map(|at| (disk.as_slice(), at))) {
+        None => match reference_text().and_then(|(rva, disk)| locate(disk, *rva, wanted_rva, address).map(|at| (disk.as_slice(), at))) {
             Some((disk, at)) => (disk, at, "disk"),
             None => {
                 cache.insert(address.name, None);

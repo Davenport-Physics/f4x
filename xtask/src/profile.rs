@@ -4,7 +4,8 @@
 //! profile's `Data/F4SE/Plugins` through its link manifest, replacing the links of an
 //! earlier `--plugin` list (or of `f4x launch --host f4se`). `--data install` mirrors
 //! the user's deployed install (mods, loose files, F4SE plugins, plugins.txt) instead of
-//! official data only.
+//! official data only. `--game-dir DIR` links another install (e.g. a Steam next-gen
+//! copy); the profile remembers it.
 
 use std::path::PathBuf;
 
@@ -26,7 +27,17 @@ pub fn cli(args: &[String]) -> Result<(), String> {
                 Some(mode) => f4x_host::profile::DataMode::parse(mode)?,
                 None => f4x_host::profile::DataMode::Vanilla,
             };
-            let profile = Profile::create_with(name, Host::parse(host)?, data, &GameEnv::from_env())?;
+            // `--game-dir DIR`: the install to link (default: an existing profile's own
+            // install, else F4X_GAME_DIR), e.g. a Steam next-gen copy next to a GOG one.
+            let base = GameEnv::from_env();
+            let env = match args.iter().position(|a| a == "--game-dir").and_then(|i| args.get(i + 1)) {
+                Some(dir) => base.with_install(PathBuf::from(dir)),
+                None => match Profile::load(name).ok().and_then(|p| p.install) {
+                    Some(install) => base.with_install(install),
+                    None => base,
+                },
+            };
+            let profile = Profile::create_with(name, Host::parse(host)?, data, &env)?;
             if !plugins.is_empty() {
                 for link in profile.set_plugins(&plugins)? {
                     eprintln!("linked {}", link.display());

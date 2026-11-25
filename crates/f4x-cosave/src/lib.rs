@@ -225,11 +225,24 @@ pub mod plgn {
 /// earlier host block to carry through.
 #[must_use]
 pub fn empty_host_chunks(load_order: &[plgn::Entry]) -> Vec<Chunk> {
+    empty_host_chunks_for(load_order, false)
+}
+
+/// [`empty_host_chunks`] for a game generation: F4SE 0.7.9 (next-gen) adds its gamepad
+/// table (`KEYG` .. `REGE`) right after the key table (black-box).
+#[must_use]
+pub fn empty_host_chunks_for(load_order: &[plgn::Entry], ng: bool) -> Vec<Chunk> {
     let chunk = |k: &[u8; 4], v: u32, data: Vec<u8>| Chunk { kind: tag(k), version: v, data };
-    vec![
+    let mut out = vec![
         chunk(&plgn::KIND, 0, plgn::write(load_order)),
         chunk(b"KEYR", 1, vec![]),
         chunk(b"REGE", 1, vec![]),
+    ];
+    if ng {
+        out.push(chunk(b"KEYG", 1, vec![]));
+        out.push(chunk(b"REGE", 1, vec![]));
+    }
+    out.extend([
         chunk(b"CTLR", 1, vec![]),
         chunk(b"REGE", 1, vec![]),
         chunk(b"EXEV", 1, vec![]),
@@ -241,7 +254,8 @@ pub fn empty_host_chunks(load_order: &[plgn::Entry]) -> Vec<Chunk> {
         chunk(b"FUNQ", 1, vec![0; 4]),
         chunk(b"WLST", 1, vec![0; 12]),
         chunk(b"____", 1, vec![]),
-    ]
+    ]);
+    out
 }
 
 /// F4SE's registration tables in its host block: a header chunk (`KEYR` keys, `CTLR`
@@ -251,6 +265,9 @@ pub mod regs {
     use super::{Chunk, tag};
 
     pub const KEYS: [u8; 4] = *b"KEYR";
+    /// Gamepad-button registrations (F4SE 0.7.x, next-gen): the same entries as `KEYR`,
+    /// keyed by the XInput button mask; its own section right after `KEYR`'s (black-box).
+    pub const GAMEPAD: [u8; 4] = *b"KEYG";
     pub const CONTROLS: [u8; 4] = *b"CTLR";
     pub const EXTERNAL_EVENTS: [u8; 4] = *b"EXEV";
     /// Camera-state registrations: one chunk holding a registrant list.
@@ -456,6 +473,17 @@ pub mod regs {
             .unwrap_or_default()
     }
 
+    /// Make sure the section `header` exists, inserting an empty one right after the end of
+    /// the section `after` if it doesn't (e.g. `KEYG` in a host block written by 0.6.23).
+    pub fn ensure_section_after(chunks: &mut Vec<Chunk>, header: [u8; 4], after: [u8; 4]) {
+        if chunks.iter().any(|c| c.kind == tag(&header)) {
+            return;
+        }
+        let Some((_, end)) = bounds(chunks, after) else { return };
+        let at = (end + 1).min(chunks.len());
+        chunks.splice(at..at, [Chunk { kind: tag(&header), version: 1, data: Vec::new() }, Chunk { kind: tag(&END), version: 1, data: Vec::new() }]);
+    }
+
     /// Replace the entries of the section that starts with `header`.
     pub fn replace_section(chunks: &mut Vec<Chunk>, header: [u8; 4], entries: Vec<Vec<u8>>) {
         let Some((start, end)) = bounds(chunks, header) else { return };
@@ -490,6 +518,20 @@ mod tests {
         assert_eq!(probe.chunks[1].version, 2);
 
         assert_eq!(save.to_bytes(), FIXTURE);
+    }
+
+    #[test]
+    fn next_gen_host_block_has_the_gamepad_table_after_keys() {
+        let kinds = |c: &[Chunk]| c.iter().map(|c| fourcc(c.kind)).collect::<Vec<_>>();
+        let ng = empty_host_chunks_for(&[], true);
+        // F4SE 0.7.9 (black-box): PLGN KEYR REGE KEYG REGE CTLR REGE EXEV REGE CAMR ...
+        assert_eq!(&kinds(&ng)[1..9], ["KEYR", "REGE", "KEYG", "REGE", "CTLR", "REGE", "EXEV", "REGE"]);
+        let mut og = empty_host_chunks(&[]);
+        regs::ensure_section_after(&mut og, regs::GAMEPAD, regs::KEYS);
+        assert_eq!(kinds(&og), kinds(&ng));
+        regs::replace_section(&mut og, regs::GAMEPAD, vec![regs::write_key(0x1000, &[])]);
+        assert_eq!(regs::section(&og, regs::GAMEPAD).len(), 1);
+        assert!(regs::section(&og, regs::KEYS).is_empty());
     }
 
     #[test]

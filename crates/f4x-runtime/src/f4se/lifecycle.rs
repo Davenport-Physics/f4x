@@ -16,14 +16,16 @@ use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
 use f4x_abi::f4se::message;
 use f4x_cosave::{CoSave, HOST_UID, PluginBlock, plgn};
-use f4x_engine_sys::og_1_10_163_addresses::{
+use f4x_engine_sys::addresses::{
     DATA_READY_CALLER, LOAD_GAME_WORKER, NEW_GAME_STARTER, SAVE_DELETE_FILES, SAVE_GAME_WORKER, VM_REGISTER_VANILLA_NATIVES,
     VM_UPDATE_STACKS,
 };
 
 /// Offset of the data-ready `call` inside `data_ready_caller` (1.10.163: 0xd3f268 -
-/// 0xd3eff0; black-box stack + our disassembly). Verified to be `E8` before use.
-const DATA_READY_CALL_OFFSET: usize = 0x278;
+/// 0xd3eff0; black-box stack + our disassembly). Verified to be `E8` before use. NG
+/// 1.11.240: +0x38e (0xc3efde in 0xc3ec50; the same callee, 0x828d00, after the same
+/// `and [rax+0x360], ~1`).
+const DATA_READY_CALL_OFFSET: usize = f4x_engine::pick!(0x278, 0x38e);
 use f4x_pe::Image;
 use windows_sys::Win32::System::Diagnostics::Debug::FlushInstructionCache;
 use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, PAGE_PROTECTION_FLAGS, VirtualProtect};
@@ -40,14 +42,25 @@ static QUEST_START: AtomicUsize = AtomicUsize::new(0);
 static REGISTER_VANILLA: AtomicUsize = AtomicUsize::new(0);
 static VM_FRAME_START: AtomicUsize = AtomicUsize::new(0);
 /// The VM update's first call (+0x6a), where F4SE runs its latent work (black-box patch).
-const VM_FRAME_START_CALL_OFFSET: usize = 0x6a;
+/// NG 1.11.240: its first call is at +0x66 (0x10f0856, to 0x165d570, which matches
+/// 1.10.163's 0x1b158f0).
+const VM_FRAME_START_CALL_OFFSET: usize = f4x_engine::pick!(0x6a, 0x66);
 /// The new-game starter's call that starts the starting quest (black-box: F4SE's
 /// `NewGame` comes from there, return address +0x5f; our disassembly: `call` at +0x5a).
-const NEW_GAME_CALL_OFFSET: usize = 0x5a;
+/// NG 1.11.240 inlines the starter into its caller, MainMenu's vtable slot 4 (the NG
+/// `new_game_starter` recipe), where the quest-start call is at +0x4d2 (0x106fef2 in
+/// 0x106fa20, to 0x66b440 = 1.10.163's 0x5d70c0; F4SE 0.7.9 redirects that call,
+/// black-box `patches`). The starter's own copy (0x1071be0) is never called.
+const NEW_GAME_CALL_OFFSET: usize = f4x_engine::pick!(0x5a, 0x4d2);
 /// F4SE's own block from the last loaded co-save, carried into the next save.
 static HOST_BLOCK: Mutex<Option<PluginBlock>> = Mutex::new(None);
 
-type Worker = unsafe extern "C" fn(usize, usize, usize, usize) -> usize;
+/// The save/load workers, passed through unchanged. 1.10.163's take 4 arguments; next-gen's
+/// load worker takes 6 (our RE of 1.11.240: its call site 0xbf9d98 stores two bools at
+/// `[rsp+20h]`/`[rsp+28h]`, and the 5th one makes the worker add "FakeMissing" to the
+/// missing-content list). The hooks take and forward 6 so stack arguments survive; a callee
+/// with fewer parameters ignores the rest.
+type Worker = unsafe extern "C" fn(usize, usize, usize, usize, usize, usize) -> usize;
 
 pub fn install() {
     let save = f4x_engine::address::resolve(&SAVE_GAME_WORKER);
@@ -84,7 +97,7 @@ fn install_delete_game() {
     log::info!(target: "f4x::f4se", "DeleteGame hooked ({sites} call sites)");
 }
 
-unsafe extern "C" fn delete_hook(list: usize, name: usize, id: usize, flag: usize) -> usize {
+unsafe extern "C" fn delete_hook(list: usize, name: usize, id: usize, flag: usize, arg5: usize, arg6: usize) -> usize {
     let save = save_name(name);
     if let Some(save) = &save {
         dispatch_from_host(message::DELETE_GAME, name as *mut c_void, save.len() as u32);
@@ -98,7 +111,7 @@ unsafe extern "C" fn delete_hook(list: usize, name: usize, id: usize, flag: usiz
         }
     }
     // SAFETY: the engine's own save-file delete, with its arguments.
-    unsafe { std::mem::transmute::<usize, Worker>(DELETE_FILES.load(Relaxed))(list, name, id, flag) }
+    unsafe { std::mem::transmute::<usize, Worker>(DELETE_FILES.load(Relaxed))(list, name, id, flag, arg5, arg6) }
 }
 
 /// `NewGame` (data: the starting `TESQuest*`, 8 bytes), sent on the main thread once the
@@ -118,9 +131,9 @@ fn install_new_game() {
     log::info!(target: "f4x::f4se", "new game hooked ({sites} site)");
 }
 
-unsafe extern "C" fn new_game_hook(quest: usize, b: usize, c: usize, d: usize) -> usize {
+unsafe extern "C" fn new_game_hook(quest: usize, b: usize, c: usize, d: usize, e: usize, f: usize) -> usize {
     // SAFETY: the engine's own function with its own arguments.
-    let result = unsafe { std::mem::transmute::<usize, Worker>(QUEST_START.load(Relaxed))(quest, b, c, d) };
+    let result = unsafe { std::mem::transmute::<usize, Worker>(QUEST_START.load(Relaxed))(quest, b, c, d, e, f) };
     dispatch_from_host(message::NEW_GAME, quest as *mut c_void, 8);
     result
 }
@@ -146,9 +159,9 @@ fn install_data_ready() {
     }
 }
 
-unsafe extern "C" fn data_ready_hook(a: usize, b: usize, c: usize, d: usize) -> usize {
+unsafe extern "C" fn data_ready_hook(a: usize, b: usize, c: usize, d: usize, e: usize, f: usize) -> usize {
     // SAFETY: the engine's own function with its own arguments.
-    let result = unsafe { std::mem::transmute::<usize, Worker>(DATA_READY.load(Relaxed))(a, b, c, d) };
+    let result = unsafe { std::mem::transmute::<usize, Worker>(DATA_READY.load(Relaxed))(a, b, c, d, e, f) };
     super::send_data_ready();
     result
 }
@@ -169,9 +182,9 @@ fn install_papyrus_registration() {
     log::info!(target: "f4x::f4se", "Papyrus registration hooked ({sites} call site(s))");
 }
 
-unsafe extern "C" fn register_vanilla_hook(vm: usize, b: usize, c: usize, d: usize) -> usize {
+unsafe extern "C" fn register_vanilla_hook(vm: usize, b: usize, c: usize, d: usize, e: usize, f: usize) -> usize {
     // SAFETY: the engine's own function with its own arguments.
-    let result = unsafe { std::mem::transmute::<usize, Worker>(REGISTER_VANILLA.load(Relaxed))(vm, b, c, d) };
+    let result = unsafe { std::mem::transmute::<usize, Worker>(REGISTER_VANILLA.load(Relaxed))(vm, b, c, d, e, f) };
     if std::panic::catch_unwind(super::register_papyrus).is_err() {
         log::error!(target: "f4x::f4se", "Papyrus registrations panicked");
     }
@@ -198,12 +211,12 @@ fn install_latent_runner() {
     log::info!(target: "f4x::f4se", "latent natives run at the VM frame start ({sites} site)");
 }
 
-unsafe extern "C" fn vm_frame_start_hook(a: usize, b: usize, c: usize, d: usize) -> usize {
+unsafe extern "C" fn vm_frame_start_hook(a: usize, b: usize, c: usize, d: usize, e: usize, f: usize) -> usize {
     if std::panic::catch_unwind(f4x_engine::papyrus::run_latent_jobs).is_err() {
         log::error!(target: "f4x::f4se", "latent natives panicked");
     }
     // SAFETY: the engine's own function with its own arguments.
-    unsafe { std::mem::transmute::<usize, Worker>(VM_FRAME_START.load(Relaxed))(a, b, c, d) }
+    unsafe { std::mem::transmute::<usize, Worker>(VM_FRAME_START.load(Relaxed))(a, b, c, d, e, f) }
 }
 
 /// Point every `call rel32` to `target` in the game's code at `hook` (via a stub near the
@@ -270,13 +283,13 @@ fn save_name(ptr: usize) -> Option<String> {
     (!name.is_empty() && name.len() < 260).then_some(name)
 }
 
-unsafe extern "C" fn save_hook(manager: usize, name: usize, flag: usize, extra: usize) -> usize {
+unsafe extern "C" fn save_hook(manager: usize, name: usize, flag: usize, extra: usize, arg5: usize, arg6: usize) -> usize {
     let save = save_name(name);
     if let Some(save) = &save {
         dispatch_from_host(message::PRE_SAVE_GAME, name as *mut c_void, save.len() as u32);
     }
     // SAFETY: calling the engine's own save function with its arguments.
-    let result = unsafe { std::mem::transmute::<usize, Worker>(SAVE_WORKER.load(Relaxed))(manager, name, flag, extra) };
+    let result = unsafe { std::mem::transmute::<usize, Worker>(SAVE_WORKER.load(Relaxed))(manager, name, flag, extra, arg5, arg6) };
     if let Some(save) = &save {
         let _ = std::panic::catch_unwind(|| write_cosave(save));
         dispatch_from_host(message::POST_SAVE_GAME, name as *mut c_void, save.len() as u32);
@@ -284,7 +297,7 @@ unsafe extern "C" fn save_hook(manager: usize, name: usize, flag: usize, extra: 
     result
 }
 
-unsafe extern "C" fn load_hook(manager: usize, name: usize, flag: usize, out: usize) -> usize {
+unsafe extern "C" fn load_hook(manager: usize, name: usize, flag: usize, out: usize, arg5: usize, arg6: usize) -> usize {
     let save = save_name(name);
     let mut cosave = None;
     if let Some(save) = &save {
@@ -298,7 +311,7 @@ unsafe extern "C" fn load_hook(manager: usize, name: usize, flag: usize, out: us
         }
     }
     // SAFETY: calling the engine's own load function with its arguments.
-    let result = unsafe { std::mem::transmute::<usize, Worker>(LOAD_WORKER.load(Relaxed))(manager, name, flag, out) };
+    let result = unsafe { std::mem::transmute::<usize, Worker>(LOAD_WORKER.load(Relaxed))(manager, name, flag, out, arg5, arg6) };
     if save.is_some() {
         let _ = std::panic::catch_unwind(|| run_load_callbacks(cosave.as_ref()));
         dispatch_from_host(message::POST_LOAD_GAME, (result & 0xFF) as *mut c_void, 1);
@@ -307,7 +320,7 @@ unsafe extern "C" fn load_hook(manager: usize, name: usize, flag: usize, out: us
 }
 
 fn write_cosave(save: &str) {
-    let mut cosave = CoSave::new(super::interfaces::F4SE_VERSION.0, f4x_abi::version::runtime::V1_10_163.0);
+    let mut cosave = CoSave::new(super::interfaces::F4SE_VERSION.0, super::interfaces::runtime_version().0);
     let order = serialization::current_load_order();
     // F4SE's own block: carried through from the last load (with the current PLGN), or
     // the empty block F4SE writes when nothing is registered.
@@ -321,7 +334,7 @@ fn write_cosave(save: &str) {
             }
             block.chunks
         }
-        None => f4x_cosave::empty_host_chunks(&order),
+        None => f4x_cosave::empty_host_chunks_for(&order, f4x_engine::NG),
     };
     f4x_cosave::regs::replace_section(&mut host_chunks, f4x_cosave::regs::CONTROLS, super::natives::control_entries());
     f4x_cosave::regs::replace_section(&mut host_chunks, f4x_cosave::regs::EXTERNAL_EVENTS, super::natives::external_entries());

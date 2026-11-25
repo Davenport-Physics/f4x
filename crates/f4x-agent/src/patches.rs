@@ -34,10 +34,15 @@ pub fn map() -> Result<Value, String> {
 
     let mut patches = Vec::new();
     for section in Image::sections(&file).iter().filter(|s| s.is_executable() || s.name == ".rdata") {
-        let (Some(disk), Some(memory)) = (
-            file.bytes(section.rva, section.readable_size.min(section.virtual_size) as usize),
-            mapped.bytes(section.rva, section.readable_size.min(section.virtual_size) as usize),
-        ) else {
+        let len = section.readable_size.min(section.virtual_size) as usize;
+        // `.text` of a DRM-packed exe is encrypted on disk: compare with the copy taken
+        // once the stub had decrypted it (see `f4x_engine::address`).
+        let reference = (section.name == ".text")
+            .then(f4x_engine::address::reference_text)
+            .flatten()
+            .filter(|(rva, _)| *rva == section.rva)
+            .and_then(|(_, bytes)| bytes.get(..len));
+        let (Some(disk), Some(memory)) = (reference.or_else(|| file.bytes(section.rva, len)), mapped.bytes(section.rva, len)) else {
             continue;
         };
         let mut i = 0;
@@ -129,4 +134,36 @@ fn describe(section: &str, rva: u32, old: &[u8], new: &[u8], base: usize) -> Val
         }
     }
     value
+}
+
+/// Write a copy of `Fallout4.exe` whose `.text` is the code as it runs (the reference copy
+/// taken once a DRM stub had decrypted it, with relocations undone), for our own offline
+/// analysis of builds that ship encrypted. Everything else is the file on disk. The copy
+/// is the user's game data: it goes to a local path only, never into the repository.
+pub fn dump_image(out: &std::path::Path) -> Result<Value, String> {
+    let mut buf = [0u16; 1024];
+    // SAFETY: valid buffer; null = the game exe.
+    let len = unsafe { GetModuleFileNameW(std::ptr::null_mut(), buf.as_mut_ptr(), buf.len() as u32) } as usize;
+    let path = String::from_utf16_lossy(&buf[..len]);
+    let bytes = std::fs::read(&path).map_err(|e| format!("{path}: {e}"))?;
+    let file = PeFile::parse(&bytes).map_err(|e| e.to_string())?;
+    let (text_rva, text) = f4x_engine::address::reference_text().ok_or("no reference .text")?;
+    let mut text = text.clone();
+    // SAFETY: the game exe is mapped for the process lifetime.
+    let base = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+    let delta = (base as u64).wrapping_sub(file.image_base());
+    if delta != 0 {
+        for reloc in file.relocations() {
+            let Some(at) = reloc.checked_sub(*text_rva).map(|o| o as usize).filter(|&o| o + 8 <= text.len()) else { continue };
+            let value = u64::from_le_bytes(text[at..at + 8].try_into().unwrap_or_default()).wrapping_sub(delta);
+            text[at..at + 8].copy_from_slice(&value.to_le_bytes());
+        }
+    }
+    let start = file.raw_offset(*text_rva).ok_or(".text has no raw data")?;
+    let section = Image::sections(&file).iter().find(|s| s.rva == *text_rva).ok_or("no .text section")?;
+    let raw = (section.readable_size as usize).min(text.len());
+    let mut copy = bytes.clone();
+    copy[start..start + raw].copy_from_slice(&text[..raw]);
+    std::fs::write(out, &copy).map_err(|e| format!("{}: {e}", out.display()))?;
+    Ok(json!({"exe": path, "out": out.display().to_string(), "text_rva": format!("{text_rva:#x}"), "text_bytes": raw, "changed": bytes != copy}))
 }

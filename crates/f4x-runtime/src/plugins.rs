@@ -1,6 +1,7 @@
 //! Phase 1 plugin loading: f4x-native plugins from `F4X_PLUGINS` (';'-separated
 //! paths), loaded on the main thread at the first main-loop iteration. Each plugin's
-//! `f4x_plugin_load(*const Service)` export is called.
+//! `f4x_plugin_load(*const Service)` export is called. Entries that are F4SE-ABI plugins
+//! only are left to the F4SE plugin host.
 
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
@@ -15,6 +16,10 @@ pub fn load_from_env() {
     let Some(service) = f4x_agent::service::get() else { return };
     let mut states = Vec::new();
     for path in list.to_string_lossy().split(';').map(str::trim).filter(|p| !p.is_empty()) {
+        if crate::f4se::is_f4se_test_plugin(std::path::Path::new(path)) {
+            // Loaded with the F4SE plugins at startup (`f4se/mod.rs`).
+            continue;
+        }
         let name = path.rsplit(['\\', '/']).next().unwrap_or(path).to_owned();
         let mut state = PluginState { name: name.clone(), path: path.to_owned(), loaded: false, error: None };
         let wide: Vec<u16> = OsStr::new(path).encode_wide().chain(Some(0)).collect();

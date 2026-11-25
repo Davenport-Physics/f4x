@@ -8,6 +8,9 @@
 //! - `BSScript::TypeInfo::RawType` (`RE/Bethesda/BSScript.h`): `kNone..kStruct` = 0..7,
 //!   arrays `kArrayStart(10)+1 ..= kArrayStruct(17)`, `kArrayEnd = 18`; larger values are
 //!   `IComplexType*` (low bit: array), whose `name` sits at +0x10 (`ObjectTypeInfo`).
+//!
+//! Same on NG 1.11.240 (next-gen fork `BSStringPool.h`, `BSScript_TypeInfo.h`; generated
+//! NG tables; the NG exe's `BSStringPool::Entry` release reads the same flags word at +8).
 
 use std::ffi::CStr;
 
@@ -57,7 +60,7 @@ pub unsafe fn type_info(raw: u64) -> String {
     let array = raw & 1 != 0;
     let complex = (raw & !1) as *const u8;
     // SAFETY: guaranteed by the caller.
-    let name = unsafe { fixed_string(complex.add(0x10).cast::<*const u8>().read_unaligned()) }
+    let name = unsafe { fixed_string(complex.add(f4x_engine::layout::RE::BSScript::ObjectTypeInfo::name).cast::<*const u8>().read_unaligned()) }
         .unwrap_or_else(|| format!("<complex {raw:#x}>"));
     if array { format!("{name}[]") } else { name }
 }

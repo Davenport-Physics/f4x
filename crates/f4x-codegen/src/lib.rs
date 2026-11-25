@@ -7,11 +7,13 @@
 //! - [`ast`]: streaming JSON AST reader, location tracking and analyses.
 //! - [`dump`]: the `dump` subcommand that ties them together.
 //! - [`tables`]: per-build offset tables for `f4x-engine-sys`.
+//! - [`flavor`]: old-gen (CommonLibF4) or next-gen (libxse/commonlibf4) sources.
 
 pub mod addresses;
 pub mod ast;
 pub mod clang;
 pub mod dump;
+pub mod flavor;
 pub mod tables;
 pub mod records;
 pub mod thirdparty;

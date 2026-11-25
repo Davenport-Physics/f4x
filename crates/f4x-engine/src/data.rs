@@ -30,7 +30,8 @@ impl DataHandler {
     /// has, for several form types `t`, a non-empty `formArrays[t]` whose first form's
     /// `formType` is `t`.
     pub fn get() -> Option<DataHandler> {
-        const PROBE_TYPES: [u8; 6] = [0x04, 0x09, 0x1D, 0x2B, 0x2D, 0x30]; // KYWD GLOB ARMO WEAP NPC_ ALCH
+        use crate::layout::form_type as ft;
+        const PROBE_TYPES: [u8; 6] = [ft::KYWD, ft::TXST, ft::ARMO, ft::WEAP, ft::NPC_, ft::ALCH];
         let ptr = crate::game().object_by_structure("TESDataHandler", |object, regions| {
             if !regions.contains(object, RE::TESDataHandler::SIZE) {
                 return false;
@@ -154,14 +155,15 @@ impl DataHandler {
 /// `TESForm::GetFormByID` (under the form map's lock, [`crate::objref::lookup`]), else a
 /// scan of the global form map (`TESForm::allForms`, a `BSTHashMap<u32, TESForm*>`;
 /// CommonLibF4 `BSTHashMap.h` layout: capacity at +0x0C, entries at +0x28, 24-byte
-/// entries `{key, form, next}`, in use when `next` is set).
+/// entries `{key, form, next}`, in use when `next` is set). Same on NG 1.11.240 (clf4-ng
+/// `BSTHashMap.h`:577; re: GetFormByID 0x311b80 indexes the map the same way).
 #[must_use]
 pub fn form_by_id(id: crate::FormId) -> Option<Form> {
     crate::objref::lookup(id).or_else(|| scan_form_by_id(id))
 }
 
 fn scan_form_by_id(id: crate::FormId) -> Option<Form> {
-    use f4x_engine_sys::og_1_10_163_addresses::ALL_FORMS;
+    use f4x_engine_sys::addresses::ALL_FORMS;
     let global = crate::address::resolve(&ALL_FORMS)?;
     // SAFETY: the allForms global (a pointer to the map) and the map's own fields.
     unsafe {
@@ -189,7 +191,7 @@ fn scan_form_by_id(id: crate::FormId) -> Option<Form> {
 /// `limit`, in map order). Main thread; for tools.
 #[must_use]
 pub fn all_forms_of_type(form_type: crate::form_type::FormType, limit: usize) -> Vec<Form> {
-    use f4x_engine_sys::og_1_10_163_addresses::ALL_FORMS;
+    use f4x_engine_sys::addresses::ALL_FORMS;
     let mut out = Vec::new();
     let Some(global) = crate::address::resolve(&ALL_FORMS) else { return out };
     // SAFETY: as in `form_by_id`.

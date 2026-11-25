@@ -56,7 +56,8 @@ impl fmt::Debug for PackedVersion {
     }
 }
 
-/// Game builds CommonLibF4 names (`F4SE/Version.h`, master + community).
+/// Game builds CommonLibF4 names (`F4SE/Version.h`: master, community, next-gen fork),
+/// plus 1.11.240 (our reading of the Steam exe's version resource).
 pub mod runtime {
     use super::PackedVersion;
 
@@ -64,6 +65,14 @@ pub mod runtime {
     pub const V1_10_163: PackedVersion = PackedVersion::new(1, 10, 163, 0);
     /// The first next-gen build.
     pub const V1_10_980: PackedVersion = PackedVersion::new(1, 10, 980, 0);
+    pub const V1_10_984: PackedVersion = PackedVersion::new(1, 10, 984, 0);
+    /// The first build of the Address Library / layout generation the next-gen fork's
+    /// version-data bit 2 names.
+    pub const V1_11_137: PackedVersion = PackedVersion::new(1, 11, 137, 0);
+    /// The fork's `RUNTIME_LATEST`.
+    pub const V1_11_221: PackedVersion = PackedVersion::new(1, 11, 221, 0);
+    /// The Steam next-gen build f4x's next-gen tables are for.
+    pub const V1_11_240: PackedVersion = PackedVersion::new(1, 11, 240, 0);
 }
 
 #[cfg(test)]
@@ -78,6 +87,8 @@ mod tests {
         assert!(v.same_build(PackedVersion::new(1, 10, 163, 7)));
         assert!(!v.same_build(runtime::V1_10_980));
         assert!(v < runtime::V1_10_980);
+        assert_eq!(runtime::V1_11_240.0, 0x010B_0F00);
+        assert_eq!(PackedVersion::new(0, 7, 9, 0).0, 0x0007_0090);
     }
 
     #[test]

@@ -8,6 +8,10 @@
 //! | ast-RE    | `-fsyntax-only -ast-dump=json -ast-dump-filter=RE`       | `ast.json` (namespaces `RE`, `REL`) |
 //! | ast-F4SE  | `-fsyntax-only -ast-dump=json -ast-dump-filter=F4SE`     | `ast.json` (namespace `F4SE`) |
 //! | vtables   | `-emit-llvm -g -fstandalone-debug -fdump-vtable-layouts` on a probe TU | `vtables.txt` |
+//!
+//! `--flavor ng` (the next-gen fork) adds an `ast-Scaleform` pass (the fork's top-level
+//! `Scaleform` namespace) and a `shim-check` pass that compares our REL/REX shims'
+//! Win32 value types with the Windows SDK's (`shim-ng/shim-ng-check.cpp`).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -21,14 +25,9 @@ use serde_json::json;
 
 use crate::ast::{self, Analysis, AstWriter, RelocKind, Walker};
 use crate::clang::{self, Config, PassResult};
+use crate::flavor::Flavor;
 use crate::records::{self, RecordLayout};
 use crate::thirdparty;
-
-/// The CommonLibF4 commit `provenance/codegen.jsonl` refers to.
-pub const CLF4_COMMIT: &str = "67173f8d44b9a928dbab983d25e576ac5f1e83ac";
-
-/// Headers included by the translation unit, relative to `CommonLibF4/include`.
-pub const UMBRELLAS: &[&str] = &["RE/Fallout.h", "F4SE/F4SE.h"];
 
 /// Stack for the AST threads: serde and the walker recurse once per JSON level.
 const AST_STACK: usize = 512 << 20;
@@ -41,6 +40,7 @@ pub struct Options {
     pub third_party: PathBuf,
     pub offline: bool,
     pub delayed_templates: bool,
+    pub flavor: Flavor,
 }
 
 pub struct Clf4 {
@@ -51,9 +51,15 @@ pub struct Clf4 {
     pub dirty: Option<bool>,
 }
 
-pub fn locate_clf4(path: &Path) -> Result<Clf4, String> {
+pub fn locate_clf4(path: &Path, flavor: Flavor) -> Result<Clf4, String> {
     let path = fs::canonicalize(path).map_err(|e| format!("CommonLibF4 at {}: {e}", path.display()))?;
-    let (root, include) = if path.join("CommonLibF4/include/RE/Fallout.h").is_file() {
+    let (root, include) = if flavor == Flavor::Ng {
+        // libxse/commonlibf4: <root>/include/{RE,F4SE,Scaleform}
+        if !path.join("include/RE/Fallout.h").is_file() {
+            return Err(format!("{} is not a next-gen CommonLibF4 checkout (no include/RE/Fallout.h)", path.display()));
+        }
+        (path.clone(), path.join("include"))
+    } else if path.join("CommonLibF4/include/RE/Fallout.h").is_file() {
         (path.clone(), path.join("CommonLibF4/include"))
     } else if path.join("include/RE/Fallout.h").is_file() {
         (path.parent().unwrap_or(&path).to_path_buf(), path.join("include"))
@@ -97,34 +103,42 @@ struct AstSide {
 /// Runs the dump. Returns `Ok(true)` when every pass finished without errors.
 pub fn run(opts: &Options) -> Result<bool, String> {
     let start = Instant::now();
-    let clf4 = locate_clf4(&opts.clf4)?;
-    if clf4.commit.as_deref() != Some(CLF4_COMMIT) {
+    let flavor = opts.flavor;
+    let clf4_commit = flavor.commit();
+    let umbrellas = flavor.umbrellas();
+    let clf4 = locate_clf4(&opts.clf4, flavor)?;
+    if clf4.commit.as_deref() != Some(clf4_commit) {
         eprintln!(
-            "warning: CommonLibF4 is at {} but provenance/codegen.jsonl cites {CLF4_COMMIT}",
+            "warning: CommonLibF4 is at {} but provenance/codegen.jsonl cites {clf4_commit}",
             clf4.commit.as_deref().unwrap_or("an unknown commit")
         );
     }
     let toolchain = clang::find_clang(opts.clang.as_deref())?;
     let xwin = clang::find_xwin(opts.xwin.as_deref())?;
-    let third_party = thirdparty::ensure_all(&opts.third_party, opts.offline)?;
+    let third_party =
+        if flavor.third_party() { thirdparty::ensure_all(&opts.third_party, opts.offline)? } else { Vec::new() };
+    let shim = flavor.shim_dir();
     let cfg = Config {
         toolchain,
         xwin,
         third_party: third_party.clone(),
         clf4_include: clf4.include.clone(),
         delayed_templates: opts.delayed_templates,
+        std: flavor.std(),
+        defines: if flavor == Flavor::Og { clang::DEFINES } else { &[] },
+        shim_includes: shim.iter().cloned().collect(),
     };
 
     fs::create_dir_all(&opts.out).map_err(|e| format!("creating {}: {e}", opts.out.display()))?;
     let out = fs::canonicalize(&opts.out).map_err(|e| format!("{}: {e}", opts.out.display()))?;
     let tu = out.join("tu.cpp");
-    let tu_text: String = UMBRELLAS.iter().map(|h| format!("#include \"{h}\"\n")).collect();
+    let tu_text: String = umbrellas.iter().map(|h| format!("#include \"{h}\"\n")).collect();
     fs::write(&tu, tu_text).map_err(|e| format!("writing {}: {e}", tu.display()))?;
     let clf4_prefix = format!("{}/", clf4.root.display());
     let ast_path = out.join("ast.json");
 
-    let (records_side, ast_re, ast_f4se) = thread::scope(|s| {
-        let records = s.spawn(|| records_and_vtables(&cfg, &out, &tu));
+    let (records_side, ast_re, ast_f4se, ast_scaleform) = thread::scope(|s| {
+        let records = s.spawn(|| records_and_vtables(&cfg, &out, &tu, umbrellas));
         let re = thread::Builder::new()
             .stack_size(AST_STACK)
             .spawn_scoped(s, || {
@@ -148,16 +162,32 @@ pub fn run(opts: &Options) -> Result<bool, String> {
                 Ok::<_, String>((side, values))
             })
             .expect("spawning the AST thread");
+        // The next-gen fork moved Scaleform out of `RE` into its own top-level namespace.
+        let scaleform = (flavor == Flavor::Ng).then(|| {
+            thread::Builder::new()
+                .stack_size(AST_STACK)
+                .spawn_scoped(s, || {
+                    let mut values = Vec::new();
+                    let side = ast_pass(&cfg, &out, &tu, "Scaleform", &["Scaleform"], &clf4_prefix, |v| {
+                        values.push(v.to_vec());
+                        Ok(())
+                    })?;
+                    Ok::<_, String>((side, values))
+                })
+                .expect("spawning the AST thread")
+        });
         (
             records.join().expect("records thread panicked"),
             re.join().expect("AST thread panicked"),
             f4se.join().expect("AST thread panicked"),
+            scaleform.map(|t| t.join().expect("AST thread panicked")),
         )
     });
     let records_side = records_side?;
     let (ast_re, mut writer) = ast_re?;
     let (ast_f4se, f4se_values) = ast_f4se?;
-    for value in &f4se_values {
+    let ast_scaleform = ast_scaleform.transpose()?;
+    for value in f4se_values.iter().chain(ast_scaleform.iter().flat_map(|(_, values)| values)) {
         writer.write_value(value).map_err(|e| format!("writing {}: {e}", ast_path.display()))?;
     }
     let ast_values = writer.finish().map_err(|e| format!("writing {}: {e}", ast_path.display()))?;
@@ -166,10 +196,18 @@ pub fn run(opts: &Options) -> Result<bool, String> {
     let mut analysis = Analysis::default();
     let mut dropped_top_level = ast_re.dropped.clone();
     dropped_top_level.extend(ast_f4se.dropped.iter().cloned());
-    let passes = [&records_side.records_pass, &ast_re.pass, &ast_f4se.pass, &records_side.vtables_pass];
-    let passes: Vec<PassResult> = passes.into_iter().cloned().collect();
+    let mut passes = vec![records_side.records_pass.clone(), ast_re.pass.clone(), ast_f4se.pass.clone()];
     analysis.merge(ast_re.analysis);
     analysis.merge(ast_f4se.analysis);
+    if let Some((side, _)) = ast_scaleform {
+        dropped_top_level.extend(side.dropped.iter().cloned());
+        passes.push(side.pass);
+        analysis.merge(side.analysis);
+    }
+    passes.push(records_side.vtables_pass.clone());
+    if let Some(shim) = &shim {
+        passes.push(shim_check_pass(&cfg, &out, shim)?);
+    }
 
     // --- cross-checks against the headers themselves
     let source = scan_source(&clf4)?;
@@ -237,19 +275,22 @@ pub fn run(opts: &Options) -> Result<bool, String> {
         "target": clang::TARGET,
         "msvc_compatibility_version": clang::MSVC_VERSION,
         "delayed_template_parsing": cfg.delayed_templates,
+        "flavor": flavor.name(),
+        "std": cfg.std,
         "xwin": cfg.xwin,
         "commonlibf4": {
             "root": clf4.root,
             "commit": clf4.commit,
             "dirty": clf4.dirty,
-            "provenance_commit": CLF4_COMMIT,
-            "umbrellas": UMBRELLAS,
+            "provenance_commit": clf4_commit,
+            "umbrellas": umbrellas,
         },
+        "shims": shim,
         "third_party": thirdparty::DEPS.iter().zip(&third_party).map(|(d, inc)| json!({
             "name": d.name, "version": d.version, "license": d.license, "url": d.url,
             "sha256": d.sha256, "include": inc, "why": d.why,
         })).collect::<Vec<_>>(),
-        "defines": clang::DEFINES.iter().map(|(d, why)| json!({ "name": d, "why": why })).collect::<Vec<_>>(),
+        "defines": cfg.defines.iter().map(|(d, why)| json!({ "name": d, "why": why })).collect::<Vec<_>>(),
         "passes": passes,
         "outputs": outputs,
         "records": {
@@ -305,7 +346,7 @@ pub fn run(opts: &Options) -> Result<bool, String> {
             Some(true) => "DIRTY",
             None => "not a git checkout",
         },
-        UMBRELLAS.join(" + ")
+        umbrellas.join(" + ")
     );
     for p in &passes {
         println!(
@@ -365,7 +406,7 @@ pub fn run(opts: &Options) -> Result<bool, String> {
     Ok(ok)
 }
 
-fn records_and_vtables(cfg: &Config, out: &Path, tu: &Path) -> Result<RecordsSide, String> {
+fn records_and_vtables(cfg: &Config, out: &Path, tu: &Path, umbrellas: &[&str]) -> Result<RecordsSide, String> {
     let records_txt = out.join("records.txt");
     let records_pass = clang::run_pass(
         cfg,
@@ -390,7 +431,7 @@ fn records_and_vtables(cfg: &Config, out: &Path, tu: &Path) -> Result<RecordsSid
     let parse_seconds = t.elapsed().as_secs_f64();
 
     let probes = probe_names(&parsed.records);
-    let (vtables_pass, dropped_probes) = vtables_pass(cfg, out, &probes)?;
+    let (vtables_pass, dropped_probes) = vtables_pass(cfg, out, &probes, umbrellas)?;
     Ok(RecordsSide {
         records_pass,
         parse_seconds,
@@ -416,7 +457,7 @@ fn probe_names(records: &[RecordLayout]) -> Vec<String> {
         .iter()
         .filter(|r| r.is_polymorphic())
         .map(|r| r.name.as_str())
-        .filter(|n| ["RE::", "F4SE::", "REL::"].iter().any(|p| n.starts_with(p)))
+        .filter(|n| ["RE::", "F4SE::", "REL::", "Scaleform::"].iter().any(|p| n.starts_with(p)))
         // Anonymous/lambda types and C's `_Bool` (how the dump spells `bool`) cannot be named.
         .filter(|n| !n.contains('(') && !n.contains("_Bool"))
         .collect();
@@ -424,13 +465,13 @@ fn probe_names(records: &[RecordLayout]) -> Vec<String> {
 }
 
 /// Writes the probe TU. Returns its text and the line number of each probe.
-fn probe_source(probes: &[String]) -> (String, Vec<usize>) {
+fn probe_source(probes: &[String], umbrellas: &[&str]) -> (String, Vec<usize>) {
     let mut text = String::from(
         "// Generated by f4x-codegen. One global pointer per polymorphic CommonLibF4 record:\n\
          // with -g -fstandalone-debug clang emits full debug info for each type, and that\n\
          // computes (and with -fdump-vtable-layouts prints) its MS-ABI vftable layout.\n",
     );
-    for h in UMBRELLAS {
+    for h in umbrellas {
         text.push_str(&format!("#include \"{h}\"\n"));
     }
     // Inside namespace RE so that template arguments printed unqualified still resolve.
@@ -446,7 +487,12 @@ fn probe_source(probes: &[String]) -> (String, Vec<usize>) {
     (text, lines)
 }
 
-fn vtables_pass(cfg: &Config, out: &Path, probes: &[String]) -> Result<(PassResult, Vec<String>), String> {
+fn vtables_pass(
+    cfg: &Config,
+    out: &Path,
+    probes: &[String],
+    umbrellas: &[&str],
+) -> Result<(PassResult, Vec<String>), String> {
     let probe_cpp = out.join("vtables-probe.cpp");
     let vtables_txt = out.join("vtables.txt");
     let diag = out.join("diag-vtables.txt");
@@ -465,7 +511,7 @@ fn vtables_pass(cfg: &Config, out: &Path, probes: &[String]) -> Result<(PassResu
     let mut probes = probes.to_vec();
     let mut dropped = Vec::new();
     for attempt in 0..3 {
-        let (text, lines) = probe_source(&probes);
+        let (text, lines) = probe_source(&probes, umbrellas);
         fs::write(&probe_cpp, text).map_err(|e| format!("writing {}: {e}", probe_cpp.display()))?;
         let pass = clang::run_pass(cfg, "vtables", &mode, &probe_cpp, &diag, clang::to_file(&vtables_txt))?;
         if pass.ok() || attempt == 2 {
@@ -484,6 +530,16 @@ fn vtables_pass(cfg: &Config, out: &Path, probes: &[String]) -> Result<(PassResu
         probes = keep;
     }
     unreachable!("the loop returns on its last attempt")
+}
+
+/// Next-gen only: compiles `shim-ng/shim-ng-check.cpp`, which includes the real
+/// Windows SDK headers next to our shims and asserts that every Win32 value type the
+/// engine records hold has the SDK's size and field offsets.
+fn shim_check_pass(cfg: &Config, out: &Path, shim: &Path) -> Result<PassResult, String> {
+    let check = shim.join("shim-ng-check.cpp");
+    clang::run_pass(cfg, "shim-check", &["-fsyntax-only"], &check, &out.join("diag-shim-check.txt"), |mut stdout| {
+        io::copy(&mut stdout, &mut io::sink()).map_err(|e| e.to_string())
+    })
 }
 
 fn ast_pass(
@@ -615,7 +671,7 @@ mod tests {
     #[test]
     fn probe_lines_match_text() {
         let probes = vec!["RE::A".to_string(), "RE::B<C>".to_string()];
-        let (text, lines) = probe_source(&probes);
+        let (text, lines) = probe_source(&probes, &["RE/Fallout.h"]);
         let all: Vec<&str> = text.lines().collect();
         assert_eq!(all[lines[0] - 1], "::RE::A* vt_0 = nullptr;");
         assert_eq!(all[lines[1] - 1], "::RE::B<C>* vt_1 = nullptr;");

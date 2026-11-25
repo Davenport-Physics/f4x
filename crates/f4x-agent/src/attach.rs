@@ -122,6 +122,7 @@ fn game_version() -> String {
     };
     match stamp {
         0x5ddc_40fa => "1.10.163.0".to_owned(),
+        0x6a72_7fcc => "1.11.240.0".to_owned(),
         other => format!("unknown (timestamp {other:#x})"),
     }
 }
@@ -133,6 +134,15 @@ fn register_windows_methods() {
         Ok(serde_json::to_value(shot).unwrap_or_default())
     });
     server::register("patches", |_, _| crate::patches::map().map_err(|e| f4x_proto::RpcError::new(f4x_proto::code::INTERNAL, e)));
+    server::register("papyrus.events", |_, p| Ok(crate::observe::events_rpc(&p)));
+    server::register("image.dump", |_, p| {
+        // `{path?}`: a Windows path; default `<session>/Fallout4.dump.exe`.
+        let path = match p.get("path").and_then(serde_json::Value::as_str) {
+            Some(path) => std::path::PathBuf::from(path),
+            None => session::get().ok_or_else(|| f4x_proto::RpcError::new(f4x_proto::code::INTERNAL, "no session"))?.dir.join("Fallout4.dump.exe"),
+        };
+        crate::patches::dump_image(&path).map_err(|e| f4x_proto::RpcError::new(f4x_proto::code::INTERNAL, e))
+    });
     server::register("catalog.natives", |_, _| {
         let session = session::get().ok_or_else(|| f4x_proto::RpcError::new(f4x_proto::code::INTERNAL, "no session"))?;
         let text = observe::natives_jsonl();

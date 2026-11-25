@@ -11,9 +11,18 @@
 //!   null sender receives plugin messages, not host messages;
 //! - `GameDataReady(true)` passes the bool in the pointer (`data = 1`, `data_len = 1`),
 //!   followed by `GameLoaded`, once the main menu is up.
+//!
+//! The next-gen build (`ng`) hosts next-gen plugins instead (`declarative.rs`): version
+//! data instead of `Query`, a preload phase, F4SE 0.7.9's versions and table additions.
+//!
+//! Test plugins: `F4X_PLUGINS` entries that have F4SE entry points but no
+//! `f4x_plugin_load` load here, as if they were in `Data/F4SE/Plugins` (sorted in), so an
+//! F4SE-ABI test DLL runs under f4x the way `f4x launch --host f4se --plugin` runs it.
 
 mod console_version;
 mod custom_control_map;
+#[cfg(feature = "ng")]
+mod declarative;
 mod gfx_log;
 mod interfaces;
 pub(crate) mod lifecycle;
@@ -87,14 +96,25 @@ fn plugin_dir() -> PathBuf {
 }
 
 /// Plugins f4x must never load as F4SE plugins.
-fn skipped(file_name: &str) -> bool {
+pub(super) fn skipped(file_name: &str) -> bool {
     let lower = file_name.to_ascii_lowercase();
     // The f4x agent's F4SE-mode build: the runtime already hosts the agent.
     lower == "f4x_agent.dll" || lower == "f4x_runtime.dll"
 }
 
-/// Load every F4SE plugin, then send `PostLoad` and `PostPostLoad`.
-pub fn load_all() {
+/// `F4X_PLUGINS` entries that are F4SE-ABI plugins only (F4SE entry points, no
+/// `f4x_plugin_load`): loaded with the F4SE plugins (see the module docs).
+pub(crate) fn is_f4se_test_plugin(path: &Path) -> bool {
+    let Ok(bytes) = std::fs::read(path) else { return false };
+    let Ok(pe) = f4x_pe::PeFile::parse(&bytes) else { return false };
+    let names: Vec<String> = pe.exports().into_iter().map(|(name, _)| name).collect();
+    let native = f4x_abi::service::PLUGIN_LOAD_EXPORT.to_str().unwrap_or_default();
+    !names.iter().any(|n| n == native) && names.iter().any(|n| n.starts_with("F4SEPlugin_"))
+}
+
+/// The plugin DLLs, in load order: `Data/F4SE/Plugins/*.dll` plus F4SE-ABI test plugins,
+/// by case-insensitive file name.
+fn plugin_files() -> Vec<PathBuf> {
     let dir = plugin_dir();
     let mut files: Vec<PathBuf> = match std::fs::read_dir(&dir) {
         Ok(entries) => entries
@@ -107,9 +127,50 @@ pub fn load_all() {
             Vec::new()
         }
     };
-    files.sort_by_key(|p| p.file_name().unwrap_or_default().to_string_lossy().to_ascii_lowercase());
     log::info!(target: "f4x::f4se", "plugin directory {} ({} DLLs)", dir.display(), files.len());
+    if let Some(list) = std::env::var_os("F4X_PLUGINS") {
+        for path in list.to_string_lossy().split(';').map(str::trim).filter(|p| !p.is_empty()).map(PathBuf::from) {
+            if is_f4se_test_plugin(&path) {
+                log::info!(target: "f4x::f4se", "test plugin {} loads as an F4SE plugin", path.display());
+                files.push(path);
+            }
+        }
+    }
+    files.sort_by_key(|p| p.file_name().unwrap_or_default().to_string_lossy().to_ascii_lowercase());
+    files
+}
 
+/// Next-gen: check every plugin's version data and run `F4SEPlugin_Preload` (once; the
+/// DRM-packed start calls it at the C initializers, else [`load_all`] does).
+#[cfg(feature = "ng")]
+pub fn preload_all() {
+    declarative::check_and_preload(plugin_files());
+}
+
+/// Load every F4SE plugin, then send `PostLoad` and `PostPostLoad`.
+pub fn load_all() {
+    #[cfg(feature = "ng")]
+    let states = declarative::load(plugin_files);
+    #[cfg(not(feature = "ng"))]
+    let states = load_query_plugins(plugin_files());
+    if let Ok(mut plugins) = f4x_agent::PLUGINS.lock() {
+        plugins.extend(states);
+    }
+    lifecycle::install();
+    natives::install_input_hook();
+    scaleform::install();
+    translations::install();
+    custom_control_map::install();
+    gfx_log::install();
+    version_text::install();
+    console_version::install();
+    dispatch_from_host(message::POST_LOAD, std::ptr::null_mut(), 0);
+    dispatch_from_host(message::POST_POST_LOAD, std::ptr::null_mut(), 0);
+}
+
+/// Old-gen: `Query` then `Load` for each plugin in order.
+#[cfg_attr(feature = "ng", allow(dead_code))]
+fn load_query_plugins(files: Vec<PathBuf>) -> Vec<PluginState> {
     let mut states = Vec::new();
     let mut next_handle = 1u32;
     for path in files {
@@ -134,24 +195,12 @@ pub fn load_all() {
         }
         states.push(state);
     }
-    if let Ok(mut plugins) = f4x_agent::PLUGINS.lock() {
-        plugins.extend(states);
-    }
-    lifecycle::install();
-    natives::install_input_hook();
-    scaleform::install();
-    translations::install();
-    custom_control_map::install();
-    gfx_log::install();
-    version_text::install();
-    console_version::install();
-    dispatch_from_host(message::POST_LOAD, std::ptr::null_mut(), 0);
-    dispatch_from_host(message::POST_POST_LOAD, std::ptr::null_mut(), 0);
+    states
 }
 
 /// Load one plugin: `Query`, register it (so `GetPluginInfo` and message routing see it
 /// during its own `Load`), then `Load`. On failure it is unregistered and unloaded.
-fn load_one(handle: u32, path: &Path, file_name: &str) -> Result<(String, u32), String> {
+pub(super) fn load_one(handle: u32, path: &Path, file_name: &str) -> Result<(String, u32), String> {
     let wide: Vec<u16> = OsStr::new(path).encode_wide().chain(Some(0)).collect();
     // SAFETY: loading a DLL the user installed as an F4SE plugin.
     let module: HMODULE = unsafe { LoadLibraryW(wide.as_ptr()) };

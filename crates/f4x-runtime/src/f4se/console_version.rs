@@ -3,7 +3,7 @@
 //!
 //! Black-box (F4SE 0.6.23): `GetF4SEVersion` takes no parameters and has no short name or
 //! help text; it prints one line, `F4SE version: 0.6.23, release idx 25, runtime
-//! 010A0A30`.
+//! 010A0A30`. F4SE 0.7.9 on 1.11.240 prints the same line with its own versions.
 //!
 //! f4x answers `GetF4SEVersion` with the same line for the version it reports to plugins
 //! (0.6.23, the ABI f4x implements), then a second line saying that the host is f4x.
@@ -14,15 +14,18 @@ use std::ffi::c_void;
 
 use f4x_abi::service::{ConsoleCall, ConsoleCommandSpec, Str};
 
-/// The F4SE version f4x reports to plugins (`mod.rs`: 0.6.23, release index 25).
+/// The F4SE version f4x reports to plugins (`interfaces.rs`): 0.6.23, release index 25 on
+/// 1.10.163; 0.7.9, release index 33 on next-gen (black-box: F4SE 0.7.9 prints
+/// `F4SE version: 0.7.9, release idx 33, runtime 010B0F00`).
 const F4SE_MAJOR: u32 = 0;
-const F4SE_MINOR: u32 = 6;
-const F4SE_BETA: u32 = 23;
-const F4SE_RELEASE_INDEX: u32 = 25;
+const F4SE_MINOR: u32 = f4x_engine::pick!(6, 7);
+const F4SE_BETA: u32 = f4x_engine::pick!(23, 9);
+const F4SE_RELEASE_INDEX: u32 = super::interfaces::RELEASE_INDEX;
 
 /// The game's runtime version, as F4SE encodes it (`major << 24 | minor << 16 |
-/// build << 4 | sub`).
-const RUNTIME_VERSION: u32 = (1 << 24) | (10 << 16) | (163 << 4);
+/// build << 4 | sub`): the build this f4x is built for (1.10.163, or 1.11.240 for NG).
+const RUNTIME_VERSION: u32 =
+    f4x_engine::pick!(f4x_abi::version::runtime::V1_10_163, f4x_abi::version::runtime::V1_11_240).0;
 
 fn print(text: &str) {
     if let Err(error) = f4x_engine::console::print(text) {

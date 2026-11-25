@@ -3,14 +3,17 @@
 //! Layouts from CommonLibF4 `RE/Bethesda/Script.h` (`SCRIPT_PARAMETER` 0x10,
 //! `SCRIPT_FUNCTION` 0x50, `SCRIPT_PARAM_TYPE`) and `Console.h` (`ConsoleLog`, its
 //! `buffer` at +0x08). Functions and globals resolve through signature recipes.
+//! Same on NG 1.11.240 (next-gen fork `SCRIPT_FUNCTION.h`, `SCRIPT_PARAMETER.h`,
+//! `ConsoleLog.h`; the exe's table entries), except the table's length.
 
 use std::ffi::{CString, c_char, c_void};
 
-use f4x_engine_sys::og_1_10_163_addresses::{
+use f4x_engine_sys::addresses::{
     CONSOLE_EXECUTE_COMMAND, CONSOLE_FUNCTIONS, CONSOLE_LOG_ADD_STRING, CONSOLE_LOG_SINGLETON, SCRIPT_PARSE_PARAMETERS,
 };
 
 use crate::address::resolve;
+use crate::layout::RE;
 
 /// Run a console command, exactly as if typed into the console (`coc QASmoke`,
 /// `save name`, ...). Main thread only.
@@ -49,7 +52,7 @@ pub fn print(text: &str) -> Result<(), String> {
 pub fn text() -> Option<String> {
     let log = console_log()?;
     // SAFETY: BSStringT<char> at +0x08: data pointer first.
-    let data: *const c_char = unsafe { *(log as *const u8).add(8).cast::<*const c_char>() };
+    let data: *const c_char = unsafe { *(log as *const u8).add(RE::ConsoleLog::buffer).cast::<*const c_char>() };
     if data.is_null() {
         return Some(String::new());
     }
@@ -83,10 +86,10 @@ pub struct ScriptFunction {
 }
 
 const _: () = {
-    assert!(std::mem::size_of::<ScriptParameter>() == 0x10);
-    assert!(std::mem::size_of::<ScriptFunction>() == 0x50);
-    assert!(std::mem::offset_of!(ScriptFunction, param_count) == 0x22);
-    assert!(std::mem::offset_of!(ScriptFunction, execute) == 0x30);
+    assert!(std::mem::size_of::<ScriptParameter>() == RE::SCRIPT_PARAMETER::SIZE);
+    assert!(std::mem::size_of::<ScriptFunction>() == RE::SCRIPT_FUNCTION::SIZE);
+    assert!(std::mem::offset_of!(ScriptFunction, param_count) == RE::SCRIPT_FUNCTION::paramCount);
+    assert!(std::mem::offset_of!(ScriptFunction, execute) == RE::SCRIPT_FUNCTION::executeFunction);
 };
 
 /// `SCRIPT_FUNCTION::ExecuteFunction_t`.
@@ -101,9 +104,13 @@ pub type ExecuteFunction = unsafe extern "C" fn(
     offset: *mut u32,
 ) -> bool;
 
-pub const CONSOLE_FUNCTION_COUNT: usize = 522;
+/// Entries of the console command table, its `" "` terminator included: 522 in 1.10.163
+/// (CommonLibF4); 525 in 1.11.240 (our RE of the exe's table, which adds commands such as
+/// `ClearPlaystationModSpace` and `PBGeneric`; the next-gen fork's header says 523, for
+/// 1.11.221). Entry layout and the no-op handler stubs are the same in both.
+pub const CONSOLE_FUNCTION_COUNT: usize = crate::pick!(522, 525);
 
-/// The console command table (`SCRIPT_FUNCTION[522]`).
+/// The console command table (`SCRIPT_FUNCTION[CONSOLE_FUNCTION_COUNT]`).
 pub fn console_functions() -> Option<*mut ScriptFunction> {
     resolve(&CONSOLE_FUNCTIONS).map(|p| p as *mut ScriptFunction)
 }

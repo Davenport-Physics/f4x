@@ -8,6 +8,10 @@
 //! - `StructTypeInfo`: name at +0x10, variables (`StructVar`, 0x28 bytes, `varType` at
 //!   +0x10) at +0x20, `varNameIndexMap` (`BSTHashMap<BSFixedString, u32>`) at +0x38.
 //!
+//! All the same on next-gen 1.11.240 (next-gen CommonLibF4 40a93f69 `BSScript_Array.h`,
+//! `_Struct.h`, `_StructTypeInfo.h`, `_IComplexType.h`, `BSTHashMap.h`; in both exes
+//! `GetRawType` is slot 1 of `ObjectTypeInfo`/`StructTypeInfo` and returns 1/7).
+//!
 //! A `TypeInfo` is a raw type (0..=7, arrays 11..=17) or an `IComplexType*` (object or
 //! struct type, bit 0 set for arrays of it).
 
@@ -15,11 +19,18 @@ use std::ffi::c_void;
 use std::mem::transmute;
 use std::ptr::null_mut;
 
-use f4x_engine_sys::og_1_10_163_addresses as addr;
+use f4x_engine_sys::addresses as addr;
 
 use crate::address::resolve;
 use crate::mem;
+use crate::layout::RE::BSScript::{Array as ArrayL, Struct as StructL, StructTypeInfo as StructTypeL};
 use crate::papyrus::{FixedString, ScriptObject, Variable, Vm, object_handle, raw, slot, vcall};
+
+/// `Array::elements` (`BSTArray<Variable>`): heap allocator (data, capacity), then size.
+const ARRAY_DATA: usize = ArrayL::elements;
+const ARRAY_SIZE: usize = ArrayL::elements + 0x10;
+// `complex_name` reads either type's name at one offset.
+const _: () = assert!(StructTypeL::name == crate::layout::RE::BSScript::ObjectTypeInfo::name);
 
 /// A Papyrus value.
 #[derive(Clone, Debug, PartialEq)]
@@ -58,7 +69,7 @@ fn complex_raw(complex: usize) -> u32 {
 /// The name of an object or struct type (`name` at +0x10 in both).
 fn complex_name(complex: usize) -> Option<String> {
     // SAFETY: an IComplexType (ObjectTypeInfo / StructTypeInfo).
-    unsafe { mem::fixed_string(mem::read::<*const u8>(complex as *const u8, 0x10)) }
+    unsafe { mem::fixed_string(mem::read::<*const u8>(complex as *const u8, StructTypeL::name)) }
 }
 
 /// A `TypeInfo` from a type name as scripts write it: `Int`, `form[]`,
@@ -165,7 +176,7 @@ fn read_array(vm: Vm, array: *const u8, depth: u32) -> PValue {
         return PValue::None;
     }
     // SAFETY: a live BSScript::Array.
-    let (data, size): (*const Variable, u32) = unsafe { (mem::read(array, 0x18), mem::read(array, 0x28)) };
+    let (data, size): (*const Variable, u32) = unsafe { (mem::read(array, ARRAY_DATA), mem::read(array, ARRAY_SIZE)) };
     if data.is_null() || size > 1 << 16 {
         return PValue::Array(Vec::new());
     }
@@ -175,7 +186,7 @@ fn read_array(vm: Vm, array: *const u8, depth: u32) -> PValue {
 
 /// Field names and indices of a struct type, in index order.
 fn struct_fields(struct_type: usize) -> Vec<(String, u32, *const u8)> {
-    let map = struct_type + 0x38;
+    let map = struct_type + StructTypeL::varNameIndexMap;
     let mut out = Vec::new();
     // SAFETY: StructTypeInfo::varNameIndexMap (BSTHashMap: capacity +0x0C, entries +0x28,
     // entries {BSFixedString key, u32 value, next} of 0x18 bytes).
@@ -208,7 +219,7 @@ fn read_struct(vm: Vm, st: *const u8, struct_type: usize, depth: u32) -> PValue 
             .into_iter()
             .map(|(name, index, _)| {
                 // SAFETY: Struct::variables[index].
-                let var = unsafe { &*(st.add(0x20) as *const Variable).add(index as usize) };
+                let var = unsafe { &*(st.add(StructL::variables) as *const Variable).add(index as usize) };
                 (name, read_depth(vm, var, depth + 1))
             })
             .collect(),
@@ -219,11 +230,11 @@ fn read_struct(vm: Vm, st: *const u8, struct_type: usize, depth: u32) -> PValue 
 fn struct_field_type(struct_type: usize, index: u32) -> usize {
     // SAFETY: StructTypeInfo::variables (BSTArray<StructVar>, 0x28-byte entries).
     unsafe {
-        let data: *const u8 = mem::read(struct_type as *const u8, 0x20);
+        let data: *const u8 = mem::read(struct_type as *const u8, StructTypeL::variables);
         if data.is_null() {
             return 0;
         }
-        mem::read(data.add(index as usize * 0x28), 0x10)
+        mem::read(data.add(index as usize * StructTypeL::StructVar::SIZE), StructTypeL::StructVar::varType)
     }
 }
 
@@ -278,7 +289,7 @@ pub fn write(vm: Vm, var: &mut Variable, kind: usize, value: &PValue) -> Result<
             let elem = element_type(kind).ok_or("not an array type")?;
             let array = vm.create_array(elem, items.len() as u32).ok_or("CreateArray failed")?;
             // SAFETY: the new array's element storage (`items.len()` None variables).
-            let data: *mut Variable = unsafe { mem::read(array as *const u8, 0x18) };
+            let data: *mut Variable = unsafe { mem::read(array as *const u8, ARRAY_DATA) };
             for (i, item) in items.iter().enumerate() {
                 // SAFETY: within the array's size.
                 write(vm, unsafe { &mut *data.add(i) }, elem, item)?;
@@ -298,7 +309,7 @@ pub fn write(vm: Vm, var: &mut Variable, kind: usize, value: &PValue) -> Result<
                     return Err(format!("{name} has no field {fname}"));
                 };
                 // SAFETY: Struct::variables[index].
-                let slot = unsafe { &mut *(st.add(0x20) as *mut Variable).add(index as usize) };
+                let slot = unsafe { &mut *(st.add(StructL::variables) as *mut Variable).add(index as usize) };
                 slot.reset();
                 write(vm, slot, struct_field_type(st_type, index), fvalue)?;
             }

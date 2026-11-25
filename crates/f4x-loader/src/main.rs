@@ -96,11 +96,25 @@ mod windows {
         let dll = match dll {
             Some(dll) => dll,
             None => {
+                // f4x is built once per game generation: next to the loader,
+                // `f4x_runtime.dll` is the 1.10.163 build and `f4x_runtime_ng.dll` the
+                // next-gen one.
                 let me = std::env::current_exe().map_err(|e| e.to_string())?;
-                me.with_file_name("f4x_runtime.dll")
+                let ng = me.with_file_name("f4x_runtime_ng.dll");
+                if is_next_gen(&game_dir.join(&exe)) && ng.is_file() { ng } else { me.with_file_name("f4x_runtime.dll") }
             }
         };
         Ok(Options { game_dir, exe, dll, game_args })
+    }
+
+    /// Is `exe` a next-gen build (a known build by PE timestamp, else: it links the UCRT)?
+    fn is_next_gen(exe: &Path) -> bool {
+        let Ok(bytes) = std::fs::read(exe) else { return false };
+        let Ok(pe) = f4x_pe::PeFile::parse(&bytes) else { return false };
+        match f4x_engine_sys::BUILDS.iter().find(|b| b.timestamp == pe.timestamp()) {
+            Some(build) => build.generation == f4x_engine_sys::Generation::Ng,
+            None => pe.imports().iter().any(|i| i.dll.eq_ignore_ascii_case("api-ms-win-crt-runtime-l1-1-0.dll")),
+        }
     }
 
     fn wide(s: &OsStr) -> Vec<u16> {

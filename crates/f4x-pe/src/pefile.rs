@@ -117,6 +117,15 @@ impl<'a> PeFile<'a> {
         Ok(PeFile { bytes, headers: Headers::parse(bytes)? })
     }
 
+    /// The file offset of `rva` (inside a section's raw data).
+    #[must_use]
+    pub fn raw_offset(&self, rva: u32) -> Option<usize> {
+        let index = self.headers.sections.iter().position(|s| s.contains(rva))?;
+        let section = &self.headers.sections[index];
+        let within = rva - section.rva;
+        (within < section.readable_size).then(|| (self.headers.raw_offsets[index] + within) as usize)
+    }
+
     /// The preferred load address.
     #[must_use]
     pub fn image_base(&self) -> u64 {

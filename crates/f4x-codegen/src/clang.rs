@@ -141,6 +141,13 @@ pub struct Config {
     pub clf4_include: PathBuf,
     /// MSVC-style delayed parsing of template bodies (see `docs/spikes/S2-clang.md`).
     pub delayed_templates: bool,
+    /// `-std=...` (the flavor's language level).
+    pub std: &'static str,
+    /// Preprocessor definitions (`DEFINES` for old-gen; none for next-gen).
+    pub defines: &'static [(&'static str, &'static str)],
+    /// `-I` directories searched before the CommonLibF4 include directory (the
+    /// next-gen REL/REX shims).
+    pub shim_includes: Vec<PathBuf>,
 }
 
 impl Config {
@@ -151,7 +158,7 @@ impl Config {
             "-fms-compatibility",
             "-fms-extensions",
             &format!("-fms-compatibility-version={MSVC_VERSION}"),
-            "-std=c++20",
+            self.std,
         ]
         .iter()
         .map(OsString::from)
@@ -166,8 +173,12 @@ impl Config {
             args.push("-isystem".into());
             args.push(dir.into());
         }
-        for (define, _why) in DEFINES {
+        for (define, _why) in self.defines {
             args.push(format!("-D{define}").into());
+        }
+        for dir in &self.shim_includes {
+            args.push("-I".into());
+            args.push(dir.into());
         }
         args.push("-I".into());
         args.push(self.clf4_include.as_os_str().into());

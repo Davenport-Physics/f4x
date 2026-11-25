@@ -13,6 +13,13 @@
 //! - wide string-pool entries (`RE/Bethesda/BSStringPool.h`): text after the 0x18-byte
 //!   header, `kShallow` entries chain through +0x10.
 //!
+//! All the same on NG 1.11.240 (next-gen fork `BSScaleformManager.h`, `GFx_StateBag.h`,
+//! `GFx_State.h`, `BSScaleformTranslator.h`, `BSTHashMap.h`, `BSStringPool.h`,
+//! `Setting.h`, `BSResourceNiBinaryStream.h`; our RE: the NG manager constructor, 0x1b1a9c0,
+//! keeps the loader at +0x10 and calls `SetState` at slot 2; the translator's destructor
+//! walks entries at +0x48 with capacity at +0x2C and stride 0x18; `INISettingCollection`
+//! adds settings to its list at +0x118; the stream's `operator bool` tests +0x10).
+//!
 //! Our own analysis of the BSScaleformManager constructor (0x2110430 in 1.10.163) shows
 //! how the game fills the table: it builds `Interface\Translate_<sLanguage:General>.txt`,
 //! creates the translator, parses the file into it (`scaleform_translator_load`, which
@@ -27,12 +34,13 @@
 
 use std::ffi::c_void;
 
-use f4x_engine_sys::og_1_10_163_addresses::{
+use f4x_engine_sys::addresses::{
     INI_SETTING_COLLECTION_SINGLETON, SCALEFORM_MANAGER_SINGLETON, STRING_POOL_ENTRY_RELEASE,
     STRING_POOL_GET_ENTRY_WIDE, TRANSLATION_MAP_INSERT,
 };
 
 use crate::address::resolve;
+use crate::layout::RE;
 use crate::mem;
 
 /// `State::StateType::kTranslator`.
@@ -62,7 +70,7 @@ pub fn loader() -> Option<*mut u8> {
         return None;
     }
     // SAFETY: a checked BSScaleformManager; Loader* at +0x10.
-    let loader: *mut u8 = unsafe { mem::read(manager, 0x10) };
+    let loader: *mut u8 = unsafe { mem::read(manager, RE::BSScaleformManager::loader) };
     if !mem::readable(loader as usize, 0x20) {
         return None;
     }
@@ -88,7 +96,7 @@ pub fn loader_state(loader: *mut u8, state_type: i32) -> Option<*mut u8> {
     // SAFETY: a checked GFx::Loader; GetStateAddRef is vtable slot 3.
     let state = unsafe {
         let vtable: *const usize = mem::read(loader, 0);
-        let get: unsafe extern "C" fn(*mut u8, i32) -> *mut u8 = std::mem::transmute(*vtable.add(3));
+        let get: unsafe extern "C" fn(*mut u8, i32) -> *mut u8 = std::mem::transmute(*vtable.add(RE::Scaleform::GFx::StateBag::vtbl::GetStateAddRef));
         get(loader, state_type)
     };
     if state.is_null() {
@@ -276,13 +284,13 @@ pub fn ini_string(name: &str) -> Option<String> {
         let (setting, next): (*const u8, *const u8) = unsafe { (mem::read(node, 0), mem::read(node, 8)) };
         if !setting.is_null() && mem::readable(setting as usize, 0x18) {
             // SAFETY: a Setting: key C string at +0x10.
-            let key: *const u8 = unsafe { mem::read(setting, 0x10) };
+            let key: *const u8 = unsafe { mem::read(setting, RE::Setting::_key) };
             if !key.is_null()
                 && mem::readable(key as usize, 1)
                 && unsafe { mem::c_str(key) }.eq_ignore_ascii_case(name)
             {
                 // SAFETY: string settings hold a char* value at +8.
-                let value: *const u8 = unsafe { mem::read(setting, 8) };
+                let value: *const u8 = unsafe { mem::read(setting, RE::Setting::_value) };
                 return (!value.is_null() && mem::readable(value as usize, 1))
                     .then(|| unsafe { mem::c_str(value) });
             }
@@ -311,11 +319,12 @@ pub fn looks_valid(translator: *mut u8) -> bool {
 /// vtable slot 5). `None` if the file does not exist.
 #[must_use]
 pub fn read_resource(path: &str) -> Option<Vec<u8>> {
-    use f4x_engine_sys::og_1_10_163_addresses::{RESOURCE_STREAM_CTOR, RESOURCE_STREAM_DTOR};
+    use f4x_engine_sys::addresses::{RESOURCE_STREAM_CTOR, RESOURCE_STREAM_DTOR};
     let (ctor, dtor) = (resolve(&RESOURCE_STREAM_CTOR)?, resolve(&RESOURCE_STREAM_DTOR)?);
     let name = std::ffi::CString::new(path).ok()?;
     #[repr(C, align(16))]
     struct Storage([u8; 0x40]);
+    const _: () = assert!(RE::BSResourceNiBinaryStream::SIZE <= 0x40);
     let mut storage = Storage([0; 0x40]);
     let stream = storage.0.as_mut_ptr();
     type Ctor = unsafe extern "C" fn(*mut u8, *const std::ffi::c_char, bool, *mut c_void, bool) -> *mut u8;
@@ -325,11 +334,11 @@ pub fn read_resource(path: &str) -> Option<Vec<u8>> {
     // through its own vtable, then its destructor; the storage outlives all three.
     unsafe {
         std::mem::transmute::<usize, Ctor>(ctor)(stream, name.as_ptr(), false, std::ptr::null_mut(), false);
-        let found = !mem::read::<*const u8>(stream, 0x10).is_null();
+        let found = !mem::read::<*const u8>(stream, RE::BSResourceNiBinaryStream::stream).is_null();
         let mut out = Vec::new();
         if found {
             let vtable: *const usize = mem::read(stream, 0);
-            let read: DoRead = std::mem::transmute(*vtable.add(5));
+            let read: DoRead = std::mem::transmute(*vtable.add(RE::BSResourceNiBinaryStream::vtbl::DoRead));
             let mut chunk = [0u8; 0x4000];
             loop {
                 let n = read(stream, chunk.as_mut_ptr(), chunk.len());

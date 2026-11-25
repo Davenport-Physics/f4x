@@ -34,5 +34,8 @@ windows = { version = "0.61", features = [
     "Win32_Graphics_Dxgi_Common",
 ] }
 
+[features]
+ng = ["f4x-engine/ng"]
+
 [lints]
 workspace = true

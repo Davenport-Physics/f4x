@@ -16,10 +16,12 @@ use crate::layout::RE;
 use crate::mem::{self, read};
 
 /// `BSGeometry`'s shader property (`NiPointer<NiProperty>`; the engine's material-swap
-/// visitor reads it at +0x138, after the alpha property at +0x130).
+/// visitor reads it at +0x138, after the alpha property at +0x130). Same on NG 1.11.240
+/// (clf4-ng `BSGeometry.h` `properties[2]` at 0x130; re: worker 0x256390 reads +0x138).
 const GEOMETRY_SHADER_PROPERTY: usize = 0x138;
 /// `NiTArray` fields relative to the array: data pointer at +8, the first free index (the
-/// bound the engine's visitors iterate to) at +0x12.
+/// bound the engine's visitors iterate to) at +0x12. Same on NG (clf4-ng `NiTArray.h`:181;
+/// re: visitor 0x256250 reads children +0x132).
 const NI_ARRAY_DATA: usize = 0x08;
 const NI_ARRAY_FREE_INDEX: usize = 0x12;
 
@@ -120,7 +122,7 @@ pub struct SwapEntry {
 
 /// `BSTScatterTable` fields (CommonLibF4 `BSTHashMap.h`): capacity (u32 at +0x0C),
 /// entries (+0x28); a `swapMap` entry is {key, Entry {swapMaterial, colorRemappingIndex},
-/// next} (0x20 bytes) and is in use when `next` is set.
+/// next} (0x20 bytes) and is in use when `next` is set. Same on NG (clf4-ng `BSTHashMap.h`:577).
 const TABLE_CAPACITY: usize = 0x0C;
 const TABLE_ENTRIES: usize = 0x28;
 const SWAP_ENTRY_SIZE: usize = 0x20;
@@ -179,7 +181,7 @@ pub const NO_COLOR: f32 = f32::MAX;
 
 /// The lighting material's color remapping index (`BSLightingShaderMaterialBase` +0xB8:
 /// where the engine's swap worker stores it when the property has the grayscale-to-palette
-/// flag, `BSShaderProperty::flags` bit 4).
+/// flag, `BSShaderProperty::flags` bit 4). Same on NG (re: worker 0x256390 writes +0xB8).
 const LIGHTING_COLOR_INDEX: usize = 0xB8;
 
 /// One geometry a swap would change: what it uses now and what the swap maps it to.
@@ -231,7 +233,7 @@ pub fn swap_matches(root: *mut u8, swap: Form) -> Vec<SwapMatch> {
 /// remapping index; an effect property keeps its own (`colorOverride` above `FLT_MAX`
 /// makes the engine skip the color write).
 pub fn apply_to_geometry(geometry: *mut u8, kind: ShaderKind, swap: Form) -> bool {
-    let Some(f) = crate::address::resolve(&f4x_engine_sys::og_1_10_163_addresses::MATSWAP_APPLY_3D) else { return false };
+    let Some(f) = crate::address::resolve(&f4x_engine_sys::addresses::MATSWAP_APPLY_3D) else { return false };
     let game = crate::game();
     if !game.is_instance_of(geometry as usize, ".?AVBSGeometry@@") || !game.is_instance_of(swap.as_ptr() as usize, RE::BGSMaterialSwap::RTTI) {
         return false;

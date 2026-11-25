@@ -1,0 +1,16 @@
+[package]
+name = "f4x-re"
+description = "Host tool: our own analysis of Fallout4.exe builds (function index, features, OG->NG function matching, disassembly)"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+publish = false
+
+[dependencies]
+f4x-pe = { path = "../f4x-pe" }
+iced-x86 = { version = "1", default-features = false, features = ["std", "decoder", "instr_info", "intel"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[lints]
+workspace = true

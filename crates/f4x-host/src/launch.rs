@@ -93,6 +93,31 @@ pub fn build_windows(root: &Path, packages: &[&str]) -> Result<(), String> {
     if status.success() { Ok(()) } else { Err("windows build failed".into()) }
 }
 
+/// [`build_windows`] for a game generation: next-gen packages are built with their `ng`
+/// feature into `target/ng`.
+pub fn build_windows_for(root: &Path, packages: &[&str], generation: crate::Generation) -> Result<(), String> {
+    if generation == crate::Generation::Og {
+        return build_windows(root, packages);
+    }
+    let mut command = Command::new("cargo");
+    command
+        .current_dir(root)
+        .args(["xwin", "build", "--release", "--target", "x86_64-pc-windows-msvc", "--target-dir"])
+        .arg(root.join("target/ng"));
+    let mut features = Vec::new();
+    for package in packages {
+        command.args(["-p", package]);
+        if *package != "f4x-loader" {
+            features.push(format!("{package}/ng"));
+        }
+    }
+    if !features.is_empty() {
+        command.args(["--features", &features.join(",")]);
+    }
+    let status = command.stdout(std::io::stderr()).status().map_err(|e| format!("cargo xwin: {e}"))?;
+    if status.success() { Ok(()) } else { Err("windows build (ng) failed".into()) }
+}
+
 /// Is any `Fallout4.exe` running (ours or the user's)?
 pub fn game_running() -> bool {
     Command::new("pgrep").args(["-f", "Fallout4\\.exe"]).stdout(Stdio::null()).status().is_ok_and(|s| s.success())
@@ -103,14 +128,29 @@ pub fn spawn(launch: &Launch<'_>) -> Result<Child, String> {
     let log = File::create(launch.session.join("launch.log")).map_err(|e| e.to_string())?;
     let log_err = log.try_clone().map_err(|e| e.to_string())?;
 
+    // Steam builds start the way Steam starts a Proton game (see `steam_runtime`); others
+    // through umu.
+    let runtime = env.steam_client.as_ref().map(|client| steam_runtime(client));
+    let launcher: Vec<std::ffi::OsString> = match &runtime {
+        Some(slr) => vec![
+            slr.join("_v2-entry-point").into(),
+            "--verb=run".into(),
+            "--".into(),
+            env.proton.join("proton").into(),
+            "run".into(),
+        ],
+        None => vec![env.umu.clone().into()],
+    };
     let mut command = if launch.headless {
         let mut c = Command::new("gamescope");
         let extra = std::env::var("F4X_GAMESCOPE_ARGS").unwrap_or_else(|_| "-W 1280 -H 720 -r 60".into());
         c.args(["--backend", "headless"]).args(extra.split_whitespace()).arg("--");
-        c.arg(&env.umu);
+        c.args(&launcher);
         c
     } else {
-        Command::new(&env.umu)
+        let mut c = Command::new(&launcher[0]);
+        c.args(&launcher[1..]);
+        c
     };
     // The container must see the workspace (build output, session files) and the real
     // install (which a profile's symlink farm points into).
@@ -132,8 +172,7 @@ pub fn spawn(launch: &Launch<'_>) -> Result<Child, String> {
         .env("STEAM_COMPAT_DATA_PATH", &env.prefix)
         .env("STEAM_COMPAT_INSTALL_PATH", &env.game_dir)
         .env("PROTONPATH", &env.proton)
-        .env("STEAM_COMPAT_APP_ID", "0")
-        .env("SteamAppId", "0")
+        .envs(steam_env(env))
         .env("WINEDEBUG", std::env::var("F4X_WINEDEBUG").unwrap_or_else(|_| "-all".into()))
         .env("PRESSURE_VESSEL_FILESYSTEMS_RW", shared)
         .env("F4X_SESSION_DIR", wine_path(&launch.session))
@@ -146,7 +185,41 @@ pub fn spawn(launch: &Launch<'_>) -> Result<Child, String> {
         .stdout(log)
         .stderr(log_err)
         .process_group(0);
-    command.spawn().map_err(|e| format!("spawning {}: {e}", env.umu.display()))
+    if let Some(slr) = &runtime {
+        command.env("STEAM_COMPAT_TOOL_PATHS", format!("{}:{}", env.proton.display(), slr.display()));
+    }
+    command.spawn().map_err(|e| format!("spawning {}: {e}", launcher[0].to_string_lossy()))
+}
+
+/// The Steam Linux Runtime to run Proton in for Steam builds (`F4X_STEAM_RUNTIME`, default
+/// the Steam client's `SteamLinuxRuntime_sniper`).
+///
+/// A Steam build's DRM stub and `steam_api64.dll` need to see a running Steam: Proton
+/// provides that through its `steam.exe` helper and `lsteamclient`, which talk to the
+/// native client found through `STEAM_COMPAT_CLIENT_INSTALL_PATH`. umu cannot be used for
+/// these builds: it always blanks that variable and makes Proton skip the helper (it sets
+/// `UMU_ID`). So f4x starts Proton the way Steam does: the runtime's `_v2-entry-point`,
+/// then `proton run`.
+fn steam_runtime(client: &Path) -> PathBuf {
+    crate::env::setting("F4X_STEAM_RUNTIME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| client.join("steamapps/common/SteamLinuxRuntime_sniper"))
+}
+
+/// Steam's app-id variables. A Steam build (its DRM and `steam_api64.dll`) needs the
+/// running Steam client: Proton's `lsteamclient` finds it through
+/// `STEAM_COMPAT_CLIENT_INSTALL_PATH`, and the app id tells Steam which game this is (so
+/// it does not relaunch the game through Steam). Other builds get app id 0.
+fn steam_env(env: &GameEnv) -> Vec<(&'static str, String)> {
+    match &env.steam_client {
+        Some(client) => vec![
+            ("STEAM_COMPAT_APP_ID", crate::env::STEAM_APP_ID.into()),
+            ("SteamAppId", crate::env::STEAM_APP_ID.into()),
+            ("SteamGameId", crate::env::STEAM_APP_ID.into()),
+            ("STEAM_COMPAT_CLIENT_INSTALL_PATH", client.display().to_string()),
+        ],
+        None => vec![("STEAM_COMPAT_APP_ID", "0".into()), ("SteamAppId", "0".into())],
+    }
 }
 
 /// Proxy DLLs that mod loaders drop next to the game (e.g. xSE PluginPreloader's

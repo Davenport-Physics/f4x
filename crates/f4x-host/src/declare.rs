@@ -8,7 +8,7 @@
 use std::path::Path;
 
 use f4x_pex::Pex;
-use f4x_pex::f4x_natives::{create, inventory, load_constants, load_struct_defaults, patch};
+use f4x_pex::f4x_natives::{create, inventory_for, load_constants, load_struct_defaults, patch};
 
 /// The script as the game would load it: a loose file in `Data/Scripts`, else the copy
 /// in `Fallout4 - Misc.ba2`.
@@ -49,6 +49,12 @@ fn write(out: &Path, script: &str, pex: &Pex) -> Result<(), String> {
 /// Patch each vanilla script F4SE extends, and create each script F4SE adds, into `out`
 /// (replacing a symlink, never writing through one). Returns one line per script.
 pub fn generate(data: &Path, out: &Path) -> Result<Vec<String>, String> {
+    generate_for(data, out, crate::Generation::Og)
+}
+
+/// [`generate`] with the signature inventory of a game generation (F4SE 0.6.23 for
+/// 1.10.163, 0.7.9 for next-gen).
+pub fn generate_for(data: &Path, out: &Path, generation: crate::Generation) -> Result<Vec<String>, String> {
     let archive = f4x_ba2::Archive::open(&data.join("Fallout4 - Misc.ba2")).ok();
     let mut constants = load_constants(&constants_dir())?;
     for (script, values) in load_struct_defaults(&struct_defaults_dir())? {
@@ -58,7 +64,7 @@ pub fn generate(data: &Path, out: &Path) -> Result<Vec<String>, String> {
     let (_, template) = source(data, "ScriptObject", archive.as_ref())?;
     let template = Pex::parse(&template).map_err(|e| format!("ScriptObject.pex: {e}"))?;
     let mut report = Vec::new();
-    for decl in inventory() {
+    for decl in inventory_for(generation == crate::Generation::Ng) {
         let script = decl.script.as_str();
         let loose = data.join("Scripts").join(format!("{script}.pex"));
         if decl.new_script && std::fs::metadata(&loose).is_err() {

@@ -32,7 +32,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
 use f4x_engine::translation;
-use f4x_engine_sys::og_1_10_163_addresses::SCALEFORM_TRANSLATOR_LOAD;
+use f4x_engine_sys::addresses::SCALEFORM_TRANSLATOR_LOAD;
 use f4x_pe::Image;
 
 static LOAD: AtomicUsize = AtomicUsize::new(0);

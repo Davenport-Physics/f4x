@@ -32,7 +32,7 @@ use f4x_engine::mem;
 use f4x_engine::papyrus::{self, FixedString, NativeCall};
 use f4x_engine::papyrus_value::PValue;
 use f4x_engine::FormId;
-use f4x_engine_sys::og_1_10_163_addresses as addr;
+use f4x_engine_sys::addresses as addr;
 
 use super::Entry;
 
@@ -156,7 +156,8 @@ fn bs_crc32(data: &[u8]) -> u32 {
 
 /// `TESForm::GetFormByID`: a hashed lookup in the global form map
 /// (`BSTHashMap<u32, TESForm*>`: 0x18-byte entries {key, form, next}, chains end at the
-/// sentinel). Falls back to a scan of the map if the chain does not have it.
+/// sentinel; same on NG 1.11.240, re: GetFormByID 0x311b80). Falls back to a scan of the
+/// map if the chain does not have it.
 fn form_by_id(id: u32) -> Option<*mut u8> {
     static WARNED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     let hashed = || -> Option<Option<*mut u8>> {
@@ -326,11 +327,15 @@ fn with_read_lock<R>(lock: *mut u8, f: impl FnOnce() -> R) -> R {
     unsafe { transmute::<usize, unsafe extern "C" fn(*mut u8)>(lock_read)(lock) };
     let r = f();
     // SAFETY: BSReadWriteLock::_lock (u32 at +4), held for reading by us.
-    unsafe { (*(lock.add(4) as *const AtomicU32)).fetch_sub(1, Ordering::AcqRel) };
+    unsafe { (*(lock.add(RE::BSReadWriteLock::_lock) as *const AtomicU32)).fetch_sub(1, Ordering::AcqRel) };
     r
 }
 
 // ---------------------------------------------------------------- Actor
+//
+// The values below are the same on NG 1.11.240 (clf4-ng `BIPED_OBJECT.h`:56,
+// `ActorState.h`:50, `Actor.h`:116, `BGSInventoryItem.h`:28, `EXTRA_DATA_TYPE.h`; re: the
+// protected/essential setter 0xc5b2b0 sets bit 19 of Actor+0x43C).
 
 const BIPED_TOTAL: i32 = 44;
 /// `ActorState` bit-field word at +0x0C: `interactingState` is bits 18..19.
@@ -524,7 +529,7 @@ fn is_protected(c: &mut NativeCall) -> Result<(), String> {
 
 /// `ActorBase:BodyWeight` fields in `TESNPC::morphWeight` order (x, y, z).
 const BODY_WEIGHT: [&str; 3] = ["thin", "muscular", "large"];
-/// `CHANGE_TYPE::kNPCBodyScales`.
+/// `CHANGE_TYPE::kNPCBodyScales` (same on NG: clf4-ng `CHANGE_TYPES.h`:91).
 const CHANGE_NPC_BODY_SCALES: u32 = 1 << 14;
 
 fn npc(c: &NativeCall) -> Result<*mut u8, String> {
@@ -537,7 +542,7 @@ fn form_race(npc: *mut u8) -> *mut u8 {
 
 /// The engine's alternate head-part lists (`BSTHashMap<const TESNPC*,
 /// BSTArray<BGSHeadPart*>>`): entries at +0x28, capacity at +0x0C; each entry is the key,
-/// the array (0x18) and `next` (non-null when used), 0x28 bytes.
+/// the array (0x18) and `next` (non-null when used), 0x28 bytes. Same on NG.
 fn alternate_head_parts(npc: *mut u8) -> Option<*mut u8> {
     let map = resolve(&addr::NPC_ALTERNATE_HEAD_PARTS)?.checked_sub(8)? as *const u8;
     let capacity = rd::<u32>(map, 0x0C)? as usize;
@@ -665,7 +670,7 @@ fn get_parents(c: &mut NativeCall) -> Result<(), String> {
 
 // ---------------------------------------------------------------- HeadPart
 
-/// `BGSHeadPart::Flag::kExtraPart`.
+/// `BGSHeadPart::Flag::kExtraPart` (same on NG: clf4-ng `BGSHeadPart.h`:29).
 const HEAD_PART_EXTRA: u8 = 1 << 3;
 
 fn head_part(c: &NativeCall) -> Result<*mut u8, String> {
@@ -712,7 +717,8 @@ fn get_extra_parts(c: &mut NativeCall) -> Result<(), String> {
 // ---------------------------------------------------------------- MatSwap
 
 /// `BSTScatterTable` fields (CommonLibF4 `BSTHashMap.h`): capacity, free, good (u32 at
-/// +0x0C/+0x10/+0x14), sentinel (+0x18), heap allocator entries (+0x28).
+/// +0x0C/+0x10/+0x14), sentinel (+0x18), heap allocator entries (+0x28). Same on NG
+/// 1.11.240 (clf4-ng `BSTHashMap.h`:575-581, 647-648).
 mod table {
     pub const CAPACITY: usize = 0x0C;
     pub const FREE: usize = 0x10;

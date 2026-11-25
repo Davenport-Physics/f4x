@@ -4,7 +4,10 @@
 //! The game silences Scaleform: the BSScaleformManager constructor gives the GFx loader a
 //! log state (`State::StateType::kLog` = 2) whose log is a `LoggingDisabler` (vtable slot
 //! 1, `LogMessageVarg`, is `ret`; our disassembly of 1.10.163, 0x2110430 and 0x212a0e0).
-//! The log state keeps its `Ptr<GFx::Log>` at +0x20 (its constructor, 0x2129bb0). With
+//! The log state keeps its `Ptr<GFx::Log>` at +0x20 (its constructor, 0x2129bb0). NG
+//! 1.11.240 is the same except the silencer's class, `DejaGFxLogger` (slot 1 is `ret 0`):
+//! its `SetLog` (0x1b30e90) builds a 0x28-byte log state with the log at +0x20 and calls
+//! `SetState(2, ...)` (next-gen fork `GFx_LogState.h` agrees). With
 //! the setting on, f4x points that at its own log, which writes the messages to f4x's
 //! log (target `f4x::gfx`), one record per line of text.
 //!

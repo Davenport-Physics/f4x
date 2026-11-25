@@ -13,5 +13,8 @@ crate-type = ["cdylib"]
 f4x-abi = { path = "../f4x-abi" }
 f4x-agent = { path = "../f4x-agent" }
 
+[features]
+ng = ["f4x-agent/ng"]
+
 [lints]
 workspace = true

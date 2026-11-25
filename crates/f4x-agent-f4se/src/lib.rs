@@ -2,6 +2,9 @@
 //!
 //! Lets the same control server, logs, crash capture and in-game tests run under real
 //! F4SE, so every test can be run against both hosts and the results diffed.
+//!
+//! Old-gen F4SE (0.6.x) calls `F4SEPlugin_Query` then `F4SEPlugin_Load`. Next-gen F4SE
+//! (0.7.x) reads the exported `F4SEPlugin_Version` data instead (built with `ng`).
 #![cfg_attr(not(windows), allow(dead_code))]
 
 #[cfg(windows)]
@@ -12,6 +15,26 @@ mod plugin {
     use f4x_abi::service::Service;
 
     static SERVICE: OnceLock<usize> = OnceLock::new();
+
+    /// Next-gen declaration: addresses come from f4x's own signature recipes; structure
+    /// layouts are the 1.11.240 tables (1.11.137+ generation).
+    #[cfg(feature = "ng")]
+    #[unsafe(no_mangle)]
+    #[used]
+    #[allow(non_upper_case_globals)]
+    pub static F4SEPlugin_Version: f4x_abi::f4se::PluginVersionData = {
+        use f4x_abi::f4se::{PluginVersionData, address_independence, structure_independence};
+        use f4x_abi::version::{PackedVersion, runtime};
+        PluginVersionData::declare(
+            "f4x_agent",
+            "f4x",
+            PackedVersion::new(0, 0, 1, 0),
+            address_independence::SIGNATURES,
+            structure_independence::LAYOUT_1_11_137,
+            &[runtime::V1_11_240],
+            PackedVersion(0),
+        )
+    };
 
     /// # Safety
     /// Called by F4SE with valid pointers.

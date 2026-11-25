@@ -18,6 +18,8 @@
 //! - **f4x**: the runtime calls the `f4x_plugin_load` export with the service table.
 //! - **real F4SE**: F4SE calls `F4SEPlugin_Query`/`F4SEPlugin_Load`. The plugin then finds
 //!   the agent (`f4x_agent.dll`, itself an F4SE plugin) and connects once it is loaded.
+//!   With the `ng` feature the plugin also exports `F4SEPlugin_Version` (next-gen F4SE
+//!   loads only plugins with version data, and never calls `Query`).
 //!
 //! Tests are `async` blocks polled once per main-loop iteration, on the game's main
 //! thread, so engine calls are safe between `await`s. Helpers: [`next_pump`],
@@ -266,5 +268,29 @@ macro_rules! plugin {
             // SAFETY: forwarded from F4SE.
             unsafe { $crate::__private::f4se_load(concat!($name, "\0"), f4se, __f4x_plugin_load) }
         }
+
+        $crate::__f4se_version_data!($name);
     };
+}
+
+/// Next-gen version data for `plugin!` (see [`__private::version_data`]).
+#[cfg(feature = "ng")]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __f4se_version_data {
+    ($name:literal) => {
+        /// Next-gen F4SE declaration.
+        #[unsafe(no_mangle)]
+        #[used]
+        #[allow(non_upper_case_globals)]
+        pub static F4SEPlugin_Version: $crate::f4x_abi::f4se::PluginVersionData = $crate::__private::version_data($name);
+    };
+}
+
+/// Old-gen builds export no version data.
+#[cfg(not(feature = "ng"))]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __f4se_version_data {
+    ($name:literal) => {};
 }

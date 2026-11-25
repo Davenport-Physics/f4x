@@ -24,5 +24,8 @@ windows-sys = { workspace = true, features = [
     "Win32_System_Threading",
 ] }
 
+[features]
+ng = ["f4x-engine/ng"]
+
 [lints]
 workspace = true

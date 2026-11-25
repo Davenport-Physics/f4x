@@ -15,8 +15,9 @@ usage: cargo xtask <task>
 tasks:
   provenance-lint   reject banned F4SE-source citations and unsourced provenance entries
   baseline          [--host f4se] [--profile NAME] [--headless] [--out FILE]  S5: record what the host does to a probe plugin
-  install-game      [--reinstall]  use f4x instead of F4SE in the real install (Heroic launch target)
-  uninstall-game    undo install-game (manifest in ~/.local/share/f4x/install)
+  install-game      [--game-dir DIR] [--reinstall]  use f4x instead of F4SE in a real install
+                    (default F4X_GAME_DIR via Heroic; a Steam folder: its Fallout4Launcher.exe)
+  uninstall-game    [--game-dir DIR]  undo install-game (manifests in ~/.local/share/f4x/install)
   compat            [--only surface,saveload,mcm,natives] [--hosts f4se,f4x] [--out DIR]
                     run the same scenarios under F4SE and f4x and diff them (tools/compat)
   catalog-check     [--natives FILE]  S3: check a native catalog against Fallout4.exe and the vanilla .pex

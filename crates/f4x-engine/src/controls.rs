@@ -1,7 +1,7 @@
 //! `ControlMap` (CommonLibF4 `RE/Bethesda/ControlMap.h`): the input contexts and the
 //! text-entry counter that turns keyboard input into text instead of controls.
 
-use f4x_engine_sys::og_1_10_163_addresses::CONTROL_MAP_SINGLETON;
+use f4x_engine_sys::addresses::CONTROL_MAP_SINGLETON;
 
 use crate::address::resolve;
 use crate::layout::RE;

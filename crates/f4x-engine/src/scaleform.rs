@@ -6,6 +6,10 @@
 //! - `Movie::asMovieRoot` at +0x18; its vtable creates values and gets/sets variables;
 //! - `FunctionHandler`: refcounted, `Call(const Params&)` in slot 1.
 //!
+//! All the same on NG 1.11.240: the next-gen fork's `Scaleform/G/GFx_Value.h`,
+//! `GFx_Movie.h`, `GFx_ASMovieRootBase.h`, `GFx_FunctionHandler.h`, and our RE (the
+//! exe's `Movie` wrappers load `[movie+18h]` and jump through the same root slots).
+//!
 //! The `Value::ObjectInterface` member functions resolve through signature recipes.
 //! Movies are not thread-safe: use them on the thread that advances them (for menus,
 //! inside `IMenu::AdvanceMovie`, which the agent hooks).
@@ -14,7 +18,7 @@ use std::ffi::{CStr, CString, c_char, c_void};
 use std::ptr::null_mut;
 use std::sync::OnceLock;
 
-use f4x_engine_sys::og_1_10_163_addresses as addr;
+use f4x_engine_sys::addresses as addr;
 
 use crate::address::resolve;
 use crate::mem;
@@ -67,7 +71,7 @@ pub struct Value {
     aux: u64,
 }
 
-const _: () = assert!(std::mem::size_of::<Value>() == 0x20);
+const _: () = assert!(std::mem::size_of::<Value>() == crate::layout::RE::Scaleform::GFx::Value::SIZE);
 
 type AddRelease = unsafe extern "C" fn(*mut c_void, *mut Value, u64);
 type HasMember = unsafe extern "C" fn(*mut c_void, u64, *const c_char, bool) -> bool;
@@ -295,13 +299,21 @@ impl std::fmt::Debug for Value {
 
 // ---------------------------------------------------------------- movies
 
+/// `ASMovieRootBase` slots, from the generated tables: 0x2C, 0x2E, 0x2F, 0x30, 0x31, 0x32
+/// and 0x39 in both builds (next-gen fork `GFx_ASMovieRootBase.h`:112; RE: the 1.11.240
+/// `Movie::CreateString`/`CreateObject`/`CreateArray`/`CreateFunction`/`GetVariable`
+/// wrappers, matched to 1.10.163's, use the same displacements, as do the
+/// `SetVariable`/`Invoke` ones).
 mod slot {
-    pub const CREATE_STRING: usize = 0x2C;
-    pub const CREATE_OBJECT: usize = 0x2E;
-    pub const CREATE_ARRAY: usize = 0x2F;
-    pub const CREATE_FUNCTION: usize = 0x30;
-    pub const SET_VARIABLE: usize = 0x31;
-    pub const GET_VARIABLE: usize = 0x32;
+    use crate::layout::RE::Scaleform::GFx::ASMovieRootBase::vtbl;
+    pub const CREATE_STRING: usize = vtbl::CreateString;
+    pub const CREATE_OBJECT: usize = vtbl::CreateObject;
+    pub const CREATE_ARRAY: usize = vtbl::CreateArray;
+    pub const CREATE_FUNCTION: usize = vtbl::CreateFunction;
+    pub const SET_VARIABLE: usize = vtbl::SetVariable;
+    pub const GET_VARIABLE: usize = vtbl::GetVariable;
+    /// `Invoke(path, Value* result, const Value* args, u32 count)`; kept literal because
+    /// the tables name the two `Invoke` overloads by declaration order (`Invoke_2` = 0x39).
     pub const INVOKE: usize = 0x39;
 }
 
@@ -327,7 +339,7 @@ impl Movie {
             return None;
         }
         // SAFETY: Ptr<ASMovieRootBase> at +0x18.
-        let root: *mut c_void = unsafe { mem::read(self.0 as *const u8, 0x18) };
+        let root: *mut c_void = unsafe { mem::read(self.0 as *const u8, crate::layout::RE::Scaleform::GFx::Movie::asMovieRoot) };
         (!root.is_null()).then_some(root)
     }
 

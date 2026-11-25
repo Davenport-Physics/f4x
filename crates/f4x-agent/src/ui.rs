@@ -19,6 +19,8 @@
 //!   input context, the movie's scale mode and alignment (`GFx::Movie` slots 0x0F/0x11),
 //!   and with `dump` (a byte count) the object's first bytes as hex (plus, for a dump of
 //!   at least 0x90 bytes, the 0xB0 bytes of `GameMenuBase::filterHolder` at +0x88).
+//!   These slots and offsets are the same on NG 1.11.240 (next-gen fork `GFx_Movie.h`,
+//!   `GameMenuBase.h`, `BSGFxShaderFXTarget.h`; generated NG tables).
 
 use std::ffi::c_void;
 use std::sync::mpsc;
@@ -161,12 +163,12 @@ fn menu_fields(name: &str, dump: usize) -> Json {
             } else {
                 let vtbl: *const usize = read(movie, 0);
                 let get = |slot: usize| std::mem::transmute::<usize, unsafe extern "C" fn(*const u8) -> i32>(*vtbl.add(slot))(movie);
-                (json!(get(0x0F)), json!(get(0x11)))
+                (json!(get(RE::Scaleform::GFx::Movie::vtbl::GetViewScaleMode)), json!(get(RE::Scaleform::GFx::Movie::vtbl::GetViewAlignment)))
             };
             let bytes: Vec<u8> = if dump > 0 && readable(m as usize, dump) { (0..dump).map(|i| read::<u8>(m, i)).collect() } else { Vec::new() };
             // GameMenuBase::filterHolder (+0x88, a BSGFxShaderFXTarget of 0xB0 bytes), when
             // the dump covers it and it points somewhere readable.
-            let holder: *const u8 = if bytes.len() >= 0x90 { read(m, 0x88) } else { std::ptr::null() };
+            let holder: *const u8 = if bytes.len() >= RE::GameMenuBase::filterHolder + 8 { read(m, RE::GameMenuBase::filterHolder) } else { std::ptr::null() };
             let holder_bytes: Vec<u8> = if !holder.is_null() && readable(holder as usize, 0xB0) { (0..0xB0).map(|i| read::<u8>(holder, i)).collect() } else { Vec::new() };
             json!({
                 "flags": read::<u32>(m, RE::IMenu::menuFlags),

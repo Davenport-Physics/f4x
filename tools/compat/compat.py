@@ -1,6 +1,6 @@
 """Differential compatibility run: the same scenarios under real F4SE and under f4x.
 
-usage: python3 -I tools/compat/compat.py [--out DIR] [--only NAME,...] [--hosts f4se,f4x]
+usage: python3 -I tools/compat/compat.py [--out DIR] [--only NAME,...] [--hosts f4se,f4x] [--ng]
 
 Scenarios (each runs once per host, headless, muted, in f4x-owned profiles):
   surface   root.f4se in MainMenu: members, directory listings, AllowTextInput's
@@ -21,6 +21,10 @@ Scenarios (each runs once per host, headless, muted, in f4x-owned profiles):
 Profiles: user-mods-f4se/user-mods-f4x (`cargo xtask profile create NAME --host H --data
 install --plugin <f4x_probe.dll>`), f4se-baseline/vanilla-f4x. Writes <out>/report.json
 and exits 1 if anything differs.
+
+--ng: next-gen (F4SE 0.7.9 vs f4x's `ng` build): profiles f4se-ng-baseline / vanilla-f4x-ng
+(official data only: the user's mod DLLs are 1.10.163 builds), the probe from target/ng,
+scenarios surface, saveload and natives (default out: target/compat-ng).
 """
 import argparse, json, os, re, socket, subprocess, sys, time
 
@@ -32,13 +36,25 @@ MY_GAMES = "prefix/pfx/drive_c/users/steamuser/Documents/My Games/Fallout4"
 
 
 PROBE = os.path.join(ROOT, "target", "x86_64-pc-windows-msvc", "release", "f4x_probe.dll")
+NG = "--ng" in sys.argv
+if NG:
+    PROBE = os.path.join(ROOT, "target", "ng", "x86_64-pc-windows-msvc", "release", "f4x_probe.dll")
+
+
+def profile_for(host, kind):
+    """kind: "mods" (user-mods-*, OG) or "vanilla"; next-gen has vanilla profiles only."""
+    if NG:
+        return "f4se-ng-baseline" if host == "f4se" else "vanilla-f4x-ng"
+    if kind == "mods":
+        return f"user-mods-{host}"
+    return "f4se-baseline" if host == "f4se" else "vanilla-f4x"
 
 
 class Session:
     def __init__(self, host, profile, lifetime=900):
         cmd = [F4X, "launch", "--host", host, "--profile", profile, "--headless", "--main-loop", "--test-mode", "--lifetime", str(lifetime)]
-        if host == "f4se":
-            cmd += ["--plugin", PROBE]  # f4x profiles carry the probe in Data/F4SE/Plugins
+        if host == "f4se" or NG:
+            cmd += ["--plugin", PROBE]  # OG f4x profiles carry the probe in Data/F4SE/Plugins
         out = subprocess.run(cmd, capture_output=True, text=True, timeout=400)
         self.dir = out.stdout.strip().splitlines()[-1]
         info_path = os.path.join(self.dir, "session.json")
@@ -112,7 +128,7 @@ def load_from_main_menu(s, save):
 
 def scenario_surface(host, out):
     cand = os.path.join(out, "candidates.json")
-    s = Session(host, f"user-mods-{host}")
+    s = Session(host, profile_for(host, "mods"))
     try:
         s.wait_menu("MainMenu")
         time.sleep(5)
@@ -151,7 +167,7 @@ def change_events(s):
 
 
 def scenario_saveload(host, out):
-    profile = f"user-mods-{host}"
+    profile = profile_for(host, "mods")
     saves = os.path.join(my_games(profile), "Saves")
     papyrus = os.path.join(my_games(profile), "Logs", "Script", "Papyrus.0.log")
     if os.path.exists(papyrus):
@@ -211,7 +227,7 @@ def scenario_mcm(host, out):
 
 
 def scenario_natives(host, out):
-    s = Session(host, "f4se-baseline" if host == "f4se" else "vanilla-f4x", lifetime=1500)
+    s = Session(host, profile_for(host, "vanilla"), lifetime=1500)
     try:
         s.wait_menu("MainMenu")
         time.sleep(3)
@@ -256,7 +272,7 @@ SCENARIOS = {"surface": scenario_surface, "saveload": scenario_saveload, "mcm": 
 
 def candidates(out):
     """Identifiers from the vanilla Interface SWFs and the installed mods' SWFs."""
-    data = os.path.join(PROFILES, "user-mods-f4x", "game", "Data")
+    data = os.path.join(PROFILES, profile_for("f4x", "mods"), "game", "Data")
     swf_dir = os.path.join(out, "swf")
     os.makedirs(swf_dir, exist_ok=True)
     pextool = os.path.join(ROOT, "target", "debug", "f4x-pextool")
@@ -295,8 +311,9 @@ def image_diff(a, b):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default=os.path.join(ROOT, "target", "compat"))
-    ap.add_argument("--only", default=",".join(SCENARIOS))
+    ap.add_argument("--out", default=os.path.join(ROOT, "target", "compat-ng" if NG else "compat"))
+    ap.add_argument("--only", default="surface,saveload,natives" if NG else ",".join(SCENARIOS))
+    ap.add_argument("--ng", action="store_true")
     ap.add_argument("--hosts", default="f4se,f4x")
     args = ap.parse_args()
     out = args.out

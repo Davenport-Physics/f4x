@@ -80,6 +80,9 @@ pub struct Profile {
     pub root: PathBuf,
     pub host: Host,
     pub data: DataMode,
+    /// The real install the profile's `game/` farm links into (`None`: profiles made
+    /// before this was recorded, which use `F4X_GAME_DIR`).
+    pub install: Option<PathBuf>,
 }
 
 /// Official game data: masters/archives of the base game, DLC and Creation Club.
@@ -94,12 +97,48 @@ fn is_official(name: &str) -> bool {
 
 const PLUGINS_TXT: &str = "drive_c/users/steamuser/AppData/Local/Fallout4/plugins.txt";
 
-/// F4SE 0.6.23 binaries + scripts, extracted (without the bundled source) from the
-/// sha-pinned archive by `cache_f4se`.
-pub const F4SE_ARCHIVE: &str = "f4se_0_06_23.7z";
-pub const F4SE_URL: &str = "https://f4se.silverlock.org/beta/f4se_0_06_23.7z";
-pub const F4SE_SHA256: &str = "39575bbb688fc40598496e28afafb5270a6e44c00656a160a30f467efbade21c";
-const F4SE_FILES: &[&str] = &["f4se_loader.exe", "f4se_1_10_163.dll", "f4se_steam_loader.dll"];
+/// A pinned F4SE distribution: only its runtime files and compiled scripts are ever
+/// extracted (never its bundled source).
+pub struct F4seDist {
+    pub version: &'static str,
+    /// Top-level folder inside the archive.
+    pub dir: &'static str,
+    /// Archive file name in the f4x cache.
+    pub archive: &'static str,
+    /// Public download, if there is one (0.7.x is only on Nexus, which needs a login: the
+    /// user provides the archive, see `F4X_F4SE_NG_ARCHIVE`).
+    pub url: Option<&'static str>,
+    pub sha256: &'static str,
+    pub files: &'static [&'static str],
+}
+
+/// F4SE 0.6.23, for 1.10.163.
+pub const F4SE_OG: F4seDist = F4seDist {
+    version: "0.6.23",
+    dir: "f4se_0_06_23",
+    archive: "f4se_0_06_23.7z",
+    url: Some("https://f4se.silverlock.org/beta/f4se_0_06_23.7z"),
+    sha256: "39575bbb688fc40598496e28afafb5270a6e44c00656a160a30f467efbade21c",
+    files: &["f4se_loader.exe", "f4se_1_10_163.dll", "f4se_steam_loader.dll"],
+};
+
+/// F4SE 0.7.9, for Steam 1.11.240 (the archive the user downloaded from Nexus mod 42147).
+pub const F4SE_NG: F4seDist = F4seDist {
+    version: "0.7.9",
+    dir: "f4se_0_07_09",
+    archive: "f4se_0_07_09.7z",
+    url: None,
+    sha256: "48677acc460d8dca0f2f6303b0ef7fe16bdb8a97bdc37c6ffb96ec604fec1a48",
+    files: &["f4se_loader.exe", "f4se_1_11_240.dll"],
+};
+
+/// The F4SE distribution for a game generation.
+pub fn f4se_dist(generation: crate::Generation) -> &'static F4seDist {
+    match generation {
+        crate::Generation::Og => &F4SE_OG,
+        crate::Generation::Ng => &F4SE_NG,
+    }
+}
 
 /// The manifest of plugin symlinks f4x created in a profile's `Data/F4SE/Plugins`.
 const PLUGIN_LINKS: &str = "plugin-links.json";
@@ -123,7 +162,18 @@ impl Profile {
         let value: serde_json::Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
         let host = Host::parse(value["host"].as_str().unwrap_or(""))?;
         let data = DataMode::parse(value["data"].as_str().unwrap_or("vanilla"))?;
-        Ok(Profile { name: name.to_owned(), root, host, data })
+        let install = value["install"].as_str().map(PathBuf::from);
+        Ok(Profile { name: name.to_owned(), root, host, data, install })
+    }
+
+    /// The launch environment for this profile: its own prefix, and its source install
+    /// (store and Steam client follow from that install).
+    pub fn env(&self, base: &GameEnv) -> GameEnv {
+        let env = match &self.install {
+            Some(install) if *install != base.game_dir => base.with_install(install.clone()),
+            _ => base.clone(),
+        };
+        env.with_prefix(self.prefix())
     }
 
     /// Load `name`, creating it if it does not exist. Fails if it exists for another host.
@@ -198,8 +248,9 @@ impl Profile {
         }
 
         if host == Host::F4se {
-            let cache = cache_f4se()?;
-            for file in F4SE_FILES {
+            let dist = f4se_dist(crate::exe_generation(&env.game_dir)?);
+            let cache = cache_f4se(dist)?;
+            for file in dist.files {
                 copy_if_changed(&cache.join(file), &game.join(file))?;
             }
             let scripts = cache.join("Data/Scripts");
@@ -211,7 +262,7 @@ impl Profile {
         if host == Host::F4x {
             // f4x's F4SE-compatible natives must be declared by the scripts: patch the
             // user's own vanilla scripts into the profile (no-op where F4SE's are present).
-            for line in crate::declare::generate(&data, &data.join("Scripts"))? {
+            for line in crate::declare::generate_for(&data, &data.join("Scripts"), crate::exe_generation(&env.game_dir)?)? {
                 eprintln!("  scripts: {line}");
             }
         }
@@ -222,10 +273,14 @@ impl Profile {
             DataMode::Vanilla => "vanilla",
             DataMode::Install => "install",
         };
-        fs::write(root.join("profile.json"), json!({"host": host.name(), "data": data_name}).to_string())
-            .map_err(|e| e.to_string())?;
-        eprintln!("profile {name} ({}, {data_name} data) at {}", host.name(), root.display());
-        Ok(Profile { name: name.to_owned(), root, host, data: data_mode })
+        let install = env.game_dir.display().to_string();
+        fs::write(
+            root.join("profile.json"),
+            json!({"host": host.name(), "data": data_name, "install": install, "store": env.store}).to_string(),
+        )
+        .map_err(|e| e.to_string())?;
+        eprintln!("profile {name} ({}, {data_name} data, {} install {install}) at {}", host.name(), env.store, root.display());
+        Ok(Profile { name: name.to_owned(), root, host, data: data_mode, install: Some(env.game_dir.clone()) })
     }
 
     /// Make `dlls` the only f4x-managed plugins in `Data/F4SE/Plugins`: remove every
@@ -328,30 +383,49 @@ fn copy_if_changed(from: &Path, to: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Download (sha-pinned) and extract F4SE's runtime files, never its bundled source.
-pub fn cache_f4se() -> Result<PathBuf, String> {
+/// Fetch (sha-pinned) and extract F4SE's runtime files and compiled scripts, never its
+/// bundled source (`src/`, `Data/Scripts/Source`).
+pub fn cache_f4se(dist: &F4seDist) -> Result<PathBuf, String> {
     let cache = data_home().join("cache");
-    let out = cache.join("f4se-0.6.23");
-    let extracted = out.join("f4se_0_06_23");
-    if extracted.join("f4se_1_10_163.dll").is_file() {
+    let out = cache.join(format!("f4se-{}", dist.version));
+    let extracted = out.join(dist.dir);
+    if dist.files.iter().all(|f| extracted.join(f).is_file()) {
         return Ok(extracted);
     }
     fs::create_dir_all(&cache).map_err(|e| e.to_string())?;
-    let archive = cache.join(F4SE_ARCHIVE);
+    let archive = cache.join(dist.archive);
     if !archive.is_file() {
-        run(std::process::Command::new("curl").args(["-fsSL", "--retry", "2", "-o"]).arg(&archive).arg(F4SE_URL))?;
+        match dist.url {
+            Some(url) => run(std::process::Command::new("curl").args(["-fsSL", "--retry", "2", "-o"]).arg(&archive).arg(url))?,
+            None => {
+                // Not downloadable without a login: copy the user's archive into the cache.
+                let from = crate::env::setting("F4X_F4SE_NG_ARCHIVE").map(PathBuf::from).ok_or_else(|| {
+                    format!(
+                        "F4SE {} is only on Nexus (mod 42147): download its .7z and set F4X_F4SE_NG_ARCHIVE=<path> (env or ~/.config/f4x/env)",
+                        dist.version
+                    )
+                })?;
+                fs::copy(&from, &archive).map_err(|e| format!("copying {}: {e}", from.display()))?;
+            }
+        }
     }
     let sum = std::process::Command::new("sha256sum").arg(&archive).output().map_err(|e| e.to_string())?;
-    if !String::from_utf8_lossy(&sum.stdout).starts_with(F4SE_SHA256) {
-        return Err(format!("{} does not match the pinned SHA-256", archive.display()));
+    if !String::from_utf8_lossy(&sum.stdout).starts_with(dist.sha256) {
+        return Err(format!("{} does not match the pinned SHA-256 of F4SE {}", archive.display(), dist.version));
     }
     let mut command = std::process::Command::new("7z");
-    command.args(["x", "-y", "-bso0", "-bsp0"]).arg(&archive).arg(format!("-o{}", out.display()));
-    for file in F4SE_FILES {
-        command.arg(format!("f4se_0_06_23/{file}"));
+    // -r-: the script wildcard must not reach Data/Scripts/Source.
+    command.args(["x", "-y", "-r-", "-bso0", "-bsp0"]).arg(&archive).arg(format!("-o{}", out.display()));
+    for file in dist.files {
+        command.arg(format!("{}/{file}", dist.dir));
     }
-    command.arg("f4se_0_06_23/Data/Scripts/*.pex");
+    command.arg(format!("{}/Data/Scripts/*.pex", dist.dir));
     run(&mut command)?;
+    if extracted.join("src").exists() || extracted.join("Data/Scripts/Source").exists() {
+        let _ = fs::remove_dir_all(extracted.join("src"));
+        let _ = fs::remove_dir_all(extracted.join("Data/Scripts/Source"));
+        return Err("F4SE source was extracted by mistake and has been removed; check the 7z filters".into());
+    }
     Ok(extracted)
 }
 
@@ -369,7 +443,7 @@ mod tests {
     #[test]
     fn set_plugins_replaces_only_its_own_links() {
         let root = crate::test_dir("profile");
-        let profile = Profile { name: "t".into(), root: root.clone(), host: Host::F4se, data: DataMode::Vanilla };
+        let profile = Profile { name: "t".into(), root: root.clone(), host: Host::F4se, data: DataMode::Vanilla, install: None };
         let plugins = profile.plugins_dir();
         fs::create_dir_all(&plugins).unwrap();
         let build = root.join("build");

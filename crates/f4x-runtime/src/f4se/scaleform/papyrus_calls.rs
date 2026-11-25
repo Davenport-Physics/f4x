@@ -163,7 +163,12 @@ static CACHED_ERROR_VTBL: CachedErrorVtbl = CachedErrorVtbl { dtor: cached_error
 /// The VM's error log (`PostCachedErrorToLogger(message, stackID, kError)`, vtable slot
 /// 0x3C), as the game reports a failed global call: the message, then an empty stack.
 fn post_error(vm: Vm, text: &str) {
-    const POST_CACHED_ERROR_WITH_STACK: usize = 0x3C;
+    // The (message, stackID, severity) overload is the first slot of the pair (0x3C); same on
+    // 1.11.240, as are `ErrorLogger::Severity::kError` = 2 and the 2-slot
+    // `ICachedErrorMessage` vtable (next-gen CommonLibF4 40a93f69 `BSScript_IVirtualMachine.h`,
+    // `BSScript_ErrorLogger.h`, `BSScript_ICachedErrorMessage.h`; f4x-vtcmp).
+    const POST_CACHED_ERROR_WITH_STACK: usize = f4x_engine::layout::RE::BSScript::IVirtualMachine::vtbl::PostCachedErrorToLogger;
+    const _: () = assert!(POST_CACHED_ERROR_WITH_STACK == 0x3C); // pinned: checked in both exes
     const SEVERITY_ERROR: u32 = 2;
     let message = CachedError { vtbl: &CACHED_ERROR_VTBL, text: text.to_owned() };
     // SAFETY: IVirtualMachine::PostCachedErrorToLogger(const ICachedErrorMessage&, u32 stackID,

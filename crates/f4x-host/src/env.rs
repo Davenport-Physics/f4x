@@ -19,6 +19,28 @@ pub struct GameEnv {
     /// umu's game id; picks protonfixes for Fallout 4.
     pub umu_game_id: String,
     pub store: String,
+    /// The native Steam client, for Steam builds of the game (their DRM and
+    /// `steam_api64.dll` talk to a running, logged-in Steam). `None` for GOG builds.
+    #[serde(default)]
+    pub steam_client: Option<PathBuf>,
+}
+
+/// Fallout 4's Steam app id.
+pub const STEAM_APP_ID: &str = "377160";
+
+/// Which store an install comes from: `gog` when GOG's `goggame-*.info` is present (GOG
+/// builds ship a `steam_api64.dll` shim too), `steam` when `steam_api64.dll` is, else `none`.
+pub fn detect_store(game_dir: &Path) -> &'static str {
+    let names: Vec<String> = std::fs::read_dir(game_dir)
+        .map(|dir| dir.flatten().map(|e| e.file_name().to_string_lossy().to_ascii_lowercase()).collect())
+        .unwrap_or_default();
+    if names.iter().any(|n| n.starts_with("goggame-") && n.ends_with(".info")) {
+        "gog"
+    } else if names.iter().any(|n| n == "steam_api64.dll") {
+        "steam"
+    } else {
+        "none"
+    }
 }
 
 /// `~/.config/f4x/env`: `KEY=value` lines (`#` comments), per machine.
@@ -66,12 +88,25 @@ impl GameEnv {
             umu: var_path("F4X_UMU", "~/.config/heroic/tools/runtimes/umu/umu_run.py"),
             umu_game_id: setting("F4X_UMU_GAMEID").unwrap_or_else(|| "umu-377160".into()),
             store: setting("F4X_STORE").unwrap_or_else(|| "gog".into()),
+            steam_client: None,
         }
+        .with_install(var_path("F4X_GAME_DIR", "~/Games/Heroic/Fallout 4 GOTY"))
     }
 
     /// The same environment with another Proton prefix (a profile's own).
     pub fn with_prefix(&self, prefix: PathBuf) -> Self {
         GameEnv { prefix, ..self.clone() }
+    }
+
+    /// The same environment for another game install (e.g. a profile's own source
+    /// install): the store is detected from the install unless `F4X_STORE` is set, and
+    /// a Steam install gets the Steam client (`F4X_STEAM_CLIENT`, default
+    /// `~/.local/share/Steam`).
+    pub fn with_install(&self, game_dir: PathBuf) -> Self {
+        let detected = detect_store(&game_dir);
+        let store = setting("F4X_STORE").unwrap_or_else(|| if detected == "none" { "gog".into() } else { detected.into() });
+        let steam_client = (store == "steam").then(|| var_path("F4X_STEAM_CLIENT", "~/.local/share/Steam"));
+        GameEnv { game_dir, store, steam_client, ..self.clone() }
     }
 
     pub fn check(&self) -> Result<(), String> {

@@ -44,6 +44,25 @@ pub unsafe fn load(name_nul: &'static str, service: *const Service, user_load: L
     .unwrap_or(false)
 }
 
+/// What a next-gen test plugin declares to F4SE 0.7.x: addresses by f4x's signature
+/// recipes, structures as laid out on 1.11.137+ (f4x's 1.11.240 tables), and 1.11.240
+/// listed (F4SE 0.7.9 accepts either on 1.11.240; black-box, `provenance/ng-plugin-abi.jsonl`).
+#[cfg(feature = "ng")]
+#[must_use]
+pub const fn version_data(name: &str) -> f4x_abi::f4se::PluginVersionData {
+    use f4x_abi::f4se::{PluginVersionData, address_independence, structure_independence};
+    use f4x_abi::version::{PackedVersion, runtime};
+    PluginVersionData::declare(
+        name,
+        "f4x",
+        PackedVersion::new(0, 0, 1, 0),
+        address_independence::SIGNATURES,
+        structure_independence::LAYOUT_1_11_137,
+        &[runtime::V1_11_240],
+        PackedVersion(0),
+    )
+}
+
 /// # Safety
 /// Called by F4SE with valid pointers.
 pub unsafe fn f4se_query(name_nul: &'static str, _f4se: *const F4seInterface, info: *mut PluginInfo) -> bool {

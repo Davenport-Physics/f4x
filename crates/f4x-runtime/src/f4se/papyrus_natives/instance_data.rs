@@ -32,7 +32,7 @@ use f4x_engine::layout::RE::TESObjectWEAP::RangedData as RD;
 use f4x_engine::mem;
 use f4x_engine::papyrus::NativeCall;
 use f4x_engine::papyrus_value::PValue;
-use f4x_engine_sys::og_1_10_163_addresses as addr;
+use f4x_engine_sys::addresses as addr;
 
 use super::Entry;
 
@@ -451,7 +451,7 @@ fn set_keywords(c: &mut NativeCall) -> Result<(), String> {
 // ---------------------------------------------------------------- damage types
 
 /// `BSTArray<BSTTuple<TESForm*, BGSTypedFormValuePair::SharedVal>>`: 0x10-byte elements
-/// (form pointer, then a u32/float).
+/// (form pointer, then a u32/float). Same on NG (clf4-ng `BGSTypedFormValuePair.h`:12).
 const PAIR_SIZE: usize = 0x10;
 
 fn damage_types_array(data: Data) -> Option<*mut u8> {
@@ -598,7 +598,7 @@ fn get_loose_mod(c: &mut NativeCall) -> Result<(), String> {
 }
 
 /// `BGSMod::Property::Mod` (0x10 bytes): data @0, then a u32 of bitfields
-/// `target:11 op:2 type:3` (CommonLibF4 `BGSMod.h`).
+/// `target:11 op:2 type:3` (CommonLibF4 `BGSMod.h`; same on NG, clf4-ng `BGSMod.h`:107-112).
 struct PropertyMod {
     data: [u8; 8],
     target: u32,
@@ -629,12 +629,18 @@ fn attachment_indices(m: *mut u8) -> Vec<u8> {
 }
 
 /// `Mod::GetData(this, Data&) const` (CommonLibF4 community `BGSMod.h`): a filled
-/// `Mod::Data` (attachments @0x00, propertyMods @0x08, counts u32 @0x10 and @0x14).
+/// `Mod::Data` (attachments @0x00, propertyMods @0x08, counts u32 @0x10 and @0x14; same on
+/// NG, clf4-ng `BGSMod.h`:121-130 and `Instance` :225-234).
+/// NG 1.11.240 inlines `Mod::GetData` everywhere; its `omod_get_data` recipe is the
+/// `Container::GetData(const Container*, Container::Data*)` that it wraps (our
+/// disassembly: 0x2525a0, called with the Mod's container at +0x88), which fills the
+/// fields read here. So on next-gen the call takes the Mod's container.
 fn mod_data(m: *mut u8) -> Option<[u8; OM::Data::SIZE]> {
     let get_data = resolve(&addr::OMOD_GET_DATA)?;
     let mut data = [0u8; OM::Data::SIZE];
+    let this = m.wrapping_add(f4x_engine::pick!(0, OM::bases::Container));
     // SAFETY: the engine function fills the caller's Data.
-    unsafe { std::mem::transmute::<usize, unsafe extern "C" fn(*mut u8, *mut u8)>(get_data)(m, data.as_mut_ptr()) };
+    unsafe { std::mem::transmute::<usize, unsafe extern "C" fn(*mut u8, *mut u8)>(get_data)(this, data.as_mut_ptr()) };
     Some(data)
 }
 

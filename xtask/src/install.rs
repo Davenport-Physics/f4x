@@ -11,6 +11,17 @@
 //!   up), so anything that still launches F4SE's loader runs f4x: a launcher's cached
 //!   settings, a mod manager's "F4SE" tool, shortcuts.
 //!
+//! - both runtimes go in: `f4x_runtime.dll` (1.10.163) and `f4x_runtime_ng.dll` (next-gen,
+//!   built with `--features ng` into `target/ng`), when built. The loader picks the one
+//!   matching the game exe, so the install keeps working across a game update;
+//! - for a Steam install (`--game-dir`, store detected from the folder), Steam's Play
+//!   button starts `Fallout4Launcher.exe`: it is replaced by the loader (backed up), and
+//!   Heroic is left alone.
+//!
+//! Each install has its own manifest: the default install (`F4X_GAME_DIR`) keeps
+//! `~/.local/share/f4x/install/manifest.json`; others (`--game-dir DIR`) get
+//! `install/<folder name>/manifest.json`.
+//!
 //! F4SE's runtime DLLs stay in place, unused. Plugins in `Data/F4SE/Plugins` are loaded by
 //! f4x. Uninstall removes our files
 //! (only if unchanged), restores backups, and puts the previous `targetExe` back (only if
@@ -21,9 +32,15 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 
-/// (installed name, built file).
-const FILES: [(&str, &str); 3] =
-    [("f4x_loader.exe", "f4x_loader.exe"), ("f4x_runtime.dll", "f4x_runtime.dll"), ("f4se_loader.exe", "f4x_loader.exe")];
+/// (installed name, built file, generation of the build, required).
+const FILES: [(&str, &str, f4x_host::Generation, bool); 4] = [
+    ("f4x_loader.exe", "f4x_loader.exe", f4x_host::Generation::Og, true),
+    ("f4x_runtime.dll", "f4x_runtime.dll", f4x_host::Generation::Og, true),
+    ("f4x_runtime_ng.dll", "f4x_runtime.dll", f4x_host::Generation::Ng, false),
+    ("f4se_loader.exe", "f4x_loader.exe", f4x_host::Generation::Og, true),
+];
+/// Steam starts this on Play; a Steam install replaces it with the loader.
+const STEAM_LAUNCHER: &str = "Fallout4Launcher.exe";
 /// Heroic's id for GOG's Fallout 4 GOTY (override with `F4X_HEROIC_APP`).
 const HEROIC_APP: &str = "1998527297";
 
@@ -31,8 +48,24 @@ fn heroic_app() -> String {
     f4x_host::env::setting("F4X_HEROIC_APP").unwrap_or_else(|| HEROIC_APP.to_owned())
 }
 
-fn install_dir() -> PathBuf {
+fn install_root() -> PathBuf {
     PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".local/share/f4x/install")
+}
+
+/// The game folder (`--game-dir DIR`, else `F4X_GAME_DIR`) and its install record
+/// directory (manifest + backups).
+fn target(args: &[String]) -> (PathBuf, PathBuf) {
+    let default = f4x_host::env::GameEnv::from_env().game_dir;
+    let game = args.iter().position(|a| a == "--game-dir").and_then(|i| args.get(i + 1)).map(PathBuf::from).unwrap_or(default.clone());
+    if game == default {
+        return (game, install_root());
+    }
+    let name: String = game
+        .file_name()
+        .map(|n| n.to_string_lossy().chars().map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' }).collect())
+        .unwrap_or_else(|| "game".into());
+    let store = f4x_host::env::detect_store(&game);
+    (game, install_root().join(format!("{store}-{name}")))
 }
 
 fn heroic_config(app: &str) -> PathBuf {
@@ -87,8 +120,9 @@ fn replace_json_string(text: &str, key: &str, new: &str) -> Result<(String, Stri
 }
 
 pub fn install(args: &[String]) -> Result<(), String> {
-    let env = f4x_host::env::GameEnv::from_env();
-    let game = env.game_dir.clone();
+    let (game, install_dir) = target(args);
+    let install_dir = || install_dir.clone();
+    let store = f4x_host::env::detect_store(&game);
     if !game.join("Fallout4.exe").is_file() {
         return Err(format!("no Fallout4.exe in {}", game.display()));
     }
@@ -100,14 +134,28 @@ pub fn install(args: &[String]) -> Result<(), String> {
         return Err(format!("already installed ({}); use --reinstall to update the files", manifest_path.display()));
     }
     let previous: Option<Value> = fs::read_to_string(&manifest_path).ok().and_then(|t| serde_json::from_str(&t).ok());
-    let build = crate::workspace_root().join("target/x86_64-pc-windows-msvc/release");
     fs::create_dir_all(install_dir().join("backup")).map_err(|e| e.to_string())?;
+    let game_generation = f4x_host::exe_generation(&game)?;
 
+    let mut wanted: Vec<(&str, &str, f4x_host::Generation, bool)> = FILES.to_vec();
+    if store == "steam" {
+        wanted.push((STEAM_LAUNCHER, "f4x_loader.exe", f4x_host::Generation::Og, true));
+    }
     let mut files = Vec::new();
-    for (name, built) in FILES {
-        let source = build.join(built);
+    for (name, built, generation, required) in wanted {
+        let source = f4x_host::windows_out_for(&crate::workspace_root(), generation).join(built);
+        // The runtime for this game's generation is required; the other one is optional.
+        let required = required || generation == game_generation;
         if !source.is_file() {
-            return Err(format!("{} is missing; build with `cargo xwin build --release --target x86_64-pc-windows-msvc -p f4x-loader -p f4x-runtime`", source.display()));
+            if !required {
+                println!("skipped {name}: {} is not built", source.display());
+                continue;
+            }
+            let how = match generation {
+                f4x_host::Generation::Og => "cargo xwin build --release --target x86_64-pc-windows-msvc -p f4x-loader -p f4x-runtime",
+                f4x_host::Generation::Ng => "cargo xwin build --release --target x86_64-pc-windows-msvc --target-dir target/ng -p f4x-runtime --features f4x-runtime/ng",
+            };
+            return Err(format!("{} is missing; build with `{how}`", source.display()));
         }
         let target = game.join(name);
         // Back up a foreign file once (not one we installed before).
@@ -132,7 +180,10 @@ pub fn install(args: &[String]) -> Result<(), String> {
     let app = heroic_app();
     let config = heroic_config(&app);
     let loader = game.join("f4x_loader.exe").display().to_string();
-    let heroic = if config.is_file() {
+    let heroic = if store == "steam" {
+        println!("Steam install: Play starts {STEAM_LAUNCHER}, which is now the f4x loader (the original is backed up)");
+        Value::Null
+    } else if config.is_file() {
         let text = fs::read_to_string(&config).map_err(|e| format!("{}: {e}", config.display()))?;
         let (edited, old_target) = replace_json_string(&text, "targetExe", &loader)?;
         let original_target = previous
@@ -153,6 +204,7 @@ pub fn install(args: &[String]) -> Result<(), String> {
 
     let manifest = json!({
         "game_dir": game.display().to_string(),
+        "store": store,
         "files": files,
         "heroic": heroic,
         "installed_at_unix": std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs()),
@@ -164,7 +216,9 @@ pub fn install(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-pub fn uninstall(_args: &[String]) -> Result<(), String> {
+pub fn uninstall(args: &[String]) -> Result<(), String> {
+    let (_, install_dir) = target(args);
+    let install_dir = || install_dir.clone();
     let manifest_path = install_dir().join("manifest.json");
     let manifest: Value = serde_json::from_str(&fs::read_to_string(&manifest_path).map_err(|_| "f4x is not installed (no manifest)")?)
         .map_err(|e| e.to_string())?;

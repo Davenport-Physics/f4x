@@ -13,6 +13,8 @@ mock = []
 f4x-proto = { path = "../f4x-proto" }
 f4x-pex = { path = "../f4x-pex" }
 f4x-ba2 = { path = "../f4x-ba2" }
+f4x-engine-sys = { path = "../f4x-engine-sys" }
+f4x-pe = { path = "../f4x-pe" }
 libc = "0.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

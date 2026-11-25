@@ -46,9 +46,33 @@ pub fn workspace_root() -> PathBuf {
     manifest.parent().and_then(Path::parent).expect("f4x-host lives at crates/f4x-host").to_path_buf()
 }
 
-/// Where `cargo win` puts the Windows binaries.
+pub use f4x_engine_sys::Generation;
+
+/// Where `cargo win` puts the Windows binaries (the 1.10.163 build).
 pub fn windows_out(root: &Path) -> PathBuf {
     root.join("target/x86_64-pc-windows-msvc/release")
+}
+
+/// The Windows binaries for a game generation: next-gen builds (cargo feature `ng`) go
+/// to their own target dir, `target/ng`.
+pub fn windows_out_for(root: &Path, generation: Generation) -> PathBuf {
+    match generation {
+        Generation::Og => windows_out(root),
+        Generation::Ng => root.join("target/ng/x86_64-pc-windows-msvc/release"),
+    }
+}
+
+/// Which generation the `Fallout4.exe` in `game_dir` is: a known build by PE timestamp,
+/// else by its C runtime (1.10.163 and older link MSVCR110, next-gen the UCRT).
+pub fn exe_generation(game_dir: &Path) -> Result<Generation, String> {
+    let path = game_dir.join("Fallout4.exe");
+    let bytes = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let pe = f4x_pe::PeFile::parse(&bytes).map_err(|e| format!("{}: {}", path.display(), e.0))?;
+    if let Some(build) = f4x_engine_sys::BUILDS.iter().find(|b| b.timestamp == pe.timestamp()) {
+        return Ok(build.generation);
+    }
+    let ucrt = pe.imports().iter().any(|i| i.dll.eq_ignore_ascii_case("api-ms-win-crt-runtime-l1-1-0.dll"));
+    Ok(if ucrt { Generation::Ng } else { Generation::Og })
 }
 
 /// A fresh, empty scratch directory for a unit test.

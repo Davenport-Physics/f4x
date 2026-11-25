@@ -6,7 +6,9 @@
 //! float brightness)`), reached from `SetToHUDColor`, `CreateAndSetFiltersToHUD`, both
 //! `CreateAndSetFiltersToColor` overloads and the `ApplyColorUpdateEvent` sink (5 call
 //! sites, no pointers to it). It stores the color and brightness and sets the element's
-//! color transform to color x brightness. The element is the GFx value at +8.
+//! color transform to color x brightness. The element is the GFx value at +8 (also on NG
+//! 1.11.240: generated NG tables, `BSGFxDisplayObject` has its `BSGFxObject` base, whose
+//! first base is the `GFx::Value`, at +8).
 //!
 //! Black-box (F4SE 0.6.23 patches that function's entry; sessions 1795439564 and
 //! 1795440107, probe wrapping its call sites and tracing GFx calls):
@@ -25,7 +27,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
 use f4x_engine::scaleform::{Value, kind};
-use f4x_engine_sys::og_1_10_163_addresses::SHADER_FX_TARGET_APPLY_COLOR;
+use f4x_engine_sys::addresses::SHADER_FX_TARGET_APPLY_COLOR;
 
 const CALLBACK: &str = "onApplyColorChange";
 

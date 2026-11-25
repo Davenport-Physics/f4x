@@ -10,6 +10,8 @@ name = "f4x_loader"
 path = "src/main.rs"
 
 [target.'cfg(windows)'.dependencies]
+f4x-engine-sys = { path = "../f4x-engine-sys" }
+f4x-pe = { path = "../f4x-pe" }
 windows-sys = { workspace = true, features = [
     "Win32_Foundation",
     "Win32_Security",

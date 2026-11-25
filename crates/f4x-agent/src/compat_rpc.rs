@@ -95,7 +95,8 @@ pub fn register() {
                 if let Some(state) = translation::loader_state(loader, translation::STATE_LOG) {
                     out["log_state"] = describe(state);
                     if f4x_engine::mem::readable(state as usize, 0x28) {
-                        // SAFETY: readable (checked); the LogState's Ptr<Log> at +0x20.
+                        // SAFETY: readable (checked); the LogState's Ptr<Log> at +0x20 (same on
+                        // NG: clf4-ng `Scaleform/G/GFx_LogState.h`:16).
                         out["log"] = describe(unsafe { f4x_engine::mem::read::<*mut u8>(state, 0x20) });
                     }
                 }
@@ -136,7 +137,8 @@ pub fn register() {
                 type LogMessageVarg = unsafe extern "C" fn(*mut u8, i32, *const std::ffi::c_char, *const u64);
                 // SAFETY: GFx::Log::LogMessageVarg(this, LogMessageId, fmt, va_list).
                 unsafe {
-                    let f: LogMessageVarg = std::mem::transmute(*vtable.add(1));
+                    let f: LogMessageVarg =
+                        std::mem::transmute(*vtable.add(f4x_engine::layout::RE::Scaleform::Log::vtbl::LogMessageVarg));
                     f(log, id, format.as_ptr(), args.as_ptr());
                 }
                 Ok(json!({"ok": true, "log_module": crate::crash::frame(vtable as u64).module}))
